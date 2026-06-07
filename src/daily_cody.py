@@ -542,7 +542,7 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
         return ["- Keine offenen Liefer- oder Bestellmails gefunden."]
     lines = []
     for item in items[:8]:
-        link = f" Tracking: {item['tracking_links'][0]}" if item.get("tracking_links") else ""
+        link = f" — [Sendung verfolgen]({item['tracking_links'][0]})" if item.get("tracking_links") else ""
         lines.append(f"- {item['subject']} — {item['snippet']}{link}")
     return lines
 
@@ -670,6 +670,11 @@ def markdown_to_basic_html(markdown_body: str) -> str:
 
 def render_inline_markdown(value: str) -> str:
     escaped = html.escape(value.strip())
+    escaped = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+        r'<a href="\2" style="color:#1a73e8;text-decoration:none">\1</a>',
+        escaped,
+    )
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     escaped = re.sub(r"\*(.+?)\*", r"<em>\1</em>", escaped)
     return escaped
