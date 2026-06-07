@@ -373,18 +373,31 @@ def send_email(config: Config, token: str, subject: str, markdown_body: str) -> 
 def markdown_to_basic_html(markdown_body: str) -> str:
     html_lines = []
     in_list = False
+    first_paragraph = True
+    section_icons = {
+        "Wetter": "☔",
+        "Today": "📅",
+        "Today's to-dos": "✅",
+        "Approaching": "🏃",
+        "Für Christian": "💬",
+        "For Christian": "💬",
+    }
     for line in markdown_body.splitlines():
         escaped = html.escape(line)
         if line.startswith("# "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h1>{html.escape(line[2:])}</h1>")
+            html_lines.append(f"<h1><span class=\"title-icon\">📰</span>{html.escape(line[2:])}</h1>")
+            html_lines.append("<hr class=\"rule\">")
         elif line.startswith("## "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h2>{html.escape(line[3:])}</h2>")
+            heading = html.escape(line[3:])
+            icon = section_icons.get(line[3:].strip(), "")
+            icon_html = f"<span class=\"section-icon\">{icon}</span>" if icon else ""
+            html_lines.append(f"<h2>{icon_html}{heading}</h2>")
         elif line.startswith("- "):
             if not in_list:
                 html_lines.append("<ul>")
@@ -394,15 +407,109 @@ def markdown_to_basic_html(markdown_body: str) -> str:
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<p>{escaped}</p>")
+            class_name = " class=\"lead\"" if first_paragraph else ""
+            html_lines.append(f"<p{class_name}>{escaped}</p>")
+            first_paragraph = False
     if in_list:
         html_lines.append("</ul>")
-    return (
-        "<html><body style=\"font-family:Arial,sans-serif;line-height:1.45;"
-        "max-width:760px;color:#222\">"
-        + "\n".join(html_lines)
-        + "</body></html>"
-    )
+    return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #2b2f33;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.42;
+    }}
+    .page {{
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 28px 32px 36px;
+      border-top: 2px solid #b9c0c8;
+      border-bottom: 2px solid #b9c0c8;
+    }}
+    h1 {{
+      margin: 0 0 12px;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #c7cdd4;
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 700;
+      color: #202124;
+    }}
+    .title-icon {{
+      display: inline-block;
+      width: 26px;
+      margin-right: 6px;
+      font-size: 17px;
+      vertical-align: 1px;
+    }}
+    .rule {{
+      display: none;
+    }}
+    .lead {{
+      margin: 18px 0 24px;
+      color: #5f6368;
+      font-size: 15px;
+      font-style: italic;
+    }}
+    h2 {{
+      margin: 24px 0 10px;
+      font-size: 17px;
+      line-height: 1.3;
+      font-weight: 700;
+      color: #303134;
+    }}
+    .section-icon {{
+      display: inline-block;
+      width: 26px;
+      margin-right: 4px;
+      font-size: 15px;
+      font-weight: 400;
+      vertical-align: 1px;
+    }}
+    p {{
+      margin: 0 0 14px 30px;
+      font-size: 15px;
+    }}
+    ul {{
+      margin: 0 0 18px 32px;
+      padding: 0;
+    }}
+    li {{
+      margin: 5px 0;
+      padding-left: 2px;
+      font-size: 15px;
+    }}
+    strong, b {{
+      font-weight: 700;
+    }}
+    @media (max-width: 640px) {{
+      .page {{
+        padding: 22px 20px 30px;
+      }}
+      h1 {{
+        font-size: 19px;
+      }}
+      p, li {{
+        font-size: 14px;
+      }}
+      ul, p {{
+        margin-left: 24px;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="page">
+    {"\n".join(html_lines)}
+  </div>
+</body>
+</html>"""
 
 
 def main() -> int:
