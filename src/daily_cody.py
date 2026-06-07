@@ -153,16 +153,13 @@ def get_weather(config: Config) -> dict[str, Any]:
     high = max(temps[:24]) if temps else None
     low = min(temps[:24]) if temps else None
     rain_text = format_percent(max_afternoon_rain)
+    temp_range = f"{format_temp(low)} bis {format_temp(high)}"
     umbrella_note = (
-        "Schirm einpacken, der Nachmittag kann nass werden."
+        "pack den Schirm ein, sonst lacht Hamburg zuletzt."
         if max_afternoon_rain is not None and max_afternoon_rain >= 45
-        else "Schirm wahrscheinlich optional."
+        else "Schirm kannst du wahrscheinlich zuhause lassen."
     )
-    summary = (
-        f"Wetter in {config.weather_label}: morgens {format_temp(current_temp)}, "
-        f"später etwa {format_temp(low)} bis {format_temp(high)}. "
-        f"Am Nachmittag liegt das Regenrisiko bei {rain_text}; {umbrella_note}"
-    )
+    summary = build_weather_summary(config.weather_label, current_temp, temp_range, rain_text, umbrella_note)
     return {
         "label": config.weather_label,
         "current_temp_c": current_temp,
@@ -172,6 +169,15 @@ def get_weather(config: Config) -> dict[str, Any]:
         "umbrella_note": umbrella_note,
         "summary": summary,
     }
+
+
+def build_weather_summary(
+    label: str, current_temp: Any, temp_range: str, rain_text: str, umbrella_note: str
+) -> str:
+    return (
+        f"Hamburg macht heute eher leise Töne: gerade {format_temp(current_temp)}, "
+        f"später {temp_range}. Am Nachmittag sind {rain_text} Regen drin — {umbrella_note}"
+    )
 
 
 def list_calendar_events(config: Config, token: str, now: dt.datetime) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -770,7 +776,8 @@ def build_briefing(
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
         "Du bist Cody, Christians persönlicher, lockerer Family Chief of Staff und arbeitest nur für ihn. "
-        "Der Ton darf warm, casual und freundschaftlich sein, solange du konkret bleibst. "
+        "Schreib wie ein guter Freund, der morgens kurz hilft: warm, locker, vertraut, ein bisschen trocken-humorig, aber nie kitschig. "
+        "Keine sterile Assistenten-Sprache, keine Wetter-App-Sprache, keine Management-Floskeln. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
         "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
@@ -786,8 +793,10 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
-        "Packe Wetter unter Today als freundlichen, natürlichen Tageshinweis, nicht als rohe Datenliste. "
-        "Nutze dafür bevorzugt weather.summary. Unter Deliveries: offene Bestellungen und Lieferungen "
+        "Packe Wetter unter Today als eine persönliche Cody-Zeile. "
+        "Nutze weather.summary möglichst wörtlich; nicht zu 'Wetter: kühl...' umschreiben. "
+        "Gute Wetterzeile klingt so: 'Hamburg macht heute eher leise Töne: 15 Grad, später knapp 17. Schirm mitnehmen, sonst lacht Hamburg zuletzt.' "
+        "Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden. "
         "Jeder Eintrag muss eine echte gesendete Gmail sein: nutze subject, to und sent_local. "
