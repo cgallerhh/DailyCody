@@ -30,6 +30,8 @@ Optional, but recommended for the Daily-Dover-style voice:
 
 `OPENAI_API_KEY` is optional. Without it, Cody sends a structured template briefing. With it, Cody writes the more human Daily-Dover-style version.
 
+By default Cody uses `gpt-5.5`. You can override it with the repository variable `OPENAI_MODEL`.
+
 ## Google Access
 
 Create an OAuth client in Google Cloud. A Desktop app client is the easiest option. Approve these scopes:

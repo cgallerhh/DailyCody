@@ -70,7 +70,7 @@ def load_config() -> Config:
         google_client_secret=getenv("GOOGLE_CLIENT_SECRET"),
         google_refresh_token=getenv("GOOGLE_REFRESH_TOKEN"),
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
-        openai_model=getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+        openai_model=getenv("OPENAI_MODEL", "gpt-5.5"),
         send_window_hour=int(getenv("SEND_WINDOW_HOUR", "7")),
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
@@ -449,6 +449,7 @@ def build_briefing(
 ) -> str:
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
+        "affirmation": daily_affirmation(now),
         "weather": weather,
         "today_events": today_events,
         "upcoming_events": upcoming_events,
@@ -476,6 +477,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
         "'Today', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
+        "Der kursive Satz direkt unter dem Titel muss ein motivierendes Zitat oder eine Affirmation sein. "
+        "Nutze, wenn passend, die im Kontext gelieferte affirmation. Keine Aufgaben, Termine oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
@@ -506,7 +509,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines = [
         f"# The Daily Cody — {context['date']}",
         "",
-        "Guten Morgen Christian. Hier ist der kompakte Lageplan für heute.",
+        context["affirmation"],
         "",
         "## Today",
         f"- {weather['label']}: aktuell {weather['current_temp_c']} °C, heute ca. {weather['low_c']} bis {weather['high_c']} °C.",
@@ -520,6 +523,22 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(["", "## Approaching"])
     lines.extend(format_items(context["upcoming_events"], "Keine nahen Termine gefunden."))
     return "\n".join(lines)
+
+
+def daily_affirmation(now: dt.datetime) -> str:
+    affirmations = [
+        "Heute reicht ein klarer nächster Schritt.",
+        "Ruhig bleiben, freundlich bleiben, dranbleiben.",
+        "Du musst nicht alles gleichzeitig lösen; nur das Nächste gut.",
+        "Kleine Fortschritte zählen, besonders an vollen Tagen.",
+        "Fokus ist freundlich: weniger anfangen, mehr abschließen.",
+        "Heute darf leicht beginnen und trotzdem wirksam werden.",
+        "Ein guter Tag entsteht aus wenigen guten Entscheidungen.",
+        "Du hast genug Zeit für das, was wirklich wichtig ist.",
+        "Erst Überblick, dann Tempo.",
+        "Klarheit vor Geschwindigkeit.",
+    ]
+    return affirmations[now.toordinal() % len(affirmations)]
 
 
 def format_items(items: list[dict[str, Any]], empty: str) -> list[str]:
