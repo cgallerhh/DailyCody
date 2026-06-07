@@ -147,10 +147,16 @@ def get_weather(config: Config) -> dict[str, Any]:
     current_temp = data.get("current", {}).get("temperature_2m")
     high = max(temps[:24]) if temps else None
     low = min(temps[:24]) if temps else None
-    umbrella = (
-        "Nimm lieber einen Schirm mit, es könnte heute Nachmittag regnen."
+    rain_text = format_percent(max_afternoon_rain)
+    umbrella_note = (
+        "Schirm einpacken, der Nachmittag kann nass werden."
         if max_afternoon_rain is not None and max_afternoon_rain >= 45
-        else "Ein Schirm ist heute wahrscheinlich optional."
+        else "Schirm wahrscheinlich optional."
+    )
+    summary = (
+        f"Wetter in {config.weather_label}: morgens {format_temp(current_temp)}, "
+        f"später etwa {format_temp(low)} bis {format_temp(high)}. "
+        f"Am Nachmittag liegt das Regenrisiko bei {rain_text}; {umbrella_note}"
     )
     return {
         "label": config.weather_label,
@@ -158,7 +164,8 @@ def get_weather(config: Config) -> dict[str, Any]:
         "high_c": high,
         "low_c": low,
         "afternoon_rain_probability_pct": max_afternoon_rain,
-        "umbrella_note": umbrella,
+        "umbrella_note": umbrella_note,
+        "summary": summary,
     }
 
 
@@ -276,13 +283,17 @@ def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[s
     notes = first_text(raw, ("notes", "note", "body", "description"))
     list_name = first_text(raw, ("list", "listName", "calendar", "calendarName"))
     today = now.date()
+    is_friday_planning = now.weekday() == 4
     if due:
         days_until = (due.date() - today).days
-        if days_until > 7:
+        max_days = 7 if is_friday_planning else 2
+        if days_until > max_days:
             return None
         due_label = due.strftime("%d.%m.")
         sort_key = f"0-{due.isoformat()}"
     else:
+        if not is_friday_planning:
+            return None
         due_label = ""
         sort_key = f"1-{title.lower()}"
     return {
@@ -653,6 +664,7 @@ def build_briefing(
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
         "affirmation": daily_affirmation(now),
+        "reminders_mode": "weekly_planning_full_list" if now.weekday() == 4 else "today_plus_two_days",
         "weather": weather,
         "today_events": today_events,
         "upcoming_events": upcoming_events,
@@ -683,12 +695,15 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
         "'Today', optional 'Reminders' nur wenn Daten vorhanden sind, 'Waiting for...', "
         "'Deliveries', 'Today's to-dos' und 'Approaching'. "
-        "Der kursive Satz direkt unter dem Titel muss ein motivierendes Zitat oder eine Affirmation sein. "
-        "Nutze, wenn passend, die im Kontext gelieferte affirmation. Keine Aufgaben, Termine oder Erinnerungen in diese Zeile schreiben. "
+        "Der kursive Satz direkt unter dem Titel muss exakt die im Kontext gelieferte affirmation sein. "
+        "Keine Aufgaben, Termine, Wetterdaten oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
-        "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum und Liste. "
-        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
+        "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
+        "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
+        "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
+        "Packe Wetter unter Today als freundlichen, natürlichen Tageshinweis, nicht als rohe Datenliste. "
+        "Nutze dafür bevorzugt weather.summary. Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Unter Waiting for...: gesendete Mails der letzten 7 Tage, auf deren Antwort Christian wahrscheinlich wartet. "
         "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
@@ -721,8 +736,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         context["affirmation"],
         "",
         "## Today",
-        f"- {weather['label']}: aktuell {weather['current_temp_c']} °C, heute ca. {weather['low_c']} bis {weather['high_c']} °C.",
-        f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
+        f"- {weather['summary']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
     if context["reminders"]:
@@ -751,6 +765,37 @@ def daily_affirmation(now: dt.datetime) -> str:
         "Du hast genug Zeit für das, was wirklich wichtig ist.",
         "Erst Überblick, dann Tempo.",
         "Klarheit vor Geschwindigkeit.",
+        "Ein ruhiger Anfang ist auch ein Anfang.",
+        "Was heute zählt, darf heute Platz bekommen.",
+        "Nicht perfekt, aber präsent.",
+        "Ein klarer Kopf beginnt mit einem kurzen Innehalten.",
+        "Heute darf einfach und trotzdem gut sein.",
+        "Das Wichtige wird leichter, wenn es klein genug wird.",
+        "Freundlichkeit ist auch eine Arbeitsmethode.",
+        "Ein guter Rhythmus schlägt blinden Druck.",
+        "Heute zählt Richtung mehr als Tempo.",
+        "Du darfst Dinge nacheinander lösen.",
+        "Weniger Lärm, mehr nächster Schritt.",
+        "Gute Entscheidungen mögen ruhige Minuten.",
+        "Ein übersichtlicher Tag beginnt mit einem übersichtlichen Gedanken.",
+        "Konzentriert ist nicht hektisch.",
+        "Heute ist genug, wenn du beim Wesentlichen bleibst.",
+        "Nimm den Tag nicht schwerer, als er ist.",
+        "Kleine Ordnung macht große Dinge leichter.",
+        "Ein Satz, ein Anruf, ein Schritt: so bewegt sich der Tag.",
+        "Du musst nicht alles tragen, nur das Nächste greifen.",
+        "Gelassenheit ist kein Stillstand.",
+        "Was klar ist, wird leichter.",
+        "Der Tag muss nicht laut sein, um gut zu werden.",
+        "Sorgfalt vor Eile.",
+        "Heute darfst du mit ruhiger Energie starten.",
+        "Das Wesentliche erkennt man oft im Weglassen.",
+        "Ein bisschen Struktur ist schon Rückenwind.",
+        "Mach es freundlich. Mach es konkret.",
+        "Auch ein voller Tag passt durch eine schmale Tür: eins nach dem anderen.",
+        "Du bist nicht hinterher; du sortierst.",
+        "Gute Tage entstehen aus klaren Kleinigkeiten.",
+        "Atmen, schauen, anfangen.",
     ]
     return affirmations[now.toordinal() % len(affirmations)]
 
@@ -822,6 +867,24 @@ def format_time(value: str) -> str:
         return parsed.strftime("%H:%M")
     except ValueError:
         return value
+
+
+def format_temp(value: Any) -> str:
+    if value is None:
+        return "keine Daten"
+    try:
+        return f"{float(value):.1f}".replace(".", ",") + " °C"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def format_percent(value: Any) -> str:
+    if value is None:
+        return "keine Daten"
+    try:
+        return f"{round(float(value))} %"
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def strip_long(value: str, max_len: int) -> str:
