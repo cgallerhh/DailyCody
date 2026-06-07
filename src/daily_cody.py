@@ -26,6 +26,11 @@ CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
 ROOT_DIR = Path(__file__).resolve().parent.parent
+SUPPRESSED_TOPICS = (
+    ("200w", "usb"),
+    ("200 w", "usb"),
+    ("200-w", "usb"),
+)
 
 
 @dataclass
@@ -428,6 +433,8 @@ def list_delivery_mail(token: str) -> list[dict[str, Any]]:
         subject = headers.get("subject", "(ohne Betreff)")
         text = extract_message_text(message.get("payload", {}))
         snippet = message.get("snippet", "")
+        if is_suppressed_topic(subject, snippet, text):
+            continue
         if not looks_like_delivery(subject, snippet, text):
             continue
         dedupe_key = normalize_delivery_key(subject, headers.get("from", ""))
@@ -484,8 +491,8 @@ def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str
     return output
 
 
-def list_waiting_for_mail(token: str, sender_email: str) -> list[dict[str, str]]:
-    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d", "maxResults": "40"})
+def list_waiting_for_mail(token: str, sender_email: str, timezone: str) -> list[dict[str, str]]:
+    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d", "maxResults": "50"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     output = []
     seen_threads = set()
@@ -500,17 +507,24 @@ def list_waiting_for_mail(token: str, sender_email: str) -> list[dict[str, str]]
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
         subject = headers.get("subject", "(ohne Betreff)")
         snippet = message.get("snippet", "")
+        if is_suppressed_topic(subject, snippet):
+            continue
         if not looks_waiting_for_reply(subject, snippet):
+            continue
+        if looks_like_commerce_status(subject, snippet):
             continue
         sent_at_ms = int(message.get("internalDate", "0"))
         if thread_has_later_external_reply(token, thread_id, sent_at_ms, sender_email):
             continue
         seen_threads.add(thread_id)
+        sent_at = dt.datetime.fromtimestamp(sent_at_ms / 1000, tz=ZoneInfo(timezone))
         output.append(
             {
                 "to": headers.get("to", ""),
                 "subject": subject,
                 "date": headers.get("date", ""),
+                "sent_local": sent_at.strftime("%d.%m. %H:%M"),
+                "message_id": item["id"],
                 "snippet": snippet,
             }
         )
@@ -614,6 +628,13 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
     return any(marker in haystack for marker in markers)
 
 
+def is_suppressed_topic(*values: str) -> bool:
+    haystack = " ".join(value or "" for value in values).lower()
+    normalized = re.sub(r"[\u2010-\u2015‑–—−-]+", "-", haystack)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return any(all(part in normalized for part in topic) for topic in SUPPRESSED_TOPICS)
+
+
 def normalize_delivery_key(subject: str, sender: str) -> str:
     cleaned = re.sub(r"\b(re|aw|fwd|wg):\s*", "", subject, flags=re.I)
     cleaned = re.sub(r"\d+", "#", cleaned.lower())
@@ -675,6 +696,25 @@ def looks_waiting_for_reply(subject: str, snippet: str) -> bool:
         "bitte gib",
         "bitte sag",
         "kurze info",
+    )
+    return any(marker in text for marker in markers)
+
+
+def looks_like_commerce_status(subject: str, snippet: str) -> bool:
+    text = f"{subject} {snippet}".lower()
+    markers = (
+        "amazon",
+        "rückgabe",
+        "rueckgabe",
+        "retoure",
+        "rücksendung",
+        "ruecksendung",
+        "erstattung",
+        "bestellung",
+        "lieferung",
+        "sendung",
+        "paket",
+        "rechnung",
     )
     return any(marker in text for marker in markers)
 
@@ -749,7 +789,11 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Packe Wetter unter Today als freundlichen, natürlichen Tageshinweis, nicht als rohe Datenliste. "
         "Nutze dafür bevorzugt weather.summary. Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
-        "Unter Waiting for...: gesendete Mails der letzten 7 Tage, auf deren Antwort Christian wahrscheinlich wartet. "
+        "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden. "
+        "Jeder Eintrag muss eine echte gesendete Gmail sein: nutze subject, to und sent_local. "
+        "Behaupte nie, Christian habe eine Antwort gesendet, wenn der Eintrag nicht in waiting_for steht. "
+        "Amazon, Lieferungen, Rückgaben und Bestellungen gehören nicht in Waiting for..., sondern höchstens in Deliveries. "
+        "Erledigte oder unterdrückte Themen nicht erwähnen; insbesondere kein 200W-USB-C-Thema. "
         "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
         "Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
@@ -875,7 +919,7 @@ def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return ["- Keine offenen gesendeten Fragen aus den letzten 7 Tagen gefunden."]
     return [
-        f"- Antwort offen: {item['subject']} — an {item['to']}; {item['snippet']}"
+        f"- {item['subject']} — an {item['to']}, gesendet {item.get('sent_local') or item.get('date', '')}; {item['snippet']}"
         for item in items[:8]
     ]
 
@@ -1072,7 +1116,7 @@ def main() -> int:
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
-    waiting_for_mail = list_waiting_for_mail(token, config.sender)
+    waiting_for_mail = list_waiting_for_mail(token, config.sender, config.timezone)
     briefing = build_briefing(
         config,
         now,
