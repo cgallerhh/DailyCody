@@ -243,26 +243,41 @@ def list_recent_mail(token: str) -> list[dict[str, str]]:
     return output
 
 
-def list_amazon_mail(token: str) -> list[dict[str, Any]]:
-    query_text = "amazon newer_than:45d"
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "12"})
+def list_delivery_mail(token: str) -> list[dict[str, Any]]:
+    query_text = (
+        "newer_than:60d "
+        "{amazon bestellung bestellt versandt versendet lieferung zustellung "
+        "sendung tracking paket dhl hermes dpd ups gls proraso comic}"
+    )
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "30"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     output = []
-    for item in messages[:12]:
+    seen = set()
+    for item in messages[:30]:
         message = request_json(f"{GMAIL_API}/messages/{item['id']}?format=full", token=token)
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        subject = headers.get("subject", "(ohne Betreff)")
         text = extract_message_text(message.get("payload", {}))
+        snippet = message.get("snippet", "")
+        if not looks_like_delivery(subject, snippet, text):
+            continue
+        dedupe_key = normalize_delivery_key(subject, headers.get("from", ""))
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
         links = extract_tracking_links(text)
         output.append(
             {
                 "from": headers.get("from", ""),
-                "subject": headers.get("subject", "(ohne Betreff)"),
+                "subject": subject,
                 "date": headers.get("date", ""),
-                "snippet": message.get("snippet", ""),
+                "snippet": snippet,
                 "tracking_links": links[:3],
                 "details": strip_long(text, 900),
             }
         )
+        if len(output) >= 10:
+            break
     return output
 
 
@@ -328,12 +343,60 @@ def extract_message_text(payload: dict[str, Any]) -> str:
 def extract_tracking_links(text: str) -> list[str]:
     links = re.findall(r"https?://[^\s<>\")]+", text)
     wanted = []
-    keywords = ("track", "tracking", "sendung", "liefer", "ship", "dhl", "hermes", "amazon")
+    keywords = (
+        "track",
+        "tracking",
+        "sendung",
+        "liefer",
+        "ship",
+        "dhl",
+        "hermes",
+        "amazon",
+        "dpd",
+        "ups",
+        "gls",
+        "post",
+    )
     for link in links:
         clean = link.rstrip(".,;:")
         if any(keyword in clean.lower() for keyword in keywords) and clean not in wanted:
             wanted.append(clean)
     return wanted
+
+
+def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
+    haystack = f"{subject} {snippet} {text[:1200]}".lower()
+    markers = (
+        "bestellung",
+        "bestellt",
+        "versandt",
+        "versendet",
+        "lieferung",
+        "zugestellt",
+        "zustellung",
+        "sendung",
+        "tracking",
+        "paket",
+        "kommt",
+        "unterwegs",
+        "dhl",
+        "hermes",
+        "dpd",
+        "ups",
+        "gls",
+        "amazon",
+        "proraso",
+        "comic",
+    )
+    return any(marker in haystack for marker in markers)
+
+
+def normalize_delivery_key(subject: str, sender: str) -> str:
+    cleaned = re.sub(r"\b(re|aw|fwd|wg):\s*", "", subject, flags=re.I)
+    cleaned = re.sub(r"\d+", "#", cleaned.lower())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    sender_domain = sender.split("@")[-1].lower() if "@" in sender else sender.lower()
+    return f"{sender_domain}:{cleaned[:80]}"
 
 
 def build_simple_reply(sender: str, subject: str) -> str:
@@ -381,7 +444,7 @@ def build_briefing(
     today_events: list[dict[str, Any]],
     upcoming_events: list[dict[str, Any]],
     recent_mail: list[dict[str, str]],
-    amazon_mail: list[dict[str, Any]],
+    delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
 ) -> str:
     context = {
@@ -390,7 +453,7 @@ def build_briefing(
         "today_events": today_events,
         "upcoming_events": upcoming_events,
         "recent_mail": recent_mail,
-        "amazon_orders": amazon_mail,
+        "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
     }
     if config.openai_api_key:
@@ -412,11 +475,12 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Amazon', 'Today's to-dos' und 'Approaching'. "
+        "'Today', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
-        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Amazon: was bestellt/versandt wurde, wann es kommt, "
-        "und Trackinglink, falls vorhanden. Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
+        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
+        "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
+        "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
         "Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
     )
@@ -449,8 +513,8 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
-    lines.extend(["", "## Amazon"])
-    lines.extend(format_amazon_items(context["amazon_orders"]))
+    lines.extend(["", "## Deliveries"])
+    lines.extend(format_delivery_items(context["deliveries"]))
     lines.extend(["", "## Today's to-dos"])
     lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
     lines.extend(["", "## Approaching"])
@@ -473,11 +537,11 @@ def format_mail_items(items: list[dict[str, str]]) -> list[str]:
     return [f"- Mail prüfen: {item['subject']} — {item['from']}" for item in items[:8]]
 
 
-def format_amazon_items(items: list[dict[str, Any]]) -> list[str]:
+def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
     if not items:
-        return ["- Keine aktuellen Amazon-Liefermails gefunden."]
+        return ["- Keine offenen Liefer- oder Bestellmails gefunden."]
     lines = []
-    for item in items[:6]:
+    for item in items[:8]:
         link = f" Tracking: {item['tracking_links'][0]}" if item.get("tracking_links") else ""
         lines.append(f"- {item['subject']} — {item['snippet']}{link}")
     return lines
@@ -530,7 +594,7 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     first_paragraph = True
     section_icons = {
         "Today": "📅",
-        "Amazon": "📦",
+        "Deliveries": "📦",
         "Today's to-dos": "✅",
         "Approaching": "🏃",
     }
@@ -628,7 +692,7 @@ def main() -> int:
     weather = get_weather(config)
     today_events, upcoming_events = list_calendar_events(config, token, now)
     recent_mail = list_recent_mail(token)
-    amazon_mail = list_amazon_mail(token)
+    delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
     briefing = build_briefing(
         config,
@@ -637,7 +701,7 @@ def main() -> int:
         today_events,
         upcoming_events,
         recent_mail,
-        amazon_mail,
+        delivery_mail,
         open_mail,
     )
 
