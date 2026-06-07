@@ -6,6 +6,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
+- Apple Reminders via iCloud CalDAV, when Apple credentials are configured
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
@@ -32,6 +33,13 @@ Optional, but recommended for the Daily-Dover-style voice:
 `OPENAI_API_KEY` is optional. Without it, Cody sends a structured template briefing. With it, Cody writes the more human Daily-Dover-style version.
 
 By default Cody uses `gpt-5.5`. You can override it with the repository variable `OPENAI_MODEL`.
+
+Optional Apple Reminders secrets:
+
+- `APPLE_ID`
+- `APPLE_APP_PASSWORD`
+
+Use an app-specific Apple Account password, not your normal Apple password.
 
 ## Google Access
 

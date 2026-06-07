@@ -14,6 +14,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -38,6 +39,8 @@ class Config:
     google_client_id: str
     google_client_secret: str
     google_refresh_token: str
+    apple_id: str | None
+    apple_app_password: str | None
     openai_api_key: str | None
     openai_model: str
     send_window_hour: int
@@ -69,6 +72,8 @@ def load_config() -> Config:
         google_client_id=getenv("GOOGLE_CLIENT_ID"),
         google_client_secret=getenv("GOOGLE_CLIENT_SECRET"),
         google_refresh_token=getenv("GOOGLE_REFRESH_TOKEN"),
+        apple_id=os.getenv("APPLE_ID") or None,
+        apple_app_password=os.getenv("APPLE_APP_PASSWORD") or None,
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_model=getenv("OPENAI_MODEL", "gpt-5.5"),
         send_window_hour=int(getenv("SEND_WINDOW_HOUR", "7")),
@@ -220,6 +225,215 @@ def normalize_event(event: dict[str, Any], calendar_name: str) -> dict[str, str]
         "location": event.get("location", ""),
         "description": strip_long(event.get("description", ""), 500),
     }
+
+
+def list_apple_reminders(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+    if not config.apple_id or not config.apple_app_password:
+        return []
+    try:
+        principal_url = discover_caldav_property(
+            "https://caldav.icloud.com/.well-known/caldav",
+            config,
+            "current-user-principal",
+        )
+        home_url = discover_caldav_property(principal_url, config, "calendar-home-set")
+        reminder_lists = discover_reminder_collections(home_url, config)
+        reminders: list[dict[str, str]] = []
+        for collection in reminder_lists:
+            reminders.extend(fetch_reminders_from_collection(collection, config))
+        return select_relevant_reminders(reminders, now, config.timezone)
+    except Exception as exc:
+        print(f"Apple Reminders unavailable: {exc}", file=sys.stderr)
+        return [
+            {
+                "list": "Apple Reminders",
+                "title": "Apple Reminders konnten nicht gelesen werden",
+                "due": "",
+                "notes": "Apple-ID/App-Passwort und iCloud-CalDAV-Zugriff prüfen.",
+            }
+        ]
+
+
+def caldav_request(
+    url: str,
+    config: Config,
+    *,
+    method: str,
+    body: str,
+    depth: str,
+) -> tuple[bytes, str]:
+    auth = base64.b64encode(f"{config.apple_id}:{config.apple_app_password}".encode("utf-8")).decode("ascii")
+    headers = {
+        "Authorization": f"Basic {auth}",
+        "Content-Type": "application/xml; charset=utf-8",
+        "Depth": depth,
+        "User-Agent": "DailyCody/1.0",
+    }
+    request = urllib.request.Request(url, data=body.encode("utf-8"), headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read(), response.geturl()
+    except urllib.error.HTTPError as exc:
+        if exc.code in {301, 302, 307, 308} and exc.headers.get("Location"):
+            redirected = urllib.parse.urljoin(url, exc.headers["Location"])
+            return caldav_request(redirected, config, method=method, body=body, depth=depth)
+        raise
+
+
+def discover_caldav_property(url: str, config: Config, property_name: str) -> str:
+    body = f"""<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:{property_name} />
+    <c:{property_name} />
+  </d:prop>
+</d:propfind>"""
+    payload, response_url = caldav_request(url, config, method="PROPFIND", body=body, depth="0")
+    root = ET.fromstring(payload)
+    href = root.find(f".//{{DAV:}}{property_name}/{{DAV:}}href")
+    if href is None:
+        href = root.find(f".//{{urn:ietf:params:xml:ns:caldav}}{property_name}/{{DAV:}}href")
+    if href is None or not href.text:
+        raise RuntimeError(f"CalDAV property not found: {property_name}")
+    return urllib.parse.urljoin(response_url, href.text)
+
+
+def discover_reminder_collections(home_url: str, config: Config) -> list[dict[str, str]]:
+    body = """<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:displayname />
+    <d:resourcetype />
+    <c:supported-calendar-component-set />
+  </d:prop>
+</d:propfind>"""
+    payload, response_url = caldav_request(home_url, config, method="PROPFIND", body=body, depth="1")
+    root = ET.fromstring(payload)
+    collections = []
+    for response in root.findall("{DAV:}response"):
+        href = response.findtext("{DAV:}href")
+        if not href:
+            continue
+        display_name = response.findtext(".//{DAV:}displayname") or "Reminders"
+        components = [
+            comp.attrib.get("name", "").upper()
+            for comp in response.findall(".//{urn:ietf:params:xml:ns:caldav}comp")
+        ]
+        resource = response.find(".//{DAV:}collection")
+        if resource is not None and (not components or "VTODO" in components):
+            collections.append({"url": urllib.parse.urljoin(response_url, href), "name": display_name})
+    return collections
+
+
+def fetch_reminders_from_collection(collection: dict[str, str], config: Config) -> list[dict[str, str]]:
+    body = """<?xml version="1.0" encoding="utf-8"?>
+<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:getetag />
+    <c:calendar-data />
+  </d:prop>
+  <c:filter>
+    <c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VTODO" />
+    </c:comp-filter>
+  </c:filter>
+</c:calendar-query>"""
+    payload, _ = caldav_request(collection["url"], config, method="REPORT", body=body, depth="1")
+    root = ET.fromstring(payload)
+    reminders = []
+    for calendar_data in root.findall(".//{urn:ietf:params:xml:ns:caldav}calendar-data"):
+        if not calendar_data.text:
+            continue
+        reminders.extend(parse_vtodos(calendar_data.text, collection["name"]))
+    return reminders
+
+
+def parse_vtodos(ics_text: str, list_name: str) -> list[dict[str, str]]:
+    lines = unfold_ical_lines(ics_text)
+    reminders = []
+    current: dict[str, str] | None = None
+    for raw_line in lines:
+        if raw_line == "BEGIN:VTODO":
+            current = {"list": list_name, "title": "(ohne Titel)", "due": "", "notes": "", "status": ""}
+            continue
+        if raw_line == "END:VTODO":
+            if current and current.get("status", "").upper() != "COMPLETED":
+                reminders.append(current)
+            current = None
+            continue
+        if current is None or ":" not in raw_line:
+            continue
+        key_part, value = raw_line.split(":", 1)
+        key = key_part.split(";", 1)[0].upper()
+        value = unescape_ical_value(value)
+        if key == "SUMMARY":
+            current["title"] = value
+        elif key == "DUE":
+            current["due"] = value
+        elif key == "DESCRIPTION":
+            current["notes"] = strip_long(value, 240)
+        elif key == "STATUS":
+            current["status"] = value
+    return reminders
+
+
+def unfold_ical_lines(ics_text: str) -> list[str]:
+    unfolded: list[str] = []
+    for line in ics_text.replace("\r\n", "\n").split("\n"):
+        if line.startswith((" ", "\t")) and unfolded:
+            unfolded[-1] += line[1:]
+        elif line:
+            unfolded.append(line)
+    return unfolded
+
+
+def unescape_ical_value(value: str) -> str:
+    return (
+        value.replace("\\n", " ")
+        .replace("\\N", " ")
+        .replace("\\,", ",")
+        .replace("\\;", ";")
+        .replace("\\\\", "\\")
+        .strip()
+    )
+
+
+def select_relevant_reminders(
+    reminders: list[dict[str, str]],
+    now: dt.datetime,
+    timezone: str,
+) -> list[dict[str, str]]:
+    zone = ZoneInfo(timezone)
+    upcoming_end = now.replace(hour=23, minute=59, second=59, microsecond=0) + dt.timedelta(days=7)
+
+    def sort_key(reminder: dict[str, str]) -> tuple[int, str, str]:
+        due = reminder.get("due", "")
+        return (0 if due else 1, due, reminder.get("title", "").lower())
+
+    selected = []
+    undated = []
+    for reminder in reminders:
+        due_raw = reminder.get("due", "")
+        if not due_raw:
+            undated.append(reminder)
+            continue
+        due = parse_ical_datetime(due_raw, zone)
+        if due <= upcoming_end:
+            selected.append(reminder)
+    selected.sort(key=sort_key)
+    undated.sort(key=sort_key)
+    return (selected + undated[:6])[:16]
+
+
+def parse_ical_datetime(value: str, zone: ZoneInfo) -> dt.datetime:
+    try:
+        if len(value) == 8:
+            return dt.datetime.strptime(value, "%Y%m%d").replace(tzinfo=zone)
+        if value.endswith("Z"):
+            return dt.datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc).astimezone(zone)
+        return dt.datetime.strptime(value[:15], "%Y%m%dT%H%M%S").replace(tzinfo=zone)
+    except ValueError:
+        return dt.datetime.max.replace(tzinfo=zone)
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
@@ -527,6 +741,7 @@ def build_briefing(
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
+    apple_reminders: list[dict[str, str]],
 ) -> str:
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
@@ -538,6 +753,7 @@ def build_briefing(
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_mail,
+        "apple_reminders": apple_reminders,
     }
     if config.openai_api_key:
         try:
@@ -558,13 +774,14 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Waiting for...', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
+        "'Today', 'Reminders', 'Waiting for...', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss ein motivierendes Zitat oder eine Affirmation sein. "
         "Nutze, wenn passend, die im Kontext gelieferte affirmation. Keine Aufgaben, Termine oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
+        "Unter Reminders: offene Apple Reminders, besonders fällige und überfällige, mit Liste und Datum. "
         "Unter Waiting for...: gesendete Mails der letzten 7 Tage, auf deren Antwort Christian wahrscheinlich wartet. "
         "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
@@ -600,6 +817,8 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
+    lines.extend(["", "## Reminders"])
+    lines.extend(format_reminder_items(context["apple_reminders"]))
     lines.extend(["", "## Waiting for..."])
     lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
@@ -652,6 +871,18 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
+    if not items:
+        return ["- Keine fälligen Apple Reminders gefunden."]
+    lines = []
+    for item in items[:10]:
+        due = format_ical_due(item.get("due", ""))
+        due_text = f" fällig {due}" if due else ""
+        notes = f" — {item['notes']}" if item.get("notes") else ""
+        lines.append(f"- {item['title']} ({item['list']}){due_text}{notes}")
+    return lines
+
+
 def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return ["- Keine offenen gesendeten Fragen aus den letzten 7 Tagen gefunden."]
@@ -684,6 +915,19 @@ def format_time(value: str) -> str:
         return value
 
 
+def format_ical_due(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        if len(value) == 8:
+            return dt.datetime.strptime(value, "%Y%m%d").strftime("%d.%m.")
+        if value.endswith("Z"):
+            return dt.datetime.strptime(value, "%Y%m%dT%H%M%SZ").strftime("%d.%m. %H:%M")
+        return dt.datetime.strptime(value[:15], "%Y%m%dT%H%M%S").strftime("%d.%m. %H:%M")
+    except ValueError:
+        return value
+
+
 def strip_long(value: str, max_len: int) -> str:
     clean = " ".join(value.split())
     return clean[: max_len - 1] + "…" if len(clean) > max_len else clean
@@ -708,6 +952,7 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     first_paragraph = True
     section_icons = {
         "Today": "📅",
+        "Reminders": "🔔",
         "Waiting for...": "⏳",
         "Deliveries": "📦",
         "Today's to-dos": "✅",
@@ -815,6 +1060,7 @@ def main() -> int:
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
     waiting_for_mail = list_waiting_for_mail(token, config.sender)
+    apple_reminders = list_apple_reminders(config, now)
     briefing = build_briefing(
         config,
         now,
@@ -825,6 +1071,7 @@ def main() -> int:
         delivery_mail,
         open_mail,
         waiting_for_mail,
+        apple_reminders,
     )
 
     if config.dry_run:
