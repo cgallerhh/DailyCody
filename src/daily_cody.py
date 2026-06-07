@@ -479,10 +479,10 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Reminders', 'Amazon', 'Today's to-dos', 'Approaching' und 'Für Christian'. "
+        "'Today', 'Google Tasks', 'Amazon', 'Today's to-dos' und 'Approaching'. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
-        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Reminders: fällige Google Tasks mit Liste und Datum. "
+        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Google Tasks: fällige Google Tasks mit Liste und Datum. "
         "Unter Amazon: was bestellt/versandt wurde, wann es kommt, "
         "und Trackinglink, falls vorhanden. Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
@@ -517,7 +517,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
-    lines.extend(["", "## Reminders"])
+    lines.extend(["", "## Google Tasks"])
     lines.extend(format_task_items(context["google_tasks"]))
     lines.extend(["", "## Amazon"])
     lines.extend(format_amazon_items(context["amazon_orders"]))
@@ -525,7 +525,6 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
     lines.extend(["", "## Approaching"])
     lines.extend(format_items(context["upcoming_events"], "Keine nahen Termine gefunden."))
-    lines.extend(["", "## Für Christian", "Einmal kurz scannen, dann kann der Tag losgehen."])
     return "\n".join(lines)
 
 
@@ -623,12 +622,10 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     first_paragraph = True
     section_icons = {
         "Today": "📅",
-        "Reminders": "🔔",
+        "Google Tasks": "🔔",
         "Amazon": "📦",
         "Today's to-dos": "✅",
         "Approaching": "🏃",
-        "Für Christian": "💬",
-        "For Christian": "💬",
     }
     for line in markdown_body.splitlines():
         stripped = line.strip()
