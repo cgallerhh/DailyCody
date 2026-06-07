@@ -304,7 +304,7 @@ def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[s
         max_days = 7 if is_friday_planning else 2
         if days_until > max_days:
             return None
-        due_label = due.strftime("%d.%m.")
+        due_label = format_short_reminder_date(due.date())
         sort_key = f"0-{due.isoformat()}"
     else:
         if not is_friday_planning:
@@ -370,7 +370,7 @@ def parse_reminder_due(value: Any, now: dt.datetime) -> dt.datetime | None:
 
 
 def parse_short_due_date(value: str, now: dt.datetime) -> dt.date | None:
-    match = re.fullmatch(r"(\d{2})\.(\d{2})\.", value.strip())
+    match = re.fullmatch(r"(?:[A-Za-zÄÖÜäöü]{2}\s+)?(\d{1,2})\.(\d{1,2})\.?", value.strip())
     if not match:
         return None
     day = int(match.group(1))
@@ -384,6 +384,11 @@ def parse_short_due_date(value: str, now: dt.datetime) -> dt.date | None:
     if month == 1 and now.month == 12:
         return dt.date(now.year + 1, month, day)
     return due
+
+
+def format_short_reminder_date(value: dt.date) -> str:
+    weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    return f"{weekdays[value.weekday()]} {value.day}.{value.month}"
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
