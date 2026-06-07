@@ -1,0 +1,42 @@
+name: Daily Cody
+
+on:
+  schedule:
+    # GitHub schedules use UTC. The script sends only during 07:00 Europe/Berlin,
+    # so this remains correct across CET/CEST even if the workflow is delayed.
+    - cron: "3 * * * *"
+  workflow_dispatch:
+    inputs:
+      force_send:
+        description: "Send immediately, outside the 07:00 Europe/Berlin window"
+        required: false
+        default: "false"
+
+jobs:
+  send-briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send Daily Cody
+        env:
+          SENDER_EMAIL: Christian.Galler@gmail.com
+          RECIPIENT_EMAIL: Christian.Galler@gmail.com
+          TIMEZONE: Europe/Berlin
+          SEND_WINDOW_HOUR: "7"
+          WEATHER_LABEL: "21077 Hamburg"
+          WEATHER_LATITUDE: "53.4439"
+          WEATHER_LONGITUDE: "9.9857"
+          CALENDAR_NAMES: "privat,Geburtstage,A&C,MixedCup2026"
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
+        run: python src/daily_cody.py
