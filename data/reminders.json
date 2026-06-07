@@ -1,1 +1,201 @@
-[]
+[
+    {
+        "id": "5C0EEDA4-4F5F-4AD0-8BA1-83D8F53F4B1E",
+        "name": "Vorbereitung n\u00e4chstes Gespr\u00e4ch x-tention",
+        "body": "Offene Fragen zu Anstellung, Zielbild der Rolle, Verantwortungsumfang, Gehaltsmodell und Zielvereinbarungen sammeln. Gespr\u00e4chsnotizen in Obsidian dokumentieren und Stakeholder-Mapping erg\u00e4nzen.",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-04T00:00:00",
+        "creation_date": "2026-06-02T20:36:19",
+        "modification_date": "2026-06-04T11:32:34",
+        "priority": 1,
+        "priority_label": "high",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
+        "name": "Mutti anrufen",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-07T00:00:00",
+        "creation_date": "2026-06-07T20:09:27",
+        "modification_date": "2026-06-07T20:10:05",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
+        ],
+        "alarms": []
+    },
+    {
+        "id": "98FC1B63-903C-4E38-9C1E-02E17EBADAFC",
+        "name": "J\u00f6rg Schreiber HC:Vision anrufen",
+        "body": "Neuen termin machen, ggf. nach D\u00fcsseldorf fahren und vor Ort kennenlernen\n\n",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-08T09:00:00",
+        "remind_me_date": "2026-06-08T09:00:00",
+        "creation_date": "2026-06-07T20:01:33",
+        "modification_date": "2026-06-07T20:02:14",
+        "priority": 5,
+        "priority_label": "medium",
+        "flagged": false,
+        "completed": false,
+        "alarms": [
+            {
+                "absolute_date": "2026-06-08T09:00:00",
+                "description": "Mon Jun 08, 2026 at 9:00 AM"
+            }
+        ]
+    },
+    {
+        "id": "FBE9F281-29DA-40A1-A35B-AA58FF5BDDB0",
+        "name": "R\u00fcckmeldung wegen Winterreifen da? Euromaster",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-12T00:00:00",
+        "creation_date": "2026-06-07T20:06:04",
+        "modification_date": "2026-06-07T20:06:24",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-13T18:00:00",
+        "remind_me_date": "2026-06-13T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-06-07T20:10:15",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week on sunday, saturday",
+                "frequency": "weekly",
+                "interval": 1,
+                "days_of_week": [
+                    "sunday",
+                    "saturday"
+                ]
+            }
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-06-13T18:00:00",
+                "description": "Sat Jun 13, 2026 at 6:00 PM"
+            }
+        ]
+    },
+    {
+        "id": "EB8814E7-3B11-4903-8663-A56024272574",
+        "name": "Ab 18.6 sind Mutti und Vati f\u00fcr ca 10 Tage in der Ferienwohnung gin Laasphe",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-18T00:00:00",
+        "creation_date": "2026-06-07T20:12:09",
+        "modification_date": "2026-06-07T20:12:28",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
+        "name": "Letzte Gehaltsabrechnung anfordern",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-26T00:00:00",
+        "creation_date": "2026-06-07T20:14:00",
+        "modification_date": "2026-06-07T20:15:28",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "adesso"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "425FC50A-C528-4ECF-AD5D-34A2F3E39CBF",
+        "name": "Check: Welche Arbeitsmaterialien muss ich abgeben?",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-29T00:00:00",
+        "creation_date": "2026-06-07T20:10:53",
+        "modification_date": "2026-06-07T20:15:41",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "adesso"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "E6B2F28A-D97C-4856-8C5D-7A14891DF9B4",
+        "name": "GitHub - AlexanderAbramovPav/scriba: Free, local, accurate and honest meeting transcription SKILL with speaker diarization for your AI agent or second brain \u2014 works with Claude Code, Codex, Cursor or as a plain CLI. 100% on-device (whisperX + pyannote), no cloud. \u00b7 GitHub",
+        "list_name": "_INBOX",
+        "creation_date": "2026-06-07T03:46:46",
+        "modification_date": "2026-06-07T03:46:46",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://github.com/AlexanderAbramovPav/scriba",
+        "alarms": []
+    },
+    {
+        "id": "6EDC2241-BA57-46FF-A410-7F29BA6E5705",
+        "name": "Schubeutel und Tennisschuhe: Wo k\u00f6nnen die sein?",
+        "list_name": "_INBOX",
+        "creation_date": "2026-06-07T20:06:56",
+        "modification_date": "2026-06-07T20:06:56",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "08A1284A-E6EA-4E2C-8B53-26CA8A5A2B13",
+        "name": "Vinted: Alte Anz\u00fcge verkaufen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-06-07T20:07:05",
+        "modification_date": "2026-06-07T20:07:05",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "AB567114-09EC-4F4E-A06E-8705D1371467",
+        "name": "Altkleider wegbringen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-06-07T20:07:24",
+        "modification_date": "2026-06-07T20:07:24",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    }
+]
