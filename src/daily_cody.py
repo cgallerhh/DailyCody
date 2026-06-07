@@ -30,6 +30,8 @@ SUPPRESSED_TOPICS = (
     ("200w", "usb"),
     ("200 w", "usb"),
     ("200-w", "usb"),
+    ("anmeldeprobleme",),
+    ("golighter",),
 )
 
 
@@ -268,17 +270,20 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
 
 def split_reminders_for_briefing(
     reminders: list[dict[str, str]], now: dt.datetime
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     today = now.date()
     today_todos = []
+    waiting = []
     later = []
     for reminder in reminders:
         due = parse_short_due_date(reminder.get("due", ""), now)
         if due and due <= today:
             today_todos.append(reminder)
+        elif looks_like_waiting_reminder(reminder):
+            waiting.append(reminder)
         else:
             later.append(reminder)
-    return today_todos, later
+    return today_todos, later, waiting
 
 
 def iter_reminder_records(data: Any) -> list[dict[str, Any]]:
@@ -497,8 +502,8 @@ def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str
     return output
 
 
-def list_waiting_for_mail(token: str, sender_email: str, timezone: str) -> list[dict[str, str]]:
-    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d", "maxResults": "50"})
+def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, timezone: str) -> list[dict[str, str]]:
+    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d -in:trash", "maxResults": "50"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     output = []
     seen_threads = set()
@@ -513,6 +518,9 @@ def list_waiting_for_mail(token: str, sender_email: str, timezone: str) -> list[
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
         subject = headers.get("subject", "(ohne Betreff)")
         snippet = message.get("snippet", "")
+        to_header = headers.get("to", "")
+        if is_own_daily_cody_mail(subject, to_header, recipient_email):
+            continue
         if is_suppressed_topic(subject, snippet):
             continue
         if not looks_waiting_for_reply(subject, snippet):
@@ -526,7 +534,8 @@ def list_waiting_for_mail(token: str, sender_email: str, timezone: str) -> list[
         sent_at = dt.datetime.fromtimestamp(sent_at_ms / 1000, tz=ZoneInfo(timezone))
         output.append(
             {
-                "to": headers.get("to", ""),
+                "source": "gmail_sent",
+                "to": to_header,
                 "subject": subject,
                 "date": headers.get("date", ""),
                 "sent_local": sent_at.strftime("%d.%m. %H:%M"),
@@ -706,6 +715,25 @@ def looks_waiting_for_reply(subject: str, snippet: str) -> bool:
     return any(marker in text for marker in markers)
 
 
+def looks_like_waiting_reminder(reminder: dict[str, str]) -> bool:
+    text = f"{reminder.get('title', '')} {reminder.get('notes', '')}".lower()
+    markers = (
+        "rückmeldung",
+        "rueckmeldung",
+        "antwort",
+        "feedback",
+        "nachfassen",
+        "nachfragen",
+        "da?",
+        "winterreifen",
+    )
+    return any(marker in text for marker in markers)
+
+
+def is_own_daily_cody_mail(subject: str, to_header: str, recipient_email: str) -> bool:
+    return "the daily cody" in subject.lower() and recipient_email.lower() in to_header.lower()
+
+
 def looks_like_commerce_status(subject: str, snippet: str) -> bool:
     text = f"{subject} {snippet}".lower()
     markers = (
@@ -744,7 +772,7 @@ def build_briefing(
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
 ) -> str:
-    today_reminders, upcoming_reminders = split_reminders_for_briefing(reminders, now)
+    today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
         "affirmation": daily_affirmation(now),
@@ -757,7 +785,7 @@ def build_briefing(
         "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
-        "waiting_for": waiting_for_mail,
+        "waiting_for": waiting_for_mail + format_waiting_reminders(waiting_reminders),
     }
     if config.openai_api_key:
         try:
@@ -799,8 +827,10 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden. "
-        "Jeder Eintrag muss eine echte gesendete Gmail sein: nutze subject, to und sent_local. "
-        "Behaupte nie, Christian habe eine Antwort gesendet, wenn der Eintrag nicht in waiting_for steht. "
+        "Wenn source=gmail_sent: echte gesendete Gmail, nutze subject, to und sent_local. "
+        "Wenn source=reminder: als Nachfass-Erinnerung formulieren, nicht als gesendete Mail. "
+        "Behaupte nie, Christian habe eine Antwort oder Mail gesendet, wenn source nicht gmail_sent ist. "
+        "Daily-Cody-Mails an Christian selbst niemals in Waiting for aufnehmen. "
         "Amazon, Lieferungen, Rückgaben und Bestellungen gehören nicht in Waiting for..., sondern höchstens in Deliveries. "
         "Erledigte oder unterdrückte Themen nicht erwähnen; insbesondere kein 200W-USB-C-Thema. "
         "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
@@ -926,11 +956,17 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
 
 def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
-        return ["- Keine offenen gesendeten Fragen aus den letzten 7 Tagen gefunden."]
-    return [
-        f"- {item['subject']} — an {item['to']}, gesendet {item.get('sent_local') or item.get('date', '')}; {item['snippet']}"
-        for item in items[:8]
-    ]
+        return ["- Keine offenen Nachfasspunkte gefunden."]
+    lines = []
+    for item in items[:8]:
+        if item.get("source") == "reminder":
+            due = f"{item['due']} — " if item.get("due") else ""
+            lines.append(f"- {due}{item['subject']} — nachfassen.")
+        else:
+            lines.append(
+                f"- {item['subject']} — an {item['to']}, gesendet {item.get('sent_local') or item.get('date', '')}; {item['snippet']}"
+            )
+    return lines
 
 
 def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
@@ -943,6 +979,20 @@ def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
         notes = f" — {item['notes']}" if item.get("notes") else ""
         lines.append(f"- {due}{item['title']}{list_name}{notes}")
     return lines
+
+
+def format_waiting_reminders(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    output = []
+    for item in items:
+        output.append(
+            {
+                "source": "reminder",
+                "subject": item.get("title", ""),
+                "due": item.get("due", ""),
+                "snippet": item.get("notes", ""),
+            }
+        )
+    return output
 
 
 def format_today_todo_reminders(items: list[dict[str, str]]) -> list[str]:
@@ -1125,7 +1175,7 @@ def main() -> int:
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
-    waiting_for_mail = list_waiting_for_mail(token, config.sender, config.timezone)
+    waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
         config,
         now,
