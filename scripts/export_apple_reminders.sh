@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if ! command -v rem >/dev/null 2>&1; then
-  echo "rem is not installed. Install it first: brew install bro3886/tap/rem"
+  echo "rem is not installed. Install it first: curl -fsSL https://rem.sidv.dev/install | bash"
   exit 1
 fi
 

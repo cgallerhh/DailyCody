@@ -57,10 +57,10 @@ Copy the three printed Google values into GitHub Secrets.
 Install the local Reminders command line tool once:
 
 ```bash
-brew install bro3886/tap/rem
+curl -fsSL https://rem.sidv.dev/install | bash
 ```
 
-Run `rem` once and allow macOS access to Reminders when prompted. Then export your open Apple Reminders into the repository:
+The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, but if Homebrew complains about the formula, use the install command above. Run `rem` once and allow macOS access to Reminders when prompted. Then export your open Apple Reminders into the repository:
 
 ```bash
 scripts/export_apple_reminders.sh
