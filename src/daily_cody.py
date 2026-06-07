@@ -461,7 +461,7 @@ def build_briefing(
         try:
             return build_ai_briefing(config, context)
         except urllib.error.HTTPError as exc:
-            if exc.code in {401, 403, 429}:
+            if exc.code in {400, 401, 403, 429}:
                 print(
                     f"OpenAI briefing failed with HTTP {exc.code}; using template briefing.",
                     file=sys.stderr,
@@ -493,8 +493,9 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     body = {
         "model": config.openai_model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "temperature": 0.4,
     }
+    if not config.openai_model.startswith("gpt-5"):
+        body["temperature"] = 0.4
     response = request_json(
         OPENAI_API,
         method="POST",
