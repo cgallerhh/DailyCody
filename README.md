@@ -6,6 +6,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
+- Apple Reminders from a local Mac export
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
@@ -16,6 +17,8 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 The briefing lives in GitHub Actions, not on a Mac. The workflow runs hourly because GitHub cron uses UTC and Germany changes between CET and CEST. The script only sends when the local time in `Europe/Berlin` is 07:00, and it skips duplicates if today's briefing was already sent.
 
 You can also run it manually from the GitHub Actions tab with `force_send=true`.
+
+Apple Reminders are different from Gmail and Google Calendar: GitHub Actions cannot read them directly because Apple only exposes them through the signed-in Mac. Daily Cody therefore reads `data/reminders.json`, which your Mac can update and push before the morning briefing.
 
 ## Required GitHub Secrets
 
@@ -48,6 +51,22 @@ python3 scripts/get_google_refresh_token.py
 ```
 
 Copy the three printed Google values into GitHub Secrets.
+
+## Apple Reminders Export
+
+Install the local Reminders command line tool once:
+
+```bash
+brew install bro3886/tap/rem
+```
+
+Run `rem` once and allow macOS access to Reminders when prompted. Then export your open Apple Reminders into the repository:
+
+```bash
+scripts/export_apple_reminders.sh
+```
+
+The script updates `data/reminders.json`, commits it only if something changed, and pushes it to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next 7 days. Undated open reminders are included after dated items.
 
 ## Manual Local Test
 

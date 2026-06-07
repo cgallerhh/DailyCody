@@ -15,6 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -24,6 +25,7 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 @dataclass
@@ -43,6 +45,7 @@ class Config:
     send_window_hour: int
     force_send: bool
     dry_run: bool
+    reminders_export_path: str
 
 
 def getenv(name: str, default: str | None = None) -> str:
@@ -74,6 +77,7 @@ def load_config() -> Config:
         send_window_hour=int(getenv("SEND_WINDOW_HOUR", "7")),
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
+        reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
     )
 
 
@@ -220,6 +224,123 @@ def normalize_event(event: dict[str, Any], calendar_name: str) -> dict[str, str]
         "location": event.get("location", ""),
         "description": strip_long(event.get("description", ""), 500),
     }
+
+
+def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+    path = Path(config.reminders_export_path)
+    if not path.is_absolute():
+        path = ROOT_DIR / path
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Apple Reminders export unavailable: {exc}", file=sys.stderr)
+        return []
+
+    reminders = []
+    for raw in iter_reminder_records(data):
+        reminder = normalize_exported_reminder(raw, now)
+        if reminder:
+            reminders.append(reminder)
+
+    reminders.sort(key=lambda item: (item["sort_key"], item["title"].lower()))
+    return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]]
+
+
+def iter_reminder_records(data: Any) -> list[dict[str, Any]]:
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if not isinstance(data, dict):
+        return []
+    for key in ("reminders", "items", "data", "tasks"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    records = []
+    for value in data.values():
+        if isinstance(value, list):
+            records.extend(item for item in value if isinstance(item, dict))
+        elif isinstance(value, dict):
+            records.extend(iter_reminder_records(value))
+    return records
+
+
+def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[str, str] | None:
+    if is_completed_reminder(raw):
+        return None
+    title = first_text(raw, ("title", "name", "summary", "text"))
+    if not title:
+        return None
+    due = parse_reminder_due(first_present(raw, ("due", "dueDate", "due_date", "date", "deadline")), now)
+    notes = first_text(raw, ("notes", "note", "body", "description"))
+    list_name = first_text(raw, ("list", "listName", "calendar", "calendarName"))
+    today = now.date()
+    if due:
+        days_until = (due.date() - today).days
+        if days_until > 7:
+            return None
+        due_label = due.strftime("%d.%m.")
+        sort_key = f"0-{due.isoformat()}"
+    else:
+        due_label = ""
+        sort_key = f"1-{title.lower()}"
+    return {
+        "title": strip_long(title, 120),
+        "due": due_label,
+        "list": strip_long(list_name, 60),
+        "notes": strip_long(notes, 140),
+        "sort_key": sort_key,
+    }
+
+
+def is_completed_reminder(raw: dict[str, Any]) -> bool:
+    for key in ("completed", "isCompleted", "done", "is_done"):
+        value = raw.get(key)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.lower() in {"true", "yes", "1"}:
+            return True
+    return False
+
+
+def first_present(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        value = raw.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def first_text(raw: dict[str, Any], keys: tuple[str, ...]) -> str:
+    value = first_present(raw, keys)
+    if isinstance(value, dict):
+        return first_text(value, ("title", "name", "summary", "value"))
+    return str(value).strip() if value is not None else ""
+
+
+def parse_reminder_due(value: Any, now: dt.datetime) -> dt.datetime | None:
+    if not value:
+        return None
+    zone = now.tzinfo
+    if isinstance(value, dict):
+        for key in ("dateTime", "datetime", "date", "value", "timestamp"):
+            parsed = parse_reminder_due(value.get(key), now)
+            if parsed:
+                return parsed
+        return None
+    if isinstance(value, (int, float)):
+        timestamp = value / 1000 if value > 10_000_000_000 else value
+        return dt.datetime.fromtimestamp(timestamp, tz=zone)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if len(text) == 10:
+            return dt.datetime.fromisoformat(text).replace(tzinfo=zone)
+        return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(zone)
+    except ValueError:
+        return None
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
@@ -523,6 +644,7 @@ def build_briefing(
     weather: dict[str, Any],
     today_events: list[dict[str, Any]],
     upcoming_events: list[dict[str, Any]],
+    reminders: list[dict[str, str]],
     recent_mail: list[dict[str, str]],
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
@@ -534,6 +656,7 @@ def build_briefing(
         "weather": weather,
         "today_events": today_events,
         "upcoming_events": upcoming_events,
+        "reminders": reminders,
         "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
@@ -557,12 +680,14 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
-        "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Waiting for...', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
+        "Nutze diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
+        "'Today', optional 'Reminders' nur wenn Daten vorhanden sind, 'Waiting for...', "
+        "'Deliveries', 'Today's to-dos' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss ein motivierendes Zitat oder eine Affirmation sein. "
         "Nutze, wenn passend, die im Kontext gelieferte affirmation. Keine Aufgaben, Termine oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
+        "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum und Liste. "
         "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Unter Waiting for...: gesendete Mails der letzten 7 Tage, auf deren Antwort Christian wahrscheinlich wartet. "
@@ -600,6 +725,9 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
+    if context["reminders"]:
+        lines.extend(["", "## Reminders"])
+        lines.extend(format_reminder_items(context["reminders"]))
     lines.extend(["", "## Waiting for..."])
     lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
@@ -659,6 +787,18 @@ def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
         f"- Antwort offen: {item['subject']} — an {item['to']}; {item['snippet']}"
         for item in items[:8]
     ]
+
+
+def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
+    if not items:
+        return []
+    lines = []
+    for item in items[:10]:
+        due = f"{item['due']}: " if item.get("due") else ""
+        list_name = f" ({item['list']})" if item.get("list") else ""
+        notes = f" — {item['notes']}" if item.get("notes") else ""
+        lines.append(f"- {due}{item['title']}{list_name}{notes}")
+    return lines
 
 
 def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
@@ -811,6 +951,7 @@ def main() -> int:
 
     weather = get_weather(config)
     today_events, upcoming_events = list_calendar_events(config, token, now)
+    reminders = read_exported_reminders(config, now)
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
@@ -821,6 +962,7 @@ def main() -> int:
         weather,
         today_events,
         upcoming_events,
+        reminders,
         recent_mail,
         delivery_mail,
         open_mail,
