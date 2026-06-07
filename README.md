@@ -6,7 +6,8 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
-- recent Gmail messages that may need attention
+- Amazon order and delivery emails, including tracking links when they appear in the email
+- yesterday's Gmail messages that look like they still need a reply, with a short suggested response
 - a short, practical German briefing in Cody's voice
 
 ## How It Runs
