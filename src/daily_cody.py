@@ -22,7 +22,6 @@ from zoneinfo import ZoneInfo
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
-TASKS_API = "https://tasks.googleapis.com/tasks/v1"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
 
@@ -223,70 +222,6 @@ def normalize_event(event: dict[str, Any], calendar_name: str) -> dict[str, str]
     }
 
 
-def list_google_tasks(token: str, now: dt.datetime, timezone: str) -> list[dict[str, str]]:
-    zone = ZoneInfo(timezone)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    upcoming_end = today_start + dt.timedelta(days=8)
-    try:
-        tasklists = request_json(f"{TASKS_API}/users/@me/lists?maxResults=20", token=token).get("items", [])
-    except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403}:
-            print(
-                f"Google Tasks unavailable with HTTP {exc.code}; check Tasks API and OAuth scope.",
-                file=sys.stderr,
-            )
-            return [
-                {
-                    "list": "Google Tasks",
-                    "title": "Google Tasks noch nicht verbunden",
-                    "due": "",
-                    "status": "needs_setup",
-                    "notes": "Google Tasks API aktivieren und Refresh Token mit Tasks-Scope neu erzeugen.",
-                }
-            ]
-        raise
-
-    tasks: list[dict[str, str]] = []
-    for tasklist in tasklists:
-        params = urllib.parse.urlencode(
-            {
-                "showCompleted": "false",
-                "showHidden": "false",
-                "maxResults": "50",
-            }
-        )
-        items = request_json(
-            f"{TASKS_API}/lists/{urllib.parse.quote(tasklist['id'])}/tasks?{params}",
-            token=token,
-        ).get("items", [])
-        for task in items:
-            due = task.get("due", "")
-            due_dt = parse_task_due(due, zone) if due else None
-            if due_dt and due_dt > upcoming_end:
-                continue
-            tasks.append(
-                {
-                    "list": tasklist.get("title", "Tasks"),
-                    "title": task.get("title", "(ohne Titel)"),
-                    "due": due,
-                    "status": task.get("status", ""),
-                    "notes": strip_long(task.get("notes", ""), 240),
-                }
-            )
-    tasks.sort(key=task_sort_key)
-    return tasks[:20]
-
-
-def parse_task_due(value: str, zone: ZoneInfo) -> dt.datetime:
-    if not value:
-        return dt.datetime.max.replace(tzinfo=zone)
-    return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(zone)
-
-
-def task_sort_key(task: dict[str, str]) -> tuple[int, str, str]:
-    return (0 if task.get("due") else 1, task.get("due", ""), task.get("title", "").lower())
-
-
 def list_recent_mail(token: str) -> list[dict[str, str]]:
     query = urllib.parse.urlencode({"q": "newer_than:2d -category:promotions", "maxResults": "25"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
@@ -448,7 +383,6 @@ def build_briefing(
     recent_mail: list[dict[str, str]],
     amazon_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
-    tasks: list[dict[str, str]],
 ) -> str:
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
@@ -458,7 +392,6 @@ def build_briefing(
         "recent_mail": recent_mail,
         "amazon_orders": amazon_mail,
         "yesterday_open_mail": open_mail,
-        "google_tasks": tasks,
     }
     if config.openai_api_key:
         try:
@@ -479,11 +412,10 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Google Tasks', 'Amazon', 'Today's to-dos' und 'Approaching'. "
+        "'Today', 'Amazon', 'Today's to-dos' und 'Approaching'. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
-        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Google Tasks: fällige Google Tasks mit Liste und Datum. "
-        "Unter Amazon: was bestellt/versandt wurde, wann es kommt, "
+        "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Amazon: was bestellt/versandt wurde, wann es kommt, "
         "und Trackinglink, falls vorhanden. Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
         "Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
@@ -517,8 +449,6 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
-    lines.extend(["", "## Google Tasks"])
-    lines.extend(format_task_items(context["google_tasks"]))
     lines.extend(["", "## Amazon"])
     lines.extend(format_amazon_items(context["amazon_orders"]))
     lines.extend(["", "## Today's to-dos"])
@@ -553,18 +483,6 @@ def format_amazon_items(items: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def format_task_items(items: list[dict[str, str]]) -> list[str]:
-    if not items:
-        return ["- Keine fälligen Google Tasks gefunden."]
-    lines = []
-    for item in items[:8]:
-        due = format_task_due(item.get("due", ""))
-        due_text = f" fällig {due}" if due else ""
-        notes = f" — {item['notes']}" if item.get("notes") else ""
-        lines.append(f"- {item['title']} ({item['list']}){due_text}{notes}")
-    return lines
-
-
 def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return ["- Keine offenen Vortags-Mails mit klarer Antwortspur gefunden."]
@@ -584,16 +502,6 @@ def format_time(value: str) -> str:
     try:
         parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
         return parsed.strftime("%H:%M")
-    except ValueError:
-        return value
-
-
-def format_task_due(value: str) -> str:
-    if not value:
-        return ""
-    try:
-        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return parsed.strftime("%d.%m.")
     except ValueError:
         return value
 
@@ -622,7 +530,6 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     first_paragraph = True
     section_icons = {
         "Today": "📅",
-        "Google Tasks": "🔔",
         "Amazon": "📦",
         "Today's to-dos": "✅",
         "Approaching": "🏃",
@@ -723,7 +630,6 @@ def main() -> int:
     recent_mail = list_recent_mail(token)
     amazon_mail = list_amazon_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
-    tasks = list_google_tasks(token, now, config.timezone)
     briefing = build_briefing(
         config,
         now,
@@ -733,7 +639,6 @@ def main() -> int:
         recent_mail,
         amazon_mail,
         open_mail,
-        tasks,
     )
 
     if config.dry_run:
