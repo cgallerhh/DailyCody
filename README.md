@@ -68,6 +68,14 @@ scripts/export_apple_reminders.sh
 
 The script updates `data/reminders.json`, commits it only if something changed, and pushes it to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next 7 days. Undated open reminders are included after dated items.
 
+To let the Mac update the export automatically, install the local LaunchAgent:
+
+```bash
+scripts/install_reminders_export_agent.sh
+```
+
+The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions a fresh Reminders snapshot before the `07:00` briefing whenever the Mac was running overnight.
+
 ## Manual Local Test
 
 After setting environment variables locally, run:
