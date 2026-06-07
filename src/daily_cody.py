@@ -9,6 +9,7 @@ import email.message
 import html
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -281,10 +282,12 @@ def build_briefing(
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
-        "Schreibe ein knappes deutsches Daily Briefing nach dem Daily-Dover-Muster: "
-        "Titel, ein warmer Einleitungssatz, Wetter, Heute, Today's to-dos, Approaching, "
-        "und am Ende eine kurze Nachricht an Christian. Sei nützlich, konkret, freundlich, "
-        "und erfinde keine Fakten. Hebe nur Aufgaben hervor, die aus Kalender, Mail oder Wetter ableitbar sind."
+        "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
+        "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
+        "'Today', 'Today's to-dos', 'Approaching' und 'Für Christian'. "
+        "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
+        "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
+        "Packe Wetter als 1-2 Bulletpoints unter Today. Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
     )
     user = "Nutze diese Daten und schreibe die E-Mail als Markdown:\n\n" + json.dumps(
         context, ensure_ascii=False, indent=2
@@ -375,7 +378,6 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     in_list = False
     first_paragraph = True
     section_icons = {
-        "Wetter": "☔",
         "Today": "📅",
         "Today's to-dos": "✅",
         "Approaching": "🏃",
@@ -383,32 +385,59 @@ def markdown_to_basic_html(markdown_body: str) -> str:
         "For Christian": "💬",
     }
     for line in markdown_body.splitlines():
-        escaped = html.escape(line)
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped in {"---", "***", "___"}:
+            continue
         if line.startswith("# "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            html_lines.append(f"<h1><span class=\"title-icon\">📰</span>{html.escape(line[2:])}</h1>")
-            html_lines.append("<hr class=\"rule\">")
+            html_lines.append(
+                "<h1 style=\"margin:0 0 10px 0;padding:0 0 8px 0;"
+                "border-top:1px solid #9aa0a6;border-bottom:1px solid #c7cdd4;"
+                "font-size:18px;line-height:1.25;font-weight:700;color:#202124\">"
+                "<span style=\"display:inline-block;width:23px;margin-right:4px;"
+                "font-size:15px;vertical-align:1px\">📰</span>"
+                f"{render_inline_markdown(line[2:])}</h1>"
+            )
         elif line.startswith("## "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            heading = html.escape(line[3:])
+            heading = render_inline_markdown(line[3:])
             icon = section_icons.get(line[3:].strip(), "")
-            icon_html = f"<span class=\"section-icon\">{icon}</span>" if icon else ""
-            html_lines.append(f"<h2>{icon_html}{heading}</h2>")
+            icon_html = (
+                "<span style=\"display:inline-block;width:22px;margin-right:3px;"
+                "font-size:14px;font-weight:400;vertical-align:1px\">"
+                f"{icon}</span>"
+                if icon
+                else ""
+            )
+            html_lines.append(
+                "<h2 style=\"margin:14px 0 5px 0;font-size:15px;line-height:1.3;"
+                f"font-weight:700;color:#303134\">{icon_html}{heading}</h2>"
+            )
         elif line.startswith("- "):
             if not in_list:
-                html_lines.append("<ul>")
+                html_lines.append("<ul style=\"margin:0 0 10px 25px;padding:0\">")
                 in_list = True
-            html_lines.append(f"<li>{html.escape(line[2:])}</li>")
-        elif line.strip():
+            html_lines.append(
+                "<li style=\"margin:3px 0;padding-left:1px;font-size:14px;"
+                f"line-height:1.35;color:#2b2f33\">{render_inline_markdown(line[2:])}</li>"
+            )
+        else:
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            class_name = " class=\"lead\"" if first_paragraph else ""
-            html_lines.append(f"<p{class_name}>{escaped}</p>")
+            style = (
+                "margin:8px 0 13px 25px;color:#5f6368;font-size:14px;"
+                "line-height:1.35;font-style:italic"
+                if first_paragraph
+                else "margin:0 0 8px 25px;font-size:14px;line-height:1.35;color:#2b2f33"
+            )
+            html_lines.append(f"<p style=\"{style}\">{render_inline_markdown(line)}</p>")
             first_paragraph = False
     if in_list:
         html_lines.append("</ul>")
@@ -416,100 +445,20 @@ def markdown_to_basic_html(markdown_body: str) -> str:
 <html>
 <head>
   <meta charset="utf-8">
-  <style>
-    body {{
-      margin: 0;
-      padding: 0;
-      background: #ffffff;
-      color: #2b2f33;
-      font-family: Arial, Helvetica, sans-serif;
-      line-height: 1.42;
-    }}
-    .page {{
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 28px 32px 36px;
-      border-top: 2px solid #b9c0c8;
-      border-bottom: 2px solid #b9c0c8;
-    }}
-    h1 {{
-      margin: 0 0 12px;
-      padding: 0 0 10px;
-      border-bottom: 1px solid #c7cdd4;
-      font-size: 20px;
-      line-height: 1.25;
-      font-weight: 700;
-      color: #202124;
-    }}
-    .title-icon {{
-      display: inline-block;
-      width: 26px;
-      margin-right: 6px;
-      font-size: 17px;
-      vertical-align: 1px;
-    }}
-    .rule {{
-      display: none;
-    }}
-    .lead {{
-      margin: 18px 0 24px;
-      color: #5f6368;
-      font-size: 15px;
-      font-style: italic;
-    }}
-    h2 {{
-      margin: 24px 0 10px;
-      font-size: 17px;
-      line-height: 1.3;
-      font-weight: 700;
-      color: #303134;
-    }}
-    .section-icon {{
-      display: inline-block;
-      width: 26px;
-      margin-right: 4px;
-      font-size: 15px;
-      font-weight: 400;
-      vertical-align: 1px;
-    }}
-    p {{
-      margin: 0 0 14px 30px;
-      font-size: 15px;
-    }}
-    ul {{
-      margin: 0 0 18px 32px;
-      padding: 0;
-    }}
-    li {{
-      margin: 5px 0;
-      padding-left: 2px;
-      font-size: 15px;
-    }}
-    strong, b {{
-      font-weight: 700;
-    }}
-    @media (max-width: 640px) {{
-      .page {{
-        padding: 22px 20px 30px;
-      }}
-      h1 {{
-        font-size: 19px;
-      }}
-      p, li {{
-        font-size: 14px;
-      }}
-      ul, p {{
-        margin-left: 24px;
-      }}
-    }}
-  </style>
 </head>
-<body>
-  <div class="page">
+<body style="margin:0;padding:0;background:#ffffff;color:#2b2f33;font-family:Arial,Helvetica,sans-serif">
+  <div style="max-width:700px;margin:0;padding:18px 20px 22px">
     {"\n".join(html_lines)}
   </div>
 </body>
 </html>"""
+
+
+def render_inline_markdown(value: str) -> str:
+    escaped = html.escape(value.strip())
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(r"\*(.+?)\*", r"<em>\1</em>", escaped)
+    return escaped
 
 
 def main() -> int:
