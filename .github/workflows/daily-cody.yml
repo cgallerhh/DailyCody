@@ -25,8 +25,8 @@ jobs:
 
       - name: Send Daily Cody
         env:
-          SENDER_EMAIL: Christian.Galler@gmail.com
-          RECIPIENT_EMAIL: Christian.Galler@gmail.com
+          SENDER_EMAIL: christian.galler@gmail.com
+          RECIPIENT_EMAIL: christian.galler@gmail.com
           TIMEZONE: Europe/Berlin
           SEND_WINDOW_HOUR: "7"
           WEATHER_LABEL: "21077 Hamburg"

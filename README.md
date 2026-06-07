@@ -1,6 +1,6 @@
 # Daily Cody
 
-Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `Christian.Galler@gmail.com` to `Christian.Galler@gmail.com` at 07:00 `Europe/Berlin`.
+Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `christian.galler@gmail.com` to `christian.galler@gmail.com` at 07:00 `Europe/Berlin`.
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
@@ -40,7 +40,7 @@ Create an OAuth client in Google Cloud. A Desktop app client is the easiest opti
 Then run the one-time helper:
 
 ```bash
-python scripts/get_google_refresh_token.py
+python3 scripts/get_google_refresh_token.py
 ```
 
 Copy the three printed Google values into GitHub Secrets.
@@ -50,7 +50,7 @@ Copy the three printed Google values into GitHub Secrets.
 After setting environment variables locally, run:
 
 ```bash
-DRY_RUN=true FORCE_SEND=true python src/daily_cody.py
+DRY_RUN=true FORCE_SEND=true python3 src/daily_cody.py
 ```
 
 Remove `DRY_RUN=true` to actually send the email.
@@ -59,7 +59,7 @@ Remove `DRY_RUN=true` to actually send the email.
 
 The workflow already sets:
 
-- sender and recipient: `Christian.Galler@gmail.com`
+- sender and recipient: `christian.galler@gmail.com`
 - timezone: `Europe/Berlin`
 - weather location: `21077 Hamburg`
 - calendar names: `privat,Geburtstage,A&C,MixedCup2026`

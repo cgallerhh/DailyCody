@@ -10,6 +10,7 @@ import html
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -264,7 +265,16 @@ def build_briefing(
         "recent_mail": recent_mail,
     }
     if config.openai_api_key:
-        return build_ai_briefing(config, context)
+        try:
+            return build_ai_briefing(config, context)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403, 429}:
+                print(
+                    f"OpenAI briefing failed with HTTP {exc.code}; using template briefing.",
+                    file=sys.stderr,
+                )
+                return build_template_briefing(context)
+            raise
     return build_template_briefing(context)
 
 
