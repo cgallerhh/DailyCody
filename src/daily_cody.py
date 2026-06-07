@@ -255,6 +255,21 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
     return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]]
 
 
+def split_reminders_for_briefing(
+    reminders: list[dict[str, str]], now: dt.datetime
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    today = now.date()
+    today_todos = []
+    later = []
+    for reminder in reminders:
+        due = parse_short_due_date(reminder.get("due", ""), now)
+        if due and due <= today:
+            today_todos.append(reminder)
+        else:
+            later.append(reminder)
+    return today_todos, later
+
+
 def iter_reminder_records(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
         return [item for item in data if isinstance(item, dict)]
@@ -352,6 +367,23 @@ def parse_reminder_due(value: Any, now: dt.datetime) -> dt.datetime | None:
         return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(zone)
     except ValueError:
         return None
+
+
+def parse_short_due_date(value: str, now: dt.datetime) -> dt.date | None:
+    match = re.fullmatch(r"(\d{2})\.(\d{2})\.", value.strip())
+    if not match:
+        return None
+    day = int(match.group(1))
+    month = int(match.group(2))
+    try:
+        due = dt.date(now.year, month, day)
+    except ValueError:
+        return None
+    if month == 12 and now.month == 1:
+        return dt.date(now.year - 1, month, day)
+    if month == 1 and now.month == 12:
+        return dt.date(now.year + 1, month, day)
+    return due
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
@@ -661,6 +693,7 @@ def build_briefing(
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
 ) -> str:
+    today_reminders, upcoming_reminders = split_reminders_for_briefing(reminders, now)
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
         "affirmation": daily_affirmation(now),
@@ -668,7 +701,8 @@ def build_briefing(
         "weather": weather,
         "today_events": today_events,
         "upcoming_events": upcoming_events,
-        "reminders": reminders,
+        "reminders": upcoming_reminders,
+        "today_todos": today_reminders,
         "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
@@ -690,16 +724,21 @@ def build_briefing(
 
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
-        "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
+        "Du bist Cody, Christians persönlicher, lockerer Family Chief of Staff und arbeitest nur für ihn. "
+        "Der Ton darf warm, casual und freundschaftlich sein, solange du konkret bleibst. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', optional 'Reminders' nur wenn Daten vorhanden sind, 'Waiting for...', "
-        "'Deliveries', 'Today's to-dos' und 'Approaching'. "
+        "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
+        "'Waiting for...', 'Deliveries' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss exakt die im Kontext gelieferte affirmation sein. "
         "Keine Aufgaben, Termine, Wetterdaten oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
+        "Today ist der Tagesüberblick: Wetter, Termine, Dinge die heute passieren. "
+        "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
+        "Formuliere To-dos gern locker und hilfreich, z.B. 'Mutti anrufen — kurz durchklingeln, bevor der Tag voll wird'. "
         "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
+        "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
         "Packe Wetter unter Today als freundlichen, natürlichen Tageshinweis, nicht als rohe Datenliste. "
@@ -739,6 +778,10 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- {weather['summary']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
+    lines.extend(["", "## Today's to-dos"])
+    todo_lines = format_today_todo_reminders(context["today_todos"])
+    todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
+    lines.extend(todo_lines or ["- Nichts Dringendes offen — schöner kleiner Bonus für heute."])
     if context["reminders"]:
         lines.extend(["", "## Reminders"])
         lines.extend(format_reminder_items(context["reminders"]))
@@ -746,8 +789,6 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
     lines.extend(format_delivery_items(context["deliveries"]))
-    lines.extend(["", "## Today's to-dos"])
-    lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
     lines.extend(["", "## Approaching"])
     lines.extend(format_items(context["upcoming_events"], "Keine nahen Termine gefunden."))
     return "\n".join(lines)
@@ -846,9 +887,17 @@ def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
     return lines
 
 
+def format_today_todo_reminders(items: list[dict[str, str]]) -> list[str]:
+    lines = []
+    for item in items[:8]:
+        notes = f" — {item['notes']}" if item.get("notes") else ""
+        lines.append(f"- {item['title']}{notes}")
+    return lines
+
+
 def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
-        return ["- Keine offenen Vortags-Mails mit klarer Antwortspur gefunden."]
+        return []
     lines = []
     for item in items[:6]:
         lines.append(
