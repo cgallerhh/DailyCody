@@ -6,6 +6,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
+- Google Tasks as the GitHub-friendly reminders source
 - Amazon order and delivery emails, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
 - a short, practical German briefing in Cody's voice
@@ -37,6 +38,7 @@ Create an OAuth client in Google Cloud. A Desktop app client is the easiest opti
 - Gmail read-only
 - Gmail send
 - Calendar read-only
+- Tasks read-only
 
 Then run the one-time helper:
 
@@ -45,6 +47,8 @@ python3 scripts/get_google_refresh_token.py
 ```
 
 Copy the three printed Google values into GitHub Secrets.
+
+If you added Google Tasks after the first setup, enable the Google Tasks API in Google Cloud, rerun the helper, and replace the existing `GOOGLE_REFRESH_TOKEN` secret with the new value.
 
 ## Manual Local Test
 
