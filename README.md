@@ -8,6 +8,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
+- sent Gmail messages from the last 7 days that look like unanswered questions or requests
 - a short, practical German briefing in Cody's voice
 
 ## How It Runs

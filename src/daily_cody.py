@@ -315,6 +315,60 @@ def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str
     return output
 
 
+def list_waiting_for_mail(token: str, sender_email: str) -> list[dict[str, str]]:
+    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d", "maxResults": "40"})
+    messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
+    output = []
+    seen_threads = set()
+    for item in messages[:40]:
+        message = request_json(
+            f"{GMAIL_API}/messages/{item['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Date",
+            token=token,
+        )
+        thread_id = message.get("threadId", "")
+        if thread_id in seen_threads:
+            continue
+        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        subject = headers.get("subject", "(ohne Betreff)")
+        snippet = message.get("snippet", "")
+        if not looks_waiting_for_reply(subject, snippet):
+            continue
+        sent_at_ms = int(message.get("internalDate", "0"))
+        if thread_has_later_external_reply(token, thread_id, sent_at_ms, sender_email):
+            continue
+        seen_threads.add(thread_id)
+        output.append(
+            {
+                "to": headers.get("to", ""),
+                "subject": subject,
+                "date": headers.get("date", ""),
+                "snippet": snippet,
+            }
+        )
+        if len(output) >= 8:
+            break
+    return output
+
+
+def thread_has_later_external_reply(token: str, thread_id: str, sent_at_ms: int, sender_email: str) -> bool:
+    if not thread_id:
+        return False
+    thread = request_json(
+        f"{GMAIL_API}/threads/{thread_id}?format=metadata&metadataHeaders=From",
+        token=token,
+    )
+    own = sender_email.lower()
+    for message in thread.get("messages", []):
+        internal_date = int(message.get("internalDate", "0"))
+        if internal_date <= sent_at_ms:
+            continue
+        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        sender = headers.get("from", "").lower()
+        if own not in sender:
+            return True
+    return False
+
+
 def extract_message_text(payload: dict[str, Any]) -> str:
     chunks: list[str] = []
 
@@ -430,6 +484,32 @@ def looks_actionable(subject: str, snippet: str) -> bool:
     return any(marker in text for marker in markers)
 
 
+def looks_waiting_for_reply(subject: str, snippet: str) -> bool:
+    text = f"{subject} {snippet}".lower()
+    markers = (
+        "?",
+        "wann",
+        "was soll",
+        "soll ich",
+        "wo soll",
+        "wie soll",
+        "kann ich",
+        "kannst du",
+        "bring",
+        "mitbringen",
+        "kommen",
+        "passt",
+        "feedback",
+        "rückmeldung",
+        "rueckmeldung",
+        "antwort",
+        "bitte gib",
+        "bitte sag",
+        "kurze info",
+    )
+    return any(marker in text for marker in markers)
+
+
 def already_sent_today(config: Config, token: str, subject: str) -> bool:
     if config.force_send:
         return False
@@ -446,6 +526,7 @@ def build_briefing(
     recent_mail: list[dict[str, str]],
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
+    waiting_for_mail: list[dict[str, str]],
 ) -> str:
     context = {
         "date": now.strftime("%A, %d.%m.%Y"),
@@ -456,6 +537,7 @@ def build_briefing(
         "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
+        "waiting_for": waiting_for_mail,
     }
     if config.openai_api_key:
         try:
@@ -476,13 +558,14 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians ruhiger, praktischer Family Chief of Staff. "
         "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
         "Nutze genau diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
-        "'Today', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
+        "'Today', 'Waiting for...', 'Deliveries', 'Today's to-dos' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss ein motivierendes Zitat oder eine Affirmation sein. "
         "Nutze, wenn passend, die im Kontext gelieferte affirmation. Keine Aufgaben, Termine oder Erinnerungen in diese Zeile schreiben. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Packe Wetter als 1-2 Bulletpoints unter Today. Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
+        "Unter Waiting for...: gesendete Mails der letzten 7 Tage, auf deren Antwort Christian wahrscheinlich wartet. "
         "Unter Today's to-dos: offene Mails vom Vortag, auf die Christian "
         "wahrscheinlich reagieren sollte, jeweils mit einem sehr kurzen Antwortentwurf. "
         "Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
@@ -517,6 +600,8 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- Regenwahrscheinlichkeit am Nachmittag: {weather['afternoon_rain_probability_pct']}%. {weather['umbrella_note']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
+    lines.extend(["", "## Waiting for..."])
+    lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
     lines.extend(format_delivery_items(context["deliveries"]))
     lines.extend(["", "## Today's to-dos"])
@@ -567,6 +652,15 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
+    if not items:
+        return ["- Keine offenen gesendeten Fragen aus den letzten 7 Tagen gefunden."]
+    return [
+        f"- Antwort offen: {item['subject']} — an {item['to']}; {item['snippet']}"
+        for item in items[:8]
+    ]
+
+
 def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return ["- Keine offenen Vortags-Mails mit klarer Antwortspur gefunden."]
@@ -614,6 +708,7 @@ def markdown_to_basic_html(markdown_body: str) -> str:
     first_paragraph = True
     section_icons = {
         "Today": "📅",
+        "Waiting for...": "⏳",
         "Deliveries": "📦",
         "Today's to-dos": "✅",
         "Approaching": "🏃",
@@ -719,6 +814,7 @@ def main() -> int:
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
+    waiting_for_mail = list_waiting_for_mail(token, config.sender)
     briefing = build_briefing(
         config,
         now,
@@ -728,6 +824,7 @@ def main() -> int:
         recent_mail,
         delivery_mail,
         open_mail,
+        waiting_for_mail,
     )
 
     if config.dry_run:
