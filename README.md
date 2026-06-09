@@ -76,6 +76,21 @@ scripts/install_reminders_export_agent.sh
 
 The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions a fresh Reminders snapshot before the `06:00` briefing whenever the Mac was running overnight.
 
+## Delivery Status
+
+Daily Cody can see shipment and order emails, but it cannot know what physically arrived in the mailbox unless a delivery email says so. Use `data/delivery_status.json` for manual "done" signals:
+
+```json
+{
+  "completed": [
+    "Fix Foxi Album 18",
+    "43einhalb Retoure"
+  ]
+}
+```
+
+Any delivery, return, or waiting item matching one of these phrases is hidden from future briefings. Keep entries short and specific.
+
 ## Manual Local Test
 
 After setting environment variables locally, run:

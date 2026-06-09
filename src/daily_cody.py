@@ -26,17 +26,7 @@ CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
 ROOT_DIR = Path(__file__).resolve().parent.parent
-SUPPRESSED_TOPICS = (
-    ("200w", "usb"),
-    ("200 w", "usb"),
-    ("200-w", "usb"),
-    ("anmeldeprobleme",),
-    ("golighter",),
-    ("bestellung 18714",),
-    ("fix", "foxi", "album 18"),
-    ("43einhalb", "retoure"),
-    ("113324248",),
-)
+DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
 
 
 @dataclass
@@ -650,10 +640,30 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
 
 
 def is_suppressed_topic(*values: str) -> bool:
-    haystack = " ".join(value or "" for value in values).lower()
-    normalized = re.sub(r"[\u2010-\u2015‑–—−-]+", "-", haystack)
-    normalized = re.sub(r"\s+", " ", normalized)
-    return any(all(part in normalized for part in topic) for topic in SUPPRESSED_TOPICS)
+    haystack = normalize_status_text(" ".join(value or "" for value in values))
+    for entry in load_completed_delivery_topics():
+        if normalize_status_text(entry) in haystack:
+            return True
+    return False
+
+
+def load_completed_delivery_topics() -> list[str]:
+    if not DELIVERY_STATUS_PATH.exists():
+        return []
+    try:
+        data = json.loads(DELIVERY_STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Delivery status unavailable: {exc}", file=sys.stderr)
+        return []
+    completed = data.get("completed", [])
+    return [str(item) for item in completed if str(item).strip()] if isinstance(completed, list) else []
+
+
+def normalize_status_text(value: str) -> str:
+    normalized = value.lower()
+    normalized = re.sub(r"[\u2010-\u2015‑–—−-]+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9äöüß]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
 
 
 def normalize_delivery_key(subject: str, sender: str) -> str:
