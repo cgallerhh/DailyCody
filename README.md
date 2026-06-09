@@ -1,6 +1,6 @@
 # Daily Cody
 
-Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `christian.galler@gmail.com` to `christian.galler@gmail.com` at 07:00 `Europe/Berlin`.
+Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `christian.galler@gmail.com` to `christian.galler@gmail.com` around 06:00 `Europe/Berlin`.
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
@@ -14,7 +14,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 ## How It Runs
 
-The briefing lives in GitHub Actions, not on a Mac. The workflow runs hourly because GitHub cron uses UTC and Germany changes between CET and CEST. The script only sends when the local time in `Europe/Berlin` is 07:00, and it skips duplicates if today's briefing was already sent.
+The briefing lives in GitHub Actions, not on a Mac. The workflow runs every 15 minutes during the UTC morning range that covers Germany's CET and CEST offsets. The script sends once between 06:00 and 08:59 local time in `Europe/Berlin`, so delayed GitHub schedules can still catch up without drifting into late morning. It skips duplicates if today's briefing was already sent.
 
 You can also run it manually from the GitHub Actions tab with `force_send=true`.
 
@@ -74,7 +74,7 @@ To let the Mac update the export automatically, install the local LaunchAgent:
 scripts/install_reminders_export_agent.sh
 ```
 
-The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions a fresh Reminders snapshot before the `07:00` briefing whenever the Mac was running overnight.
+The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions a fresh Reminders snapshot before the `06:00` briefing whenever the Mac was running overnight.
 
 ## Manual Local Test
 
@@ -94,6 +94,6 @@ The workflow already sets:
 - timezone: `Europe/Berlin`
 - weather location: `21077 Hamburg`
 - calendar names: `privat,Geburtstage,A&C,MixedCup2026`
-- send window: `07:00`
+- send window: `06:00` until before `09:00`
 
 Adjust `.github/workflows/daily-cody.yml` if those names differ from the exact calendar labels in Google Calendar.

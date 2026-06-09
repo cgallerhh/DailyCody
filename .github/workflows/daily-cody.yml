@@ -2,13 +2,14 @@ name: Daily Cody
 
 on:
   schedule:
-    # GitHub schedules use UTC. The script sends only during 07:00 Europe/Berlin,
-    # so this remains correct across CET/CEST even if the workflow is delayed.
-    - cron: "3 * * * *"
+    # GitHub schedules use UTC. Run every 15 minutes during the UTC morning
+    # range that covers 06:00 Europe/Berlin in both CET and CEST. The script
+    # sends once in its local Berlin catch-up window and skips duplicates.
+    - cron: "*/15 4-7 * * *"
   workflow_dispatch:
     inputs:
       force_send:
-        description: "Send immediately, outside the 07:00 Europe/Berlin window"
+        description: "Send immediately, outside the 06:00 Europe/Berlin window"
         required: false
         default: "false"
 
@@ -28,11 +29,12 @@ jobs:
           SENDER_EMAIL: christian.galler@gmail.com
           RECIPIENT_EMAIL: christian.galler@gmail.com
           TIMEZONE: Europe/Berlin
-          SEND_WINDOW_HOUR: "7"
           WEATHER_LABEL: "21077 Hamburg"
           WEATHER_LATITUDE: "53.4439"
           WEATHER_LONGITUDE: "9.9857"
           CALENDAR_NAMES: "privat,Geburtstage,A&C,MixedCup2026"
+          SEND_WINDOW_HOUR: "6"
+          SEND_WINDOW_END_HOUR: "9"
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}

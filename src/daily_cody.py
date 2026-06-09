@@ -50,6 +50,7 @@ class Config:
     openai_api_key: str | None
     openai_model: str
     send_window_hour: int
+    send_window_end_hour: int
     force_send: bool
     dry_run: bool
     reminders_export_path: str
@@ -81,7 +82,8 @@ def load_config() -> Config:
         google_refresh_token=getenv("GOOGLE_REFRESH_TOKEN"),
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_model=getenv("OPENAI_MODEL", "gpt-5.5"),
-        send_window_hour=int(getenv("SEND_WINDOW_HOUR", "7")),
+        send_window_hour=int(getenv("SEND_WINDOW_HOUR", "6")),
+        send_window_end_hour=int(getenv("SEND_WINDOW_END_HOUR", "9")),
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
@@ -1159,8 +1161,11 @@ def main() -> int:
     config = load_config()
     zone = ZoneInfo(config.timezone)
     now = dt.datetime.now(zone)
-    if not config.force_send and now.hour != config.send_window_hour:
-        print(f"Not send window in {config.timezone}: now={now.isoformat()}")
+    if not config.force_send and not (config.send_window_hour <= now.hour < config.send_window_end_hour):
+        print(
+            f"Not send window in {config.timezone}: now={now.isoformat()}, "
+            f"window={config.send_window_hour}:00-{config.send_window_end_hour}:00"
+        )
         return 0
 
     token = refresh_google_token(config)
