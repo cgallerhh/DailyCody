@@ -32,6 +32,10 @@ SUPPRESSED_TOPICS = (
     ("200-w", "usb"),
     ("anmeldeprobleme",),
     ("golighter",),
+    ("bestellung 18714",),
+    ("fix", "foxi", "album 18"),
+    ("43einhalb", "retoure"),
+    ("113324248",),
 )
 
 
