@@ -2,10 +2,10 @@ name: Daily Cody
 
 on:
   schedule:
-    # GitHub schedules use UTC. Run every 15 minutes during the UTC morning
+    # GitHub schedules use UTC. Run every 5 minutes during the UTC morning
     # range that covers 06:00 Europe/Berlin in both CET and CEST. The script
     # sends once in its local Berlin catch-up window and skips duplicates.
-    - cron: "*/15 4-7 * * *"
+    - cron: "*/5 4-7 * * *"
   workflow_dispatch:
     inputs:
       force_send:
