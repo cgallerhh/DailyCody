@@ -14,9 +14,36 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 ## How It Runs
 
-The briefing lives in GitHub Actions, not on a Mac. The workflow runs every 15 minutes during the UTC morning range that covers Germany's CET and CEST offsets. The script sends once between 06:00 and 08:59 local time in `Europe/Berlin`, so delayed GitHub schedules can still catch up without drifting into late morning. It skips duplicates if today's briefing was already sent.
+The briefing lives in GitHub Actions, not on a Mac. A precise external scheduler such as cron-job.org should trigger it at 06:00 `Europe/Berlin` via GitHub's workflow dispatch API. The GitHub schedule remains as a backup and runs every 5 minutes during the UTC morning range that covers Germany's CET and CEST offsets. The script sends once between 06:00 and 08:59 local time in `Europe/Berlin`, so delayed backup schedules can still catch up without drifting into late morning. It skips duplicates if today's briefing was already sent.
 
-You can also run it manually from the GitHub Actions tab with `force_send=true`.
+You can also run it manually from the GitHub Actions tab with `force_send=true`. Leave `allow_duplicate=false` unless you intentionally want a second briefing on the same day.
+
+## Precise 06:00 Scheduler
+
+Create a fine-grained GitHub token for `cgallerhh/DailyCody` with **Actions: Read and write**. Then create a cron-job.org job:
+
+- Schedule: daily at `06:00`
+- Timezone: `Europe/Berlin`
+- URL: `https://api.github.com/repos/cgallerhh/DailyCody/actions/workflows/daily-cody.yml/dispatches`
+- Method: `POST`
+- Headers:
+  - `Authorization: Bearer YOUR_GITHUB_TOKEN`
+  - `Accept: application/vnd.github+json`
+  - `Content-Type: application/json`
+  - `X-GitHub-Api-Version: 2022-11-28`
+- Body:
+
+```json
+{
+  "ref": "main",
+  "inputs": {
+    "force_send": "true",
+    "allow_duplicate": "false"
+  }
+}
+```
+
+`force_send=true` bypasses the local time window for the exact external trigger. `allow_duplicate=false` keeps the daily duplicate guard active if cron-job.org retries.
 
 Apple Reminders are different from Gmail and Google Calendar: GitHub Actions cannot read them directly because Apple only exposes them through the signed-in Mac. Daily Cody therefore reads `data/reminders.json`, which your Mac can update and push before the morning briefing.
 

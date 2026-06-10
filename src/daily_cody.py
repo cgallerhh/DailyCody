@@ -46,6 +46,7 @@ class Config:
     send_window_hour: int
     send_window_end_hour: int
     force_send: bool
+    allow_duplicate: bool
     dry_run: bool
     reminders_export_path: str
 
@@ -79,6 +80,7 @@ def load_config() -> Config:
         send_window_hour=int(getenv("SEND_WINDOW_HOUR", "6")),
         send_window_end_hour=int(getenv("SEND_WINDOW_END_HOUR", "9")),
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
+        allow_duplicate=os.getenv("ALLOW_DUPLICATE", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
     )
@@ -770,7 +772,7 @@ def looks_like_commerce_status(subject: str, snippet: str) -> bool:
 
 
 def already_sent_today(config: Config, token: str, subject: str) -> bool:
-    if config.force_send:
+    if config.allow_duplicate:
         return False
     query = urllib.parse.urlencode({"q": f'from:me to:{config.recipient} subject:"{subject}" newer_than:2d'})
     return bool(request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages"))

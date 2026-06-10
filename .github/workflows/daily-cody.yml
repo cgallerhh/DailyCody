@@ -12,6 +12,10 @@ on:
         description: "Send immediately, outside the 06:00 Europe/Berlin window"
         required: false
         default: "false"
+      allow_duplicate:
+        description: "Allow sending again even if today's briefing was already sent"
+        required: false
+        default: "false"
 
 jobs:
   send-briefing:
@@ -41,4 +45,5 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
           FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
+          ALLOW_DUPLICATE: ${{ github.event.inputs.allow_duplicate || 'false' }}
         run: python src/daily_cody.py
