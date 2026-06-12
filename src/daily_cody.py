@@ -936,44 +936,50 @@ def list_recent_mail(token: str) -> list[dict[str, str]]:
     return output
 
 
-def list_delivery_mail(token: str) -> list[dict[str, Any]]:
+def list_delivery_mail(token: str, sender_email: str) -> list[dict[str, Any]]:
     query_text = (
-        "newer_than:60d "
+        "newer_than:21d "
         "{amazon bestellung bestellt versandt versendet lieferung zustellung "
         "sendung tracking paket dhl hermes dpd ups gls proraso comic}"
     )
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "30"})
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "40"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
-    output = []
-    seen = set()
-    for item in messages[:30]:
+    candidates = []
+    own = sender_email.lower()
+    for item in messages[:40]:
         message = request_json(f"{GMAIL_API}/messages/{item['id']}?format=full", token=token)
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
         subject = headers.get("subject", "(ohne Betreff)")
+        sender = headers.get("from", "")
+        if own and own in sender.lower():
+            continue
         text = extract_message_text(message.get("payload", {}))
         snippet = message.get("snippet", "")
+        if is_delivery_noise(subject, snippet, text):
+            continue
         if is_suppressed_topic(subject, snippet, text):
             continue
         if not looks_like_delivery(subject, snippet, text):
             continue
-        dedupe_key = normalize_delivery_key(subject, headers.get("from", ""))
-        if dedupe_key in seen:
+        status = classify_delivery_status(subject, snippet, text)
+        if status == "unknown":
             continue
-        seen.add(dedupe_key)
         links = extract_tracking_links(text)
-        output.append(
+        candidates.append(
             {
-                "from": headers.get("from", ""),
-                "subject": subject,
+                "from": sender,
+                "subject": delivery_display_title(subject, sender, text),
                 "date": headers.get("date", ""),
-                "snippet": snippet,
+                "snippet": delivery_status_summary(status, subject, snippet, text),
+                "status": status,
+                "status_rank": delivery_status_rank(status),
+                "topic_key": normalize_delivery_key(subject, sender, text),
+                "sort_key": int(message.get("internalDate", "0")),
                 "tracking_links": links[:3],
-                "details": strip_long(text, 900),
+                "details": strip_long(clean_mail_excerpt(text), 900),
             }
         )
-        if len(output) >= 10:
-            break
-    return output
+    return summarize_delivery_candidates(candidates)
 
 
 def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str]]:
@@ -1151,6 +1157,109 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
     return any(marker in haystack for marker in markers)
 
 
+def is_delivery_noise(subject: str, snippet: str, text: str) -> bool:
+    haystack = normalize_status_text(f"{subject} {snippet} {text[:800]}")
+    noise_markers = (
+        "kurzbefragung",
+        "umfrage",
+        "verlosung",
+        "kundenbefragung",
+        "bewerten sie",
+        "ihre meinung",
+    )
+    if any(marker in haystack for marker in noise_markers):
+        return True
+    if "hvv" in haystack and any(marker in haystack for marker in ("ticket", "fahrkarte", "onlineshop")):
+        return True
+    return False
+
+
+def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
+    haystack = normalize_status_text(f"{subject} {snippet} {text[:1200]}")
+    if any(marker in haystack for marker in ("geliefert", "zugestellt", "wurde zugestellt")):
+        return "delivered"
+    if any(marker in haystack for marker in ("in zustellung", "kommt heute", "wird heute zugestellt")):
+        return "out_for_delivery"
+    if any(marker in haystack for marker in ("versendet", "versandt", "verschickt", "unterwegs")):
+        return "shipped"
+    if any(marker in haystack for marker in ("bestellt", "bestellung eingegangen", "bestätigung deiner bestellung")):
+        return "ordered"
+    if "tracking" in haystack or "sendung verfolgen" in haystack:
+        return "shipped"
+    return "unknown"
+
+
+def delivery_status_rank(status: str) -> int:
+    return {
+        "ordered": 1,
+        "shipped": 2,
+        "out_for_delivery": 3,
+        "delivered": 4,
+    }.get(status, 0)
+
+
+def summarize_delivery_candidates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        key = item.get("topic_key", "")
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(item)
+
+    current = []
+    for group in grouped.values():
+        latest_delivered = max(
+            (item.get("sort_key", 0) for item in group if item.get("status") == "delivered"),
+            default=0,
+        )
+        active_items = [
+            item
+            for item in group
+            if item.get("status") != "delivered" and item.get("sort_key", 0) > latest_delivered
+        ]
+        if not active_items:
+            continue
+        current.append(
+            max(
+                active_items,
+                key=lambda item: (item.get("status_rank", 0), item.get("sort_key", 0)),
+            )
+        )
+
+    current.sort(key=lambda item: item.get("sort_key", 0), reverse=True)
+    return [
+        {key: value for key, value in item.items() if key not in {"topic_key", "sort_key", "status_rank"}}
+        for item in current[:5]
+    ]
+
+
+def delivery_status_summary(status: str, subject: str, snippet: str, text: str) -> str:
+    carrier = extract_delivery_carrier(subject, snippet, text)
+    carrier_text = f" per {carrier}" if carrier else ""
+    if status == "out_for_delivery":
+        return f"in Zustellung{carrier_text}"
+    if status == "shipped":
+        return f"versendet{carrier_text}"
+    if status == "ordered":
+        return "bestellt"
+    return "geliefert"
+
+
+def extract_delivery_carrier(*values: str) -> str:
+    haystack = normalize_status_text(" ".join(values))
+    carriers = {
+        "dhl": "DHL",
+        "hermes": "Hermes",
+        "dpd": "DPD",
+        "ups": "UPS",
+        "gls": "GLS",
+    }
+    for marker, label in carriers.items():
+        if marker in haystack:
+            return label
+    return ""
+
+
 def is_suppressed_topic(*values: str) -> bool:
     haystack = normalize_status_text(" ".join(value or "" for value in values))
     for entry in load_completed_delivery_topics():
@@ -1257,12 +1366,78 @@ def normalize_search_text(value: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
-def normalize_delivery_key(subject: str, sender: str) -> str:
-    cleaned = re.sub(r"\b(re|aw|fwd|wg):\s*", "", subject, flags=re.I)
-    cleaned = re.sub(r"\d+", "#", cleaned.lower())
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    sender_domain = sender.split("@")[-1].lower() if "@" in sender else sender.lower()
+def normalize_delivery_key(subject: str, sender: str, text: str = "") -> str:
+    sender_match = re.search(r"@([^>\s]+)", sender)
+    sender_domain = sender_match.group(1).lower() if sender_match else sender.lower()
+    order_number = extract_delivery_order_number(subject, text)
+    if order_number:
+        return f"{sender_domain}:order:{order_number}"
+    product = extract_delivery_product_title(subject)
+    if product:
+        return f"{sender_domain}:product:{normalize_status_text(product)[:80]}"
+    cleaned = clean_delivery_subject(subject)
+    cleaned = re.sub(r"\d+", "#", cleaned)
     return f"{sender_domain}:{cleaned[:80]}"
+
+
+def extract_delivery_order_number(subject: str, text: str) -> str:
+    haystack = f"{subject} {text[:1000]}"
+    patterns = (
+        r"#\s*(\d{4,})",
+        r"\bbestell(?:ung|nummer)?\D{0,20}(\d{4,})",
+        r"\border\D{0,20}(\d{4,})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, haystack, flags=re.I)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def extract_delivery_product_title(subject: str) -> str:
+    match = re.search(r"[„\"]([^“\"]{4,100})[“\"]", subject)
+    if match:
+        return clean_mail_excerpt(match.group(1))
+    return ""
+
+
+def clean_delivery_subject(subject: str) -> str:
+    cleaned = re.sub(r"\b(re|aw|fwd|wg):\s*", "", subject, flags=re.I)
+    cleaned = re.sub(
+        r"^(versendet|versandt|bestellt|geliefert|zugestellt|in zustellung|bestätigung deiner bestellung)\s*:?\s*",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    return normalize_status_text(cleaned)
+
+
+def delivery_display_title(subject: str, sender: str, text: str) -> str:
+    order_number = extract_delivery_order_number(subject, text)
+    merchant = delivery_merchant_name(subject, sender, text)
+    if order_number and merchant:
+        return f"{merchant} #{order_number}"
+    product = extract_delivery_product_title(subject)
+    if product:
+        return product
+    return strip_long(clean_mail_excerpt(clean_delivery_subject(subject)), 90)
+
+
+def delivery_merchant_name(subject: str, sender: str, text: str) -> str:
+    haystack = normalize_status_text(f"{subject} {sender} {text[:600]}")
+    if "kaffeetraum" in haystack:
+        return "Kaffeetraum"
+    if "amazon" in haystack:
+        return "Amazon"
+    sender_name = sender.split("<", 1)[0].strip().strip('"')
+    return strip_long(sender_name, 40)
+
+
+def clean_mail_excerpt(value: str) -> str:
+    cleaned = html.unescape(value or "")
+    cleaned = re.sub(r"[\u034f\u200b-\u200f\u202a-\u202e]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
 
 
 def build_simple_reply(sender: str, subject: str) -> str:
@@ -2013,7 +2188,7 @@ def main() -> int:
     reminders = read_exported_reminders(config, now)
     application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
-    delivery_mail = list_delivery_mail(token)
+    delivery_mail = list_delivery_mail(token, config.sender)
     open_mail = list_yesterday_open_mail(token, now)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
