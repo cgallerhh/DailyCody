@@ -1401,12 +1401,24 @@ def delivery_status_summary(status: str, subject: str, snippet: str, text: str) 
     carrier = extract_delivery_carrier(subject, snippet, text)
     carrier_text = f" per {carrier}" if carrier else ""
     if status == "out_for_delivery":
-        return f"in Zustellung{carrier_text}"
-    if status == "shipped":
-        return f"versendet{carrier_text}"
-    if status == "ordered":
-        return "bestellt"
-    return "geliefert"
+        summary = f"in Zustellung{carrier_text}"
+    elif status == "shipped":
+        summary = f"versendet{carrier_text}"
+    elif status == "ordered":
+        summary = "bestellt"
+    else:
+        summary = "geliefert"
+    eta = extract_delivery_eta(subject, snippet, text)
+    return f"{summary}, {eta}" if eta and normalize_status_text(eta) not in normalize_status_text(summary) else summary
+
+
+def extract_delivery_eta(*values: str) -> str:
+    haystack = normalize_status_text(" ".join(values))
+    if "ankunft morgen" in haystack:
+        return "Ankunft morgen"
+    if any(marker in haystack for marker in ("kommt heute", "ankunft heute", "wird heute zugestellt")):
+        return "kommt heute"
+    return ""
 
 
 def extract_delivery_carrier(*values: str) -> str:
@@ -1781,7 +1793,7 @@ def build_briefing(
         max_attempts = max(1, config.openai_max_attempts)
         for attempt in range(1, max_attempts + 1):
             try:
-                return finalize_briefing(build_ai_briefing(config, context), world_cup_games)
+                return finalize_briefing(build_ai_briefing(config, context), world_cup_games, delivery_mail)
             except urllib.error.HTTPError as exc:
                 if exc.code not in {400, 401, 403, 429} and exc.code < 500:
                     raise
@@ -1800,7 +1812,7 @@ def build_briefing(
                     f"OpenAI briefing failed with HTTP {exc.code}; using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return finalize_briefing(build_template_briefing(context), world_cup_games)
+                return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
             except (TimeoutError, urllib.error.URLError, OSError) as exc:
                 if attempt < max_attempts:
                     print(f"OpenAI briefing unavailable ({exc}); retrying.", file=sys.stderr)
@@ -1816,8 +1828,8 @@ def build_briefing(
                     "using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return finalize_briefing(build_template_briefing(context), world_cup_games)
-    return finalize_briefing(build_template_briefing(context), world_cup_games)
+                return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
+    return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
 
 
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
@@ -1941,9 +1953,37 @@ def ensure_world_cup_lines(briefing: str, world_cup_games: list[dict[str, str]])
     return "\n".join(lines)
 
 
-def finalize_briefing(briefing: str, world_cup_games: list[dict[str, str]]) -> str:
+def finalize_briefing(
+    briefing: str,
+    world_cup_games: list[dict[str, str]],
+    deliveries: list[dict[str, Any]],
+) -> str:
     briefing = ensure_world_cup_lines(briefing, world_cup_games)
+    briefing = replace_delivery_section(briefing, deliveries)
     return normalize_trackinglink_labels(briefing)
+
+
+def replace_delivery_section(briefing: str, deliveries: list[dict[str, Any]]) -> str:
+    replacement = ["## Deliveries", *format_delivery_items(deliveries), ""]
+    lines = briefing.splitlines()
+    start = next((idx for idx, line in enumerate(lines) if is_delivery_heading(line)), None)
+    if start is None:
+        return briefing.rstrip() + "\n\n" + "\n".join(replacement)
+
+    end = start + 1
+    while end < len(lines) and not is_markdown_heading(lines[end]):
+        end += 1
+    lines[start:end] = replacement
+    return "\n".join(lines)
+
+
+def is_delivery_heading(line: str) -> bool:
+    label = normalize_search_text(line)
+    return label in {"deliveries", "delivery"} or label.endswith(" deliveries")
+
+
+def is_markdown_heading(line: str) -> bool:
+    return bool(re.match(r"^\s*#{1,6}\s+\S", line))
 
 
 def normalize_trackinglink_labels(markdown: str) -> str:
