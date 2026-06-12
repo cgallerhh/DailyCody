@@ -12,6 +12,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
 - a short, practical German briefing in Cody's voice
+- a morning quote from `data/morning_quotes.json`
 
 ## How It Runs
 

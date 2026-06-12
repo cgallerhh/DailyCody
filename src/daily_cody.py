@@ -31,6 +31,7 @@ ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
 REMINDERS_EXPORT_STATUS_PATH = ROOT_DIR / "data" / "reminders_export_status.json"
+MORNING_QUOTES_PATH = ROOT_DIR / "data" / "morning_quotes.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
 WORLD_CUP_TEAM_ALIASES = {
@@ -2024,16 +2025,36 @@ def is_tracking_url(url: str) -> bool:
 
 
 def daily_morning_quote(now: dt.datetime) -> str:
-    quotes = [
-        ("Alles, was du dir vorstellen kannst, ist real.", "Pablo Picasso"),
-        ("Ab und zu ein bisschen Unsinn, daran findet auch der weiseste Mensch seinen Gefallen.", "Roald Dahl"),
-        ("Man verirrt sich nie so leicht, als wenn man glaubt, den Weg zu kennen.", "Chinesisches Sprichwort"),
-        ("Um glücklich zu sein, muss man seine Vorurteile abgelegt und seine Illusionen behalten haben.", "Émilie du Châtelet"),
-        ("Als Mathematik können wir das Gebiet bezeichnen, auf dem wir nie wissen, wovon wir eigentlich reden.", "Bertrand Russell"),
-        ("Jedes Lebewesen sollte die Chance haben, seinen Weg und sein Element möglichst frei zu finden.", "Eckart von Hirschhausen"),
-    ]
-    text, author = quotes[now.toordinal() % len(quotes)]
+    quotes = load_morning_quotes()
+    text, author = quotes[(now.toordinal() * 17) % len(quotes)]
     return f"„{text}“ — {author}"
+
+
+def load_morning_quotes() -> list[tuple[str, str]]:
+    fallback = [
+        (
+            "Man muss das Wahre immer wiederholen, weil auch der Irrtum um uns her immer wieder gepredigt wird.",
+            "Johann Wolfgang von Goethe",
+        )
+    ]
+    if not MORNING_QUOTES_PATH.exists():
+        return fallback
+    try:
+        data = json.loads(MORNING_QUOTES_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Morning quotes unavailable: {exc}", file=sys.stderr)
+        return fallback
+    if not isinstance(data, list):
+        return fallback
+    quotes = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        author = str(item.get("author") or "").strip()
+        if text and author:
+            quotes.append((text, author))
+    return quotes or fallback
 
 
 def format_items(items: list[dict[str, Any]], empty: str) -> list[str]:
