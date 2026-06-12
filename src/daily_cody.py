@@ -26,6 +26,7 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
+OPENAI_MAX_ATTEMPTS = 2
 ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
 ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -1388,7 +1389,9 @@ def build_briefing(
     application_waiting = filter_items_by_action_overrides(
         format_application_waiting_items(application_wiki), action_overrides
     )
-    waiting_for_items = merge_waiting_for_items(waiting_for_mail + format_waiting_reminders(waiting_reminders) + application_waiting)
+    waiting_for_items = merge_waiting_for_items(
+        waiting_for_mail + format_waiting_reminders(waiting_reminders) + application_waiting
+    )
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
@@ -1409,16 +1412,33 @@ def build_briefing(
         "application_wiki": compact_application_wiki_context(application_wiki),
     }
     if config.openai_api_key:
-        try:
-            return ensure_world_cup_lines(build_ai_briefing(config, context), world_cup_games)
-        except urllib.error.HTTPError as exc:
-            if exc.code in {400, 401, 403, 429}:
+        for attempt in range(1, OPENAI_MAX_ATTEMPTS + 1):
+            try:
+                return ensure_world_cup_lines(build_ai_briefing(config, context), world_cup_games)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in {400, 401, 403, 429} and exc.code < 500:
+                    raise
+                if exc.code >= 500 and attempt < OPENAI_MAX_ATTEMPTS:
+                    print(
+                        f"OpenAI briefing failed with HTTP {exc.code}; retrying.",
+                        file=sys.stderr,
+                    )
+                    continue
                 print(
-                    f"OpenAI briefing failed with HTTP {exc.code}; using template briefing.",
+                    f"OpenAI briefing failed with HTTP {exc.code}; using current-data template briefing.",
                     file=sys.stderr,
                 )
                 return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
-            raise
+            except (TimeoutError, urllib.error.URLError, OSError) as exc:
+                if attempt < OPENAI_MAX_ATTEMPTS:
+                    print(f"OpenAI briefing unavailable ({exc}); retrying.", file=sys.stderr)
+                    continue
+                print(
+                    f"OpenAI briefing unavailable after {OPENAI_MAX_ATTEMPTS} attempts ({exc}); "
+                    "using current-data template briefing.",
+                    file=sys.stderr,
+                )
+                return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
     return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
 
 
