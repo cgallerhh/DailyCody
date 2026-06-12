@@ -11,7 +11,7 @@ on:
       force_send:
         description: "Send immediately, outside the 06:00 Europe/Berlin window"
         required: false
-        default: "false"
+        default: "true"
       allow_duplicate:
         description: "Allow sending again even if today's briefing was already sent"
         required: false
