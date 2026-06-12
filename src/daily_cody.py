@@ -30,6 +30,7 @@ ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
 ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
+REMINDERS_EXPORT_STATUS_PATH = ROOT_DIR / "data" / "reminders_export_status.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
 WORLD_CUP_TEAM_ALIASES = {
@@ -156,6 +157,9 @@ class Config:
     force_send: bool
     allow_duplicate: bool
     dry_run: bool
+    include_undated_reminders: bool
+    require_fresh_reminders: bool
+    reminders_max_age_hours: int
     reminders_export_path: str
     application_wiki_snapshot_path: str
 
@@ -194,6 +198,9 @@ def load_config() -> Config:
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
         allow_duplicate=os.getenv("ALLOW_DUPLICATE", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
+        include_undated_reminders=os.getenv("INCLUDE_UNDATED_REMINDERS", "false").lower() == "true",
+        require_fresh_reminders=os.getenv("REQUIRE_FRESH_REMINDERS", "false").lower() == "true",
+        reminders_max_age_hours=int(getenv("REMINDERS_MAX_AGE_HOURS", "36")),
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
         application_wiki_snapshot_path=getenv(
             "APPLICATION_WIKI_SNAPSHOT_PATH", "data/application_wiki_snapshot.json"
@@ -741,6 +748,7 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
         path = ROOT_DIR / path
     if not path.exists():
         return []
+    validate_reminders_export_freshness(config, now)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -749,12 +757,49 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
 
     reminders = []
     for raw in iter_reminder_records(data):
-        reminder = normalize_exported_reminder(raw, now)
+        reminder = normalize_exported_reminder(raw, now, config.include_undated_reminders)
         if reminder:
             reminders.append(reminder)
 
     reminders.sort(key=lambda item: (item["sort_key"], item["title"].lower()))
     return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]]
+
+
+def validate_reminders_export_freshness(config: Config, now: dt.datetime) -> None:
+    freshness = read_reminders_export_freshness(now)
+    max_age = dt.timedelta(hours=max(1, config.reminders_max_age_hours))
+    if freshness and freshness <= max_age:
+        return
+    if freshness is None:
+        message = "Apple Reminders export status missing; data/reminders.json may be stale."
+    else:
+        message = (
+            "Apple Reminders export is stale: "
+            f"{freshness.total_seconds() / 3600:.1f} hours old; max is {max_age.total_seconds() / 3600:.0f}."
+        )
+    if config.require_fresh_reminders:
+        raise RuntimeError(f"{message} No briefing sent with stale Reminders data.")
+    print(message, file=sys.stderr)
+
+
+def read_reminders_export_freshness(now: dt.datetime) -> dt.timedelta | None:
+    if not REMINDERS_EXPORT_STATUS_PATH.exists():
+        return None
+    try:
+        data = json.loads(REMINDERS_EXPORT_STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Apple Reminders export status unavailable: {exc}", file=sys.stderr)
+        return None
+    exported_at = str(data.get("exported_at") or "").strip()
+    if not exported_at:
+        return None
+    try:
+        exported = dt.datetime.fromisoformat(exported_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if exported.tzinfo is None:
+        exported = exported.replace(tzinfo=dt.UTC)
+    return now.astimezone(dt.UTC) - exported.astimezone(dt.UTC)
 
 
 def read_application_wiki_snapshot(config: Config) -> dict[str, Any]:
@@ -812,13 +857,16 @@ def iter_reminder_records(data: Any) -> list[dict[str, Any]]:
     return records
 
 
-def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[str, str] | None:
+def normalize_exported_reminder(
+    raw: dict[str, Any], now: dt.datetime, include_undated: bool = False
+) -> dict[str, str] | None:
     if is_completed_reminder(raw):
         return None
     title = first_text(raw, ("title", "name", "summary", "text"))
     if not title:
         return None
     due = parse_reminder_due(first_present(raw, ("due", "dueDate", "due_date", "date", "deadline")), now)
+    due = roll_recurring_due_forward(raw, due, now)
     notes = first_text(raw, ("notes", "note", "body", "description"))
     list_name = first_text(raw, ("list", "listName", "calendar", "calendarName"))
     today = now.date()
@@ -831,7 +879,7 @@ def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[s
         due_label = format_short_reminder_date(due.date())
         sort_key = f"0-{due.isoformat()}"
     else:
-        if not is_friday_planning:
+        if not include_undated:
             return None
         due_label = ""
         sort_key = f"1-{title.lower()}"
@@ -842,6 +890,84 @@ def normalize_exported_reminder(raw: dict[str, Any], now: dt.datetime) -> dict[s
         "notes": strip_long(notes, 140),
         "sort_key": sort_key,
     }
+
+
+def roll_recurring_due_forward(
+    raw: dict[str, Any], due: dt.datetime | None, now: dt.datetime
+) -> dt.datetime | None:
+    if not due or due.date() >= now.date() or not is_recurring_reminder(raw):
+        return due
+    rules = raw.get("recurrence_rules")
+    if not isinstance(rules, list):
+        return due
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        frequency = str(rule.get("frequency", "")).lower()
+        interval = parse_positive_int(rule.get("interval"), default=1)
+        if frequency == "daily":
+            return combine_due_date_time(now.date(), due)
+        if frequency == "weekly":
+            return next_weekly_reminder_due(raw, rule, due, now, interval)
+    return due
+
+
+def is_recurring_reminder(raw: dict[str, Any]) -> bool:
+    value = raw.get("recurring")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in {"true", "yes", "1"}:
+        return True
+    return isinstance(raw.get("recurrence_rules"), list) and bool(raw.get("recurrence_rules"))
+
+
+def parse_positive_int(value: Any, default: int = 1) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def next_weekly_reminder_due(
+    raw: dict[str, Any],
+    rule: dict[str, Any],
+    due: dt.datetime,
+    now: dt.datetime,
+    interval: int,
+) -> dt.datetime:
+    weekdays = reminder_rule_weekdays(rule, due)
+    start_date = due.date()
+    today = now.date()
+    for offset in range(0, 370):
+        candidate = today + dt.timedelta(days=offset)
+        if candidate.weekday() not in weekdays:
+            continue
+        weeks_since_start = max(0, (candidate - start_date).days // 7)
+        if weeks_since_start % interval == 0:
+            return combine_due_date_time(candidate, due)
+    return combine_due_date_time(today, due)
+
+
+def reminder_rule_weekdays(rule: dict[str, Any], due: dt.datetime) -> set[int]:
+    raw_days = rule.get("days_of_week")
+    if not isinstance(raw_days, list) or not raw_days:
+        return {due.weekday()}
+    mapping = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    weekdays = {mapping[str(day).lower()] for day in raw_days if str(day).lower() in mapping}
+    return weekdays or {due.weekday()}
+
+
+def combine_due_date_time(value: dt.date, original: dt.datetime) -> dt.datetime:
+    return dt.datetime.combine(value, original.timetz()).replace(tzinfo=original.tzinfo)
 
 
 def is_completed_reminder(raw: dict[str, Any]) -> bool:
@@ -1372,7 +1498,7 @@ def normalize_delivery_key(subject: str, sender: str, text: str = "") -> str:
     order_number = extract_delivery_order_number(subject, text)
     if order_number:
         return f"{sender_domain}:order:{order_number}"
-    product = extract_delivery_product_title(subject)
+    product = extract_delivery_product_title(subject, text)
     if product:
         return f"{sender_domain}:product:{normalize_status_text(product)[:80]}"
     cleaned = clean_delivery_subject(subject)
@@ -1394,11 +1520,18 @@ def extract_delivery_order_number(subject: str, text: str) -> str:
     return ""
 
 
-def extract_delivery_product_title(subject: str) -> str:
-    match = re.search(r"[„\"]([^“\"]{4,100})[“\"]", subject)
-    if match:
-        return clean_mail_excerpt(match.group(1))
+def extract_delivery_product_title(subject: str, text: str = "") -> str:
+    candidates = re.findall(r"[„\"]([^“\"]{4,140})[“\"]", f"{subject} {text[:1500]}")
+    for candidate in candidates:
+        title = clean_mail_excerpt(candidate)
+        if title and not is_truncated_delivery_title(title):
+            return title
     return ""
+
+
+def is_truncated_delivery_title(value: str) -> bool:
+    cleaned = clean_mail_excerpt(value)
+    return bool(re.search(r"(?:\.\.\.|…)[\s\"'“”]*$", cleaned))
 
 
 def clean_delivery_subject(subject: str) -> str:
@@ -1417,9 +1550,11 @@ def delivery_display_title(subject: str, sender: str, text: str) -> str:
     merchant = delivery_merchant_name(subject, sender, text)
     if order_number and merchant:
         return f"{merchant} #{order_number}"
-    product = extract_delivery_product_title(subject)
+    product = extract_delivery_product_title(subject, text)
     if product:
         return product
+    if merchant and (is_truncated_delivery_title(subject) or "amazon" in normalize_status_text(merchant)):
+        return f"{merchant}-Bestellung"
     return strip_long(clean_mail_excerpt(clean_delivery_subject(subject)), 90)
 
 
@@ -1596,7 +1731,7 @@ def build_briefing(
         max_attempts = max(1, config.openai_max_attempts)
         for attempt in range(1, max_attempts + 1):
             try:
-                return ensure_world_cup_lines(build_ai_briefing(config, context), world_cup_games)
+                return finalize_briefing(build_ai_briefing(config, context), world_cup_games)
             except urllib.error.HTTPError as exc:
                 if exc.code not in {400, 401, 403, 429} and exc.code < 500:
                     raise
@@ -1615,7 +1750,7 @@ def build_briefing(
                     f"OpenAI briefing failed with HTTP {exc.code}; using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
+                return finalize_briefing(build_template_briefing(context), world_cup_games)
             except (TimeoutError, urllib.error.URLError, OSError) as exc:
                 if attempt < max_attempts:
                     print(f"OpenAI briefing unavailable ({exc}); retrying.", file=sys.stderr)
@@ -1631,8 +1766,8 @@ def build_briefing(
                     "using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
-    return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
+                return finalize_briefing(build_template_briefing(context), world_cup_games)
+    return finalize_briefing(build_template_briefing(context), world_cup_games)
 
 
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
@@ -1665,6 +1800,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Wenn Pia oder Pia-Lotta auftaucht: Das ist Christians Tochter. Schreib warm und schlicht, nicht wie ein Kontakt-Ping. "
         "Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
+        "Keine gekürzten oder abgebrochenen Artikelnamen nennen; wenn nur ein abgeschnittener Produktname vorliegt, "
+        "lieber Händler plus Bestellung schreiben. Tracking-URLs nie ausschreiben; der Linktext muss exakt 'Trackinglink' sein. "
         "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden; application_wiki ist der kuratierte Bewerbungs-Dashboard-Kontext. "
         "Wenn application_wiki oder action_overrides sagen, dass ein Bewerbungskanal nicht aktiv nachverfolgt werden soll, "
         "darf daraus kein To-do und keine Rückruf-Erinnerung entstehen. "
@@ -1753,6 +1890,48 @@ def ensure_world_cup_lines(briefing: str, world_cup_games: list[dict[str, str]])
     return "\n".join(lines)
 
 
+def finalize_briefing(briefing: str, world_cup_games: list[dict[str, str]]) -> str:
+    briefing = ensure_world_cup_lines(briefing, world_cup_games)
+    return normalize_trackinglink_labels(briefing)
+
+
+def normalize_trackinglink_labels(markdown: str) -> str:
+    def replace_markdown_link(match: re.Match[str]) -> str:
+        url = match.group(2)
+        if not is_tracking_url(url):
+            return match.group(0)
+        return f"[Trackinglink]({url})"
+
+    markdown = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", replace_markdown_link, markdown)
+
+    def replace_bare_link(match: re.Match[str]) -> str:
+        url = match.group(0).rstrip(".,;")
+        suffix = match.group(0)[len(url) :]
+        if not is_tracking_url(url):
+            return match.group(0)
+        return f"[Trackinglink]({url}){suffix}"
+
+    return re.sub(r"(?<!\]\()https?://[^\s)]+", replace_bare_link, markdown)
+
+
+def is_tracking_url(url: str) -> bool:
+    lowered = url.lower()
+    markers = (
+        "track",
+        "tracking",
+        "sendung",
+        "liefer",
+        "dhl",
+        "hermes",
+        "dpd",
+        "ups",
+        "gls",
+        "custcomm",
+        "post",
+    )
+    return any(marker in lowered for marker in markers)
+
+
 def daily_morning_quote(now: dt.datetime) -> str:
     quotes = [
         ("Alles, was du dir vorstellen kannst, ist real.", "Pablo Picasso"),
@@ -1812,7 +1991,7 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
         return ["- Keine offenen Liefer- oder Bestellmails gefunden."]
     lines = []
     for item in items[:8]:
-        link = f" — [Sendung verfolgen]({item['tracking_links'][0]})" if item.get("tracking_links") else ""
+        link = f" — [Trackinglink]({item['tracking_links'][0]})" if item.get("tracking_links") else ""
         lines.append(f"- {item['subject']} — {item['snippet']}{link}")
     return lines
 
@@ -2135,6 +2314,9 @@ def build_sample_briefing() -> str:
         force_send=True,
         allow_duplicate=True,
         dry_run=True,
+        include_undated_reminders=False,
+        require_fresh_reminders=False,
+        reminders_max_age_hours=36,
         reminders_export_path="data/reminders.json",
         application_wiki_snapshot_path="data/application_wiki_snapshot.json",
     )

@@ -163,18 +163,6 @@
         "alarms": []
     },
     {
-        "id": "6EDC2241-BA57-46FF-A410-7F29BA6E5705",
-        "name": "Schubeutel und Tennisschuhe: Wo k\u00f6nnen die sein?",
-        "list_name": "_INBOX",
-        "creation_date": "2026-06-07T20:06:56",
-        "modification_date": "2026-06-07T20:06:56",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "08A1284A-E6EA-4E2C-8B53-26CA8A5A2B13",
         "name": "Vinted: Alte Anz\u00fcge verkaufen",
         "list_name": "_INBOX",

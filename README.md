@@ -100,7 +100,7 @@ The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, 
 scripts/export_apple_reminders.sh
 ```
 
-The script updates `data/reminders.json`, commits it only if something changed, and pushes it to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next 7 days. Undated open reminders are included after dated items.
+The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next 7 days. Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
 
 To let the Mac update the export automatically, install the local LaunchAgent:
 
@@ -109,6 +109,8 @@ scripts/install_reminders_export_agent.sh
 ```
 
 The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions fresh Reminders and Bewerbungen dashboard snapshots before the `06:00` briefing whenever the Mac was running overnight.
+
+The GitHub workflow requires a fresh Reminders export by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=36`). If the local Mac export fails, Daily Cody fails instead of sending a briefing based on stale Reminders data. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
 
 ## Delivery Status
 
