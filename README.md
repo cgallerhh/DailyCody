@@ -6,6 +6,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
+- today's FIFA World Cup matches, including kickoff time and the ARD/ZDF Free-TV sender when found
 - Apple Reminders from a local Mac export
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
@@ -120,7 +121,13 @@ Any delivery, return, or waiting item matching one of these phrases is hidden fr
 
 ## Manual Local Test
 
-After setting environment variables locally, run:
+To render a local sample briefing without Google, Gmail, or OpenAI secrets, run:
+
+```bash
+python3 src/daily_cody.py --sample
+```
+
+After setting environment variables locally, run the full dry run:
 
 ```bash
 DRY_RUN=true FORCE_SEND=true python3 src/daily_cody.py

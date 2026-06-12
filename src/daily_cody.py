@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,8 +26,110 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
+ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
+ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
+WORLD_CUP_TEAM_ALIASES = {
+    "australia": "australien",
+    "australien": "australien",
+    "austria": "oesterreich",
+    "oesterreich": "oesterreich",
+    "osterreich": "oesterreich",
+    "österreich": "oesterreich",
+    "belgien": "belgien",
+    "belgium": "belgien",
+    "bosnia and herzegovina": "bosnien herzegowina",
+    "bosnien und herzegowina": "bosnien herzegowina",
+    "brasilien": "brasilien",
+    "brazil": "brasilien",
+    "canada": "kanada",
+    "cabo verde": "kap verde",
+    "cape verde": "kap verde",
+    "curacao": "curacao",
+    "curaçao": "curacao",
+    "czech republic": "tschechien",
+    "czechia": "tschechien",
+    "dr congo": "dr kongo",
+    "dr kongo": "dr kongo",
+    "democratic republic of congo": "dr kongo",
+    "ecuador": "ecuador",
+    "egypt": "aegypten",
+    "aegypten": "aegypten",
+    "ägypten": "aegypten",
+    "elfenbeinkueste": "elfenbeinkueste",
+    "elfenbeinküste": "elfenbeinkueste",
+    "cote divoire": "elfenbeinkueste",
+    "cote d ivoire": "elfenbeinkueste",
+    "côte d ivoire": "elfenbeinkueste",
+    "ivory coast": "elfenbeinkueste",
+    "england": "england",
+    "france": "frankreich",
+    "frankreich": "frankreich",
+    "germany": "deutschland",
+    "deutschland": "deutschland",
+    "ghana": "ghana",
+    "haiti": "haiti",
+    "ir iran": "iran",
+    "iran": "iran",
+    "iraq": "irak",
+    "irak": "irak",
+    "japan": "japan",
+    "jordan": "jordanien",
+    "jordanien": "jordanien",
+    "kanada": "kanada",
+    "katar": "katar",
+    "korea republic": "suedkorea",
+    "south korea": "suedkorea",
+    "suedkorea": "suedkorea",
+    "sudkorea": "suedkorea",
+    "südkorea": "suedkorea",
+    "kroatien": "kroatien",
+    "croatia": "kroatien",
+    "marokko": "marokko",
+    "morocco": "marokko",
+    "mexico": "mexiko",
+    "mexiko": "mexiko",
+    "netherlands": "niederlande",
+    "niederlande": "niederlande",
+    "new zealand": "neuseeland",
+    "neuseeland": "neuseeland",
+    "norway": "norwegen",
+    "norwegen": "norwegen",
+    "panama": "panama",
+    "paraguay": "paraguay",
+    "portugal": "portugal",
+    "qatar": "katar",
+    "saudi arabia": "saudi arabien",
+    "saudi arabien": "saudi arabien",
+    "schottland": "schottland",
+    "scotland": "schottland",
+    "senegal": "senegal",
+    "south africa": "suedafrika",
+    "suedafrika": "suedafrika",
+    "sudafrika": "suedafrika",
+    "südafrika": "suedafrika",
+    "spain": "spanien",
+    "spanien": "spanien",
+    "sweden": "schweden",
+    "schweden": "schweden",
+    "switzerland": "schweiz",
+    "schweiz": "schweiz",
+    "tschechien": "tschechien",
+    "tunisia": "tunesien",
+    "tunesien": "tunesien",
+    "türkei": "tuerkei",
+    "turkei": "tuerkei",
+    "tuerkei": "tuerkei",
+    "turkiye": "tuerkei",
+    "türkiye": "tuerkei",
+    "uruguay": "uruguay",
+    "usa": "usa",
+    "united states": "usa",
+    "vereinigte staaten": "usa",
+    "uzbekistan": "usbekistan",
+    "usbekistan": "usbekistan",
+}
 
 
 @dataclass
@@ -105,6 +208,18 @@ def request_json(
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = response.read().decode("utf-8")
     return json.loads(payload) if payload else {}
+
+
+def request_text(url: str, *, headers: dict[str, str] | None = None) -> str:
+    request_headers = {
+        "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+        "User-Agent": "Daily-Cody/1.0",
+        **(headers or {}),
+    }
+    request = urllib.request.Request(url, headers=request_headers, method="GET")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        charset = response.headers.get_content_charset() or "utf-8"
+        return response.read().decode(charset, errors="replace")
 
 
 def refresh_google_token(config: Config) -> str:
@@ -242,6 +357,358 @@ def normalize_event(event: dict[str, Any], calendar_name: str) -> dict[str, str]
         "location": event.get("location", ""),
         "description": strip_long(event.get("description", ""), 500),
     }
+
+
+def list_world_cup_games(
+    config: Config, now: dt.datetime, today_events: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    calendar_games = extract_world_cup_calendar_games(today_events, config.timezone)
+    broadcasts = list_world_cup_free_tv_broadcasts(config, now)
+    if not calendar_games:
+        return broadcasts_for_date(broadcasts, now.date())
+
+    output = []
+    for game in calendar_games:
+        broadcast = find_matching_world_cup_broadcast(game, broadcasts)
+        merged = dict(game)
+        if broadcast:
+            merged["free_tv"] = broadcast["free_tv"]
+            merged["broadcast_title"] = broadcast.get("title", "")
+            if not merged.get("kickoff") and broadcast.get("kickoff"):
+                merged["kickoff"] = broadcast["kickoff"]
+        else:
+            merged["free_tv"] = game.get("free_tv") or "nicht bei ARD/ZDF gefunden"
+        output.append(merged)
+    return sorted(output, key=lambda item: item.get("sort_key", item.get("kickoff", "")))
+
+
+def extract_world_cup_calendar_games(
+    events: list[dict[str, Any]], timezone: str
+) -> list[dict[str, str]]:
+    games = []
+    seen = set()
+    for event in events:
+        if not is_world_cup_calendar_event(event):
+            continue
+        summary = str(event.get("summary", "")).strip()
+        fixture = extract_fixture_title(summary)
+        if not fixture:
+            fixture = extract_fixture_title(str(event.get("description", "")))
+        teams = parse_fixture_teams(fixture)
+        if not fixture or not teams:
+            continue
+        start_value = str(event.get("start", ""))
+        start_dt = parse_datetime_text(start_value, timezone)
+        sort_key = start_dt.isoformat() if start_dt else start_value
+        key = tuple(sorted(teams)) + (sort_key[:10],)
+        if key in seen:
+            continue
+        seen.add(key)
+        event_text = " ".join(
+            str(event.get(field, ""))
+            for field in ("summary", "description", "location", "calendar")
+        )
+        games.append(
+            {
+                "fixture": fixture,
+                "teams": list(teams),
+                "kickoff": format_time(start_value) if start_value else "",
+                "start": start_value,
+                "sort_key": sort_key,
+                "free_tv": extract_free_tv_sender_from_text(event_text),
+                "source": "calendar",
+            }
+        )
+    return games
+
+
+def is_world_cup_calendar_event(event: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(event.get(field, ""))
+        for field in ("calendar", "summary", "description", "location")
+    )
+    normalized = normalize_search_text(text)
+    has_world_cup_marker = any(
+        marker in normalized
+        for marker in (
+            "fifa wm",
+            "fifa world cup",
+            "fussball wm",
+            "fussball weltmeisterschaft",
+            "world cup",
+            "weltmeisterschaft",
+            "wm 2026",
+            "mixedcup2026",
+        )
+    )
+    return has_world_cup_marker and looks_like_match_text(text)
+
+
+def filter_world_cup_events_from_calendar(
+    events: list[dict[str, Any]], world_cup_games: list[dict[str, str]]
+) -> list[dict[str, Any]]:
+    if not world_cup_games:
+        return events
+    return [event for event in events if not is_world_cup_calendar_event(event)]
+
+
+def list_world_cup_free_tv_broadcasts(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+    broadcasts: list[dict[str, str]] = []
+    for loader in (list_ard_world_cup_broadcasts, list_zdf_world_cup_broadcasts):
+        try:
+            broadcasts.extend(loader(config, now))
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            print(f"World Cup TV schedule unavailable: {exc}", file=sys.stderr)
+    return dedupe_world_cup_broadcasts(broadcasts)
+
+
+def list_ard_world_cup_broadcasts(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+    broadcasts = []
+    for day in (now.date() - dt.timedelta(days=1), now.date()):
+        params = urllib.parse.urlencode({"day": day.isoformat()})
+        data = request_json(f"{ARD_PROGRAM_API}?{params}")
+        for item in iter_ard_epg_items(data):
+            channel = str(item.get("channel", {}).get("name", ""))
+            if channel != "Das Erste":
+                continue
+            title = str(item.get("coreTitle") or item.get("title") or "")
+            text = " ".join(
+                str(item.get(field, ""))
+                for field in ("title", "coreTitle", "subline", "synopsis")
+            )
+            if "fifa wm 2026" not in normalize_search_text(text):
+                continue
+            if not looks_like_match_text(text):
+                continue
+            fixture = extract_fixture_title(title)
+            teams = parse_fixture_teams(fixture)
+            if not fixture or not teams:
+                continue
+            start_value = str(item.get("broadcastedOn") or item.get("beginNet") or "")
+            start_dt = parse_datetime_text(start_value, config.timezone)
+            kickoff = extract_kickoff_from_text(text)
+            broadcasts.append(
+                {
+                    "fixture": fixture,
+                    "teams": list(teams),
+                    "kickoff": kickoff,
+                    "kickoff_date": start_dt.date().isoformat() if start_dt else "",
+                    "broadcast_start": start_value,
+                    "free_tv": "ARD",
+                    "title": title,
+                    "source": "ard_programm",
+                }
+            )
+    return broadcasts
+
+
+def iter_ard_epg_items(data: dict[str, Any]) -> list[dict[str, Any]]:
+    items = []
+    for channel in data.get("channels", []):
+        if not isinstance(channel, dict):
+            continue
+        for slot in channel.get("timeSlots", []):
+            if not isinstance(slot, list):
+                continue
+            items.extend(item for item in slot if isinstance(item, dict))
+    return items
+
+
+def list_zdf_world_cup_broadcasts(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+    page = request_text(ZDF_LIVE_TV_URL)
+    return parse_zdf_world_cup_broadcasts(page, config.timezone)
+
+
+def parse_zdf_world_cup_broadcasts(page: str, timezone: str) -> list[dict[str, str]]:
+    text = html.unescape(page)
+    text = text.replace('\\"', '"').replace("\\/", "/").replace("\\u0026", "&")
+    pattern = re.compile(
+        r'"title":"Fußball-WM 2026:\s*(?P<title>[^"]+)"'
+        r'.{0,26000}?"currentMediaType":"[^"]*"'
+        r'.{0,5000}?"editorialDate":"(?P<editorial>[^"]+)",'
+        r'"teaser":\{"__typename":"VideoTeaser","title":"(?P<teaser>[^"]+)",'
+        r'"description":"(?P<description>[^"]*)"',
+        flags=re.S,
+    )
+    broadcasts = []
+    for match in pattern.finditer(text):
+        title = match.group("title")
+        if re.search(r"\b(taktik|pressekonferenz)\b", title, flags=re.I):
+            continue
+        fixture = extract_fixture_title(title)
+        teams = parse_fixture_teams(fixture)
+        if not fixture or not teams:
+            continue
+        editorial = match.group("editorial")
+        editorial_dt = parse_datetime_text(editorial, timezone)
+        description = match.group("description")
+        kickoff = extract_kickoff_from_text(description)
+        kickoff_date = infer_kickoff_date(editorial_dt, kickoff)
+        broadcasts.append(
+            {
+                "fixture": fixture,
+                "teams": list(teams),
+                "kickoff": kickoff or (editorial_dt.strftime("%H:%M") if editorial_dt else ""),
+                "kickoff_date": kickoff_date.isoformat() if kickoff_date else "",
+                "broadcast_start": editorial,
+                "free_tv": "ZDF",
+                "title": f"Fußball-WM 2026: {fixture}",
+                "source": "zdf_live_tv",
+            }
+        )
+    return broadcasts
+
+
+def infer_kickoff_date(editorial_dt: dt.datetime | None, kickoff: str) -> dt.date | None:
+    if not editorial_dt:
+        return None
+    if not kickoff:
+        return editorial_dt.date()
+    try:
+        hour = int(kickoff.split(":", 1)[0])
+    except ValueError:
+        return editorial_dt.date()
+    if hour < 6 and editorial_dt.hour >= 18:
+        return editorial_dt.date() + dt.timedelta(days=1)
+    return editorial_dt.date()
+
+
+def dedupe_world_cup_broadcasts(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    output = []
+    seen = set()
+    for item in items:
+        teams = tuple(sorted(item.get("teams", [])))
+        key = (teams, item.get("free_tv", ""), item.get("kickoff_date", ""))
+        if not teams or key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output
+
+
+def broadcasts_for_date(items: list[dict[str, str]], today: dt.date) -> list[dict[str, str]]:
+    output = []
+    for item in items:
+        date_text = item.get("kickoff_date", "")
+        if not date_text:
+            date_text = item.get("broadcast_start", "")[:10]
+        try:
+            item_date = dt.date.fromisoformat(date_text)
+        except ValueError:
+            continue
+        if item_date == today:
+            output.append({**item, "sort_key": item.get("broadcast_start", item.get("kickoff", ""))})
+    return sorted(output, key=lambda item: item.get("sort_key", item.get("kickoff", "")))
+
+
+def find_matching_world_cup_broadcast(
+    game: dict[str, str], broadcasts: list[dict[str, str]]
+) -> dict[str, str] | None:
+    game_teams = set(game.get("teams", []))
+    if not game_teams:
+        return None
+    for item in broadcasts:
+        if set(item.get("teams", [])) == game_teams:
+            return item
+    return None
+
+
+def extract_fixture_title(value: str) -> str:
+    title = html.unescape(" ".join(str(value or "").split()))
+    title = re.sub(r"<[^>]+>", " ", title)
+    title = re.sub(r"^Match\s+\d+\s*:?\s*", "", title, flags=re.I)
+    title = re.sub(r"^(?:FIFA\s*)?(?:Fußball-?)?WM\s*2026\s*:?\s*", "", title, flags=re.I)
+    title = re.sub(r"^(?:FIFA\s*)?World\s+Cup\s*2026\s*:?\s*", "", title, flags=re.I)
+    title = re.sub(r"^(?:Vorrunde\s*)?(?:Gruppe|Gr\.?)\s+[A-L]\s*:?\s*", "", title, flags=re.I)
+    title = re.sub(r"^Eröffnung(?:sfeier)?\s+(?:und\s+)?(?:das\s+)?Spiel\s+", "", title, flags=re.I)
+    title = re.sub(r"\s+\([^)]*\)$", "", title)
+    match = re.search(
+        r"(.+?)(?:\s+[-–—]\s+|\s*[–—]\s*|\s+\bvs\.?\b\s+|\s+\bv\.?\b\s+|\s+\bgegen\b\s+)(.+)",
+        title,
+        flags=re.I,
+    )
+    if not match:
+        return ""
+    team_one = clean_team_segment(match.group(1))
+    team_two = clean_team_segment(match.group(2))
+    if not team_one or not team_two:
+        return ""
+    return f"{team_one} - {team_two}"
+
+
+def clean_team_segment(value: str) -> str:
+    value = re.sub(r".*:\s*", "", value)
+    value = re.sub(r"\s+in\s+der\s+.*$", "", value, flags=re.I)
+    value = re.sub(r"\s+im\s+.*$", "", value, flags=re.I)
+    value = re.sub(r"\s+\|.*$", "", value)
+    value = re.sub(r"\s+", " ", value).strip(" .:;,-–—")
+    return value
+
+
+def parse_fixture_teams(fixture: str) -> tuple[str, ...]:
+    match = re.search(r"(.+?)(?:\s+[-–—]\s+|\s*[–—]\s*)(.+)", fixture)
+    if not match:
+        return ()
+    team_one = canonical_team(match.group(1))
+    team_two = canonical_team(match.group(2))
+    if not team_one or not team_two:
+        return ()
+    return (team_one, team_two)
+
+
+def canonical_team(value: str) -> str:
+    normalized = normalize_search_text(value)
+    normalized = re.sub(
+        r"\b(nationalmannschaft|national team|gruppe|group|vorrunde|eröffnungsspiel|eroeffnungsspiel)\b",
+        " ",
+        normalized,
+    )
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if normalized in WORLD_CUP_TEAM_ALIASES:
+        return WORLD_CUP_TEAM_ALIASES[normalized]
+    for alias, canonical in sorted(WORLD_CUP_TEAM_ALIASES.items(), key=lambda item: -len(item[0])):
+        if alias in normalized:
+            return canonical
+    return normalized
+
+
+def extract_free_tv_sender_from_text(text: str) -> str:
+    normalized = normalize_search_text(text)
+    senders = []
+    if re.search(r"\b(zdf|zweites|zweiten)\b", normalized):
+        senders.append("ZDF")
+    if re.search(r"\b(ard|das erste|ersten)\b", normalized):
+        senders.append("ARD")
+    return "/".join(senders)
+
+
+def extract_kickoff_from_text(text: str) -> str:
+    match = re.search(
+        r"Spielbeginn(?:\s+ist)?(?:\s+um|:)?\s+(\d{1,2})(?::|\.| Uhr)?(\d{2})?",
+        text,
+        flags=re.I,
+    )
+    if not match:
+        return ""
+    hour = int(match.group(1))
+    minute = int(match.group(2) or "00")
+    return f"{hour:02d}:{minute:02d}"
+
+
+def looks_like_match_text(text: str) -> bool:
+    return bool(re.search(r"\s(?:-|–|—|vs\.?|v\.?|gegen)\s|\S\s*[–—]\s*\S", text, flags=re.I))
+
+
+def parse_datetime_text(value: str, timezone: str) -> dt.datetime | None:
+    if not value:
+        return None
+    zone = ZoneInfo(timezone)
+    try:
+        if len(value) == 10:
+            return dt.datetime.fromisoformat(value).replace(tzinfo=zone)
+        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(zone)
+    except ValueError:
+        return None
 
 
 def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, str]]:
@@ -668,6 +1135,15 @@ def normalize_status_text(value: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
+def normalize_search_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = normalized.lower()
+    normalized = re.sub(r"[\u2010-\u2015‑–—−-]+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9äöüß]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
 def normalize_delivery_key(subject: str, sender: str) -> str:
     cleaned = re.sub(r"\b(re|aw|fwd|wg):\s*", "", subject, flags=re.I)
     cleaned = re.sub(r"\d+", "#", cleaned.lower())
@@ -784,6 +1260,7 @@ def build_briefing(
     weather: dict[str, Any],
     today_events: list[dict[str, Any]],
     upcoming_events: list[dict[str, Any]],
+    world_cup_games: list[dict[str, str]],
     reminders: list[dict[str, str]],
     recent_mail: list[dict[str, str]],
     delivery_mail: list[dict[str, Any]],
@@ -792,11 +1269,12 @@ def build_briefing(
 ) -> str:
     today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
     context = {
-        "date": now.strftime("%A, %d.%m.%Y"),
+        "date": format_long_german_date(now),
         "affirmation": daily_affirmation(now),
         "reminders_mode": "weekly_planning_full_list" if now.weekday() == 4 else "today_plus_two_days",
         "weather": weather,
-        "today_events": today_events,
+        "today_events": filter_world_cup_events_from_calendar(today_events, world_cup_games),
+        "world_cup_games": world_cup_games,
         "upcoming_events": upcoming_events,
         "reminders": upcoming_reminders,
         "today_todos": today_reminders,
@@ -807,16 +1285,16 @@ def build_briefing(
     }
     if config.openai_api_key:
         try:
-            return build_ai_briefing(config, context)
+            return ensure_world_cup_lines(build_ai_briefing(config, context), world_cup_games)
         except urllib.error.HTTPError as exc:
             if exc.code in {400, 401, 403, 429}:
                 print(
                     f"OpenAI briefing failed with HTTP {exc.code}; using template briefing.",
                     file=sys.stderr,
                 )
-                return build_template_briefing(context)
+                return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
             raise
-    return build_template_briefing(context)
+    return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
 
 
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
@@ -833,6 +1311,9 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Today ist der Tagesüberblick: Wetter, Termine, Dinge die heute passieren. "
+        "Wenn world_cup_games vorhanden ist: Unter Today jedes WM-Spiel als eigene kurze Zeile nennen, "
+        "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
+        "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
         "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
         "Formuliere To-dos gern locker und hilfreich, z.B. 'Mutti anrufen — kurz durchklingeln, bevor der Tag voll wird'. "
         "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
@@ -884,6 +1365,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         f"- {weather['summary']}",
     ]
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
+    lines.extend(format_world_cup_game_items(context["world_cup_games"]))
     lines.extend(["", "## Today's to-dos"])
     todo_lines = format_today_todo_reminders(context["today_todos"])
     todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
@@ -897,6 +1379,33 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(format_delivery_items(context["deliveries"]))
     lines.extend(["", "## Approaching"])
     lines.extend(format_items(context["upcoming_events"], "Keine nahen Termine gefunden."))
+    return "\n".join(lines)
+
+
+def ensure_world_cup_lines(briefing: str, world_cup_games: list[dict[str, str]]) -> str:
+    if not world_cup_games:
+        return briefing
+    existing = normalize_search_text(briefing)
+    missing_lines = []
+    for item, line in zip(world_cup_games, format_world_cup_game_items(world_cup_games), strict=False):
+        fixture = normalize_search_text(item.get("fixture", ""))
+        if fixture and fixture in existing:
+            continue
+        missing_lines.append(line)
+    if not missing_lines:
+        return briefing
+
+    lines = briefing.splitlines()
+    today_index = next((idx for idx, line in enumerate(lines) if line.strip() == "## Today"), None)
+    if today_index is None:
+        return briefing.rstrip() + "\n\n## Today\n" + "\n".join(missing_lines)
+
+    insert_at = today_index + 1
+    while insert_at < len(lines) and not lines[insert_at].strip():
+        insert_at += 1
+    if insert_at < len(lines) and lines[insert_at].lstrip().startswith("- "):
+        insert_at += 1
+    lines[insert_at:insert_at] = missing_lines
     return "\n".join(lines)
 
 
@@ -954,6 +1463,19 @@ def format_items(items: list[dict[str, Any]], empty: str) -> list[str]:
         f"- {format_time(item.get('start', ''))} {item.get('summary')} ({item.get('calendar')})".strip()
         for item in items[:12]
     ]
+
+
+def format_world_cup_game_items(items: list[dict[str, str]]) -> list[str]:
+    lines = []
+    for item in items[:8]:
+        kickoff = item.get("kickoff") or format_time(item.get("start", "")) or "Anstoßzeit offen"
+        sender = item.get("free_tv") or "nicht bei ARD/ZDF gefunden"
+        if sender == "nicht bei ARD/ZDF gefunden":
+            sender_text = "kein ARD/ZDF-Free-TV-Hinweis gefunden"
+        else:
+            sender_text = f"Free-TV: {sender}"
+        lines.append(f"- WM: {kickoff} {item.get('fixture', 'Spiel offen')} — {sender_text}.")
+    return lines
 
 
 def format_mail_items(items: list[dict[str, str]]) -> list[str]:
@@ -1060,6 +1582,11 @@ def format_percent(value: Any) -> str:
         return f"{round(float(value))} %"
     except (TypeError, ValueError):
         return str(value)
+
+
+def format_long_german_date(value: dt.datetime) -> str:
+    weekdays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+    return f"{weekdays[value.weekday()]}, {value:%d.%m.%Y}"
 
 
 def strip_long(value: str, max_len: int) -> str:
@@ -1173,7 +1700,56 @@ def render_inline_markdown(value: str) -> str:
     return escaped
 
 
+def build_sample_briefing() -> str:
+    zone = ZoneInfo("Europe/Berlin")
+    now = dt.datetime.now(zone)
+    config = Config(
+        sender="sample@example.com",
+        recipient="sample@example.com",
+        timezone="Europe/Berlin",
+        calendar_names=["MixedCup2026"],
+        weather_latitude="53.4439",
+        weather_longitude="9.9857",
+        weather_label="21077 Hamburg",
+        google_client_id="",
+        google_client_secret="",
+        google_refresh_token="",
+        openai_api_key=None,
+        openai_model="gpt-5.5",
+        send_window_hour=6,
+        send_window_end_hour=9,
+        force_send=True,
+        allow_duplicate=True,
+        dry_run=True,
+        reminders_export_path="data/reminders.json",
+    )
+    return build_briefing(
+        config,
+        now,
+        {"summary": "Hamburg: Testwetter für den lokalen Probelauf."},
+        [],
+        [],
+        [
+            {"fixture": "Mexiko - Südafrika", "kickoff": "21:00", "free_tv": "ZDF"},
+            {
+                "fixture": "Südkorea - Tschechien",
+                "kickoff": "04:00",
+                "free_tv": "nicht bei ARD/ZDF gefunden",
+            },
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
+
+
 def main() -> int:
+    if any(arg in {"--sample", "--sample-briefing"} for arg in sys.argv[1:]):
+        print(build_sample_briefing())
+        return 0
+
     config = load_config()
     zone = ZoneInfo(config.timezone)
     now = dt.datetime.now(zone)
@@ -1192,6 +1768,7 @@ def main() -> int:
 
     weather = get_weather(config)
     today_events, upcoming_events = list_calendar_events(config, token, now)
+    world_cup_games = list_world_cup_games(config, now, today_events)
     reminders = read_exported_reminders(config, now)
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
@@ -1203,6 +1780,7 @@ def main() -> int:
         weather,
         today_events,
         upcoming_events,
+        world_cup_games,
         reminders,
         recent_mail,
         delivery_mail,
