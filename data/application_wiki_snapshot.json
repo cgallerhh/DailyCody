@@ -1,12 +1,12 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-06-10",
+  "dashboard_updated": "2026-06-12",
   "waiting_for": [
     {
       "subject": "hcVISION / Jörg Schreiber",
-      "detail": "Rückmeldung nach Jörgs WhatsApp vom 10.06.2026 und Christians zwei Anrufversuchen um 20:29 Uhr abwarten; nur bei konkretem Terminpfad weiterführen.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
+      "detail": "Vor-Ort-Termin am 23.06.2026 um 13:00 Uhr in Düsseldorf vorbereiten; Volker-Teilnahme, Prozess-/Produktverständnis, Wachstumshebel und Rollenmodell fokussieren.",
+      "next_action": "",
+      "since": "23.06.2026"
     },
     {
       "subject": "dvelop",
@@ -89,16 +89,16 @@
       "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage oder Kontaktrecherche prüfen"
     },
     {
-      "priority": "Zurückgestellt",
+      "priority": "Geschlossen",
       "company": "Faktor-D-XD-Faktor",
-      "status": "Unterlagen in Evidenz; keine Berücksichtigung für erste Runde; zwei andere Kandidaten sehen sehr gut aus",
-      "next_action": "Keine aktive Nachfassaktion; optional kurze Dankes-/Evidenz-Bestätigung; nur bei Reaktivierung oder neuer passender Ausschreibung wieder aufnehmen"
+      "status": "Nutzerentscheidung vom 11.06.2026: Prozess beenden und nicht weiter verfolgen; Evidenz-/Wartelisten-Restoffenheit operativ verworfen",
+      "next_action": "Keine weitere Aktion; nur bei spaeterem neuem explizitem Anlass wieder oeffnen"
     },
     {
-      "priority": "Needs-review",
+      "priority": "Aktiv",
       "company": "hcVISION",
-      "status": "Jörg schrieb am 10.06.2026 um 15:09 Uhr, er melde sich nach der Telko; um 20:29 Uhr sind zwei ausgehende Anrufversuche Christians dokumentiert, aber kein Terminpfad mit Volker",
-      "next_action": "Keine weitere aktive Nachfrage; nur bei konkreter Rückmeldung neuen Terminpfad mit Volker klären"
+      "status": "Vor-Ort-Termin am 23.06.2026 um 13:00 Uhr in Düsseldorf bestätigt; Kennenlernen mit Volker und Blick auf den Prozess bleiben gewünscht",
+      "next_action": "Termin vorbereiten; nach dem Gespräch Ergebnis, Rollenbedarf und nächste Schritte ingestieren"
     },
     {
       "priority": "Wartend",
@@ -117,7 +117,7 @@
     {
       "topic": "Solvistas",
       "action": "do_not_follow_up",
-      "reason": "In den Faktor-D-XD-Faktor-/x-tention-Prozess integriert; keine Parallelansprache",
+      "reason": "Kein separater Nachfasskanal nach beendetem Faktor-D-XD-Faktor-/x-tention-Prozess; nur bei eigenstaendiger neuer Rolle oder direktem Anlass reaktivieren",
       "aliases": [
         "Solvistas"
       ]
@@ -236,8 +236,8 @@
     },
     {
       "topic": "Faktor-D-XD-Faktor",
-      "action": "paused",
-      "reason": "Keine aktive Nachfassaktion; optional kurze Dankes-/Evidenz-Bestätigung; nur bei Reaktivierung oder neuer passender Ausschreibung wieder aufnehmen",
+      "action": "closed",
+      "reason": "Keine weitere Aktion; nur bei spaeterem neuem explizitem Anlass wieder oeffnen",
       "aliases": [
         "Caroline Engljaehringer",
         "Caroline Engljähringer",
@@ -251,19 +251,6 @@
         "x-tention",
         "xD Consulting",
         "xtention"
-      ]
-    },
-    {
-      "topic": "hcVISION",
-      "action": "wait_only",
-      "reason": "Keine weitere aktive Nachfrage; nur bei konkreter Rückmeldung neuen Terminpfad mit Volker klären",
-      "aliases": [
-        "Joerg Schreiber",
-        "Jörg Schreiber",
-        "Volker Keim",
-        "hc vision",
-        "hc:VISION",
-        "hcVISION"
       ]
     }
   ]
