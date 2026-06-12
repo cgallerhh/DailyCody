@@ -66,6 +66,10 @@ Optional, but recommended for the Daily-Dover-style voice:
 
 By default Cody uses `gpt-5.5`. You can override it with the repository variable `OPENAI_MODEL`.
 
+When `OPENAI_API_KEY` is set, Cody treats the OpenAI-written briefing as required. It waits up to `OPENAI_TIMEOUT_SECONDS` per attempt, retries up to `OPENAI_MAX_ATTEMPTS`, and fails without sending if OpenAI still does not answer. This lets the next scheduled GitHub run try again instead of consuming the daily duplicate guard with a less polished template email.
+
+Set the repository variable `ALLOW_TEMPLATE_FALLBACK=true` only if you explicitly prefer a structured current-data email over no email when OpenAI is unavailable.
+
 ## Google Access
 
 Create an OAuth client in Google Cloud. A Desktop app client is the easiest option. Approve these scopes:

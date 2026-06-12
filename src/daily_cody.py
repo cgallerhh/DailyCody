@@ -26,7 +26,6 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
-OPENAI_MAX_ATTEMPTS = 2
 ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
 ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -149,6 +148,9 @@ class Config:
     google_refresh_token: str
     openai_api_key: str | None
     openai_model: str
+    openai_timeout_seconds: int
+    openai_max_attempts: int
+    allow_template_fallback: bool
     send_window_hour: int
     send_window_end_hour: int
     force_send: bool
@@ -184,6 +186,9 @@ def load_config() -> Config:
         google_refresh_token=getenv("GOOGLE_REFRESH_TOKEN"),
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_model=getenv("OPENAI_MODEL", "gpt-5.5"),
+        openai_timeout_seconds=int(getenv("OPENAI_TIMEOUT_SECONDS", "120")),
+        openai_max_attempts=int(getenv("OPENAI_MAX_ATTEMPTS", "2")),
+        allow_template_fallback=os.getenv("ALLOW_TEMPLATE_FALLBACK", "false").lower() == "true",
         send_window_hour=int(getenv("SEND_WINDOW_HOUR", "6")),
         send_window_end_hour=int(getenv("SEND_WINDOW_END_HOUR", "9")),
         force_send=os.getenv("FORCE_SEND", "false").lower() == "true",
@@ -203,6 +208,7 @@ def request_json(
     token: str | None = None,
     body: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
+    timeout_seconds: int = 30,
 ) -> dict[str, Any]:
     data = None
     request_headers = {"Accept": "application/json", **(headers or {})}
@@ -212,7 +218,7 @@ def request_json(
     if token:
         request_headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
         payload = response.read().decode("utf-8")
     return json.loads(payload) if payload else {}
 
@@ -1412,29 +1418,41 @@ def build_briefing(
         "application_wiki": compact_application_wiki_context(application_wiki),
     }
     if config.openai_api_key:
-        for attempt in range(1, OPENAI_MAX_ATTEMPTS + 1):
+        max_attempts = max(1, config.openai_max_attempts)
+        for attempt in range(1, max_attempts + 1):
             try:
                 return ensure_world_cup_lines(build_ai_briefing(config, context), world_cup_games)
             except urllib.error.HTTPError as exc:
                 if exc.code not in {400, 401, 403, 429} and exc.code < 500:
                     raise
-                if exc.code >= 500 and attempt < OPENAI_MAX_ATTEMPTS:
+                if exc.code >= 500 and attempt < max_attempts:
                     print(
                         f"OpenAI briefing failed with HTTP {exc.code}; retrying.",
                         file=sys.stderr,
                     )
                     continue
+                if not config.allow_template_fallback:
+                    raise RuntimeError(
+                        f"OpenAI briefing failed with HTTP {exc.code}; no email sent. "
+                        "Set ALLOW_TEMPLATE_FALLBACK=true to send the local template instead."
+                    ) from exc
                 print(
                     f"OpenAI briefing failed with HTTP {exc.code}; using current-data template briefing.",
                     file=sys.stderr,
                 )
                 return ensure_world_cup_lines(build_template_briefing(context), world_cup_games)
             except (TimeoutError, urllib.error.URLError, OSError) as exc:
-                if attempt < OPENAI_MAX_ATTEMPTS:
+                if attempt < max_attempts:
                     print(f"OpenAI briefing unavailable ({exc}); retrying.", file=sys.stderr)
                     continue
+                if not config.allow_template_fallback:
+                    raise RuntimeError(
+                        "OpenAI briefing unavailable after "
+                        f"{max_attempts} attempts ({exc}); no email sent. "
+                        "Set ALLOW_TEMPLATE_FALLBACK=true to send the local template instead."
+                    ) from exc
                 print(
-                    f"OpenAI briefing unavailable after {OPENAI_MAX_ATTEMPTS} attempts ({exc}); "
+                    f"OpenAI briefing unavailable after {max_attempts} attempts ({exc}); "
                     "using current-data template briefing.",
                     file=sys.stderr,
                 )
@@ -1500,6 +1518,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         method="POST",
         token=config.openai_api_key,
         body=body,
+        timeout_seconds=config.openai_timeout_seconds,
     )
     return response["choices"][0]["message"]["content"].strip()
 
@@ -1933,6 +1952,9 @@ def build_sample_briefing() -> str:
         google_refresh_token="",
         openai_api_key=None,
         openai_model="gpt-5.5",
+        openai_timeout_seconds=120,
+        openai_max_attempts=2,
+        allow_template_fallback=False,
         send_window_hour=6,
         send_window_end_hour=9,
         force_send=True,
