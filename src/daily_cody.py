@@ -31,6 +31,7 @@ ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
+RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
 WORLD_CUP_TEAM_ALIASES = {
     "australia": "australien",
     "australien": "australien",
@@ -1163,6 +1164,76 @@ def load_completed_delivery_topics() -> list[str]:
     return [str(item) for item in completed if str(item).strip()] if isinstance(completed, list) else []
 
 
+def load_resolved_topic_overrides() -> list[dict[str, Any]]:
+    if not RESOLVED_TOPICS_PATH.exists():
+        return []
+    try:
+        data = json.loads(RESOLVED_TOPICS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Resolved topics unavailable: {exc}", file=sys.stderr)
+        return []
+    completed = data.get("completed", [])
+    if not isinstance(completed, list):
+        return []
+
+    overrides = []
+    for item in completed:
+        if isinstance(item, dict):
+            topic = str(item.get("topic") or item.get("subject") or item.get("title") or "").strip()
+            aliases = item.get("aliases", [])
+            reason = str(item.get("note") or item.get("reason") or "Als erledigt markiert.").strip()
+        else:
+            topic = str(item).strip()
+            aliases = []
+            reason = "Als erledigt markiert."
+        if not topic:
+            continue
+        if not isinstance(aliases, list):
+            aliases = []
+        overrides.append(
+            {
+                "topic": topic,
+                "action": "closed",
+                "reason": reason,
+                "aliases": [str(alias) for alias in aliases if str(alias).strip()],
+            }
+        )
+    return overrides
+
+
+def infer_resolved_action_overrides(recent_mail: list[dict[str, str]]) -> list[dict[str, Any]]:
+    overrides = []
+    for item in recent_mail:
+        text = normalize_status_text(json.dumps(item, ensure_ascii=False))
+        if is_resolved_euromaster_reply(text):
+            overrides.append(
+                {
+                    "topic": "Euromaster Reifen-Auslagerung",
+                    "action": "closed",
+                    "reason": "Mailantwort: Räder sind vorbereitet und können am 29.06.2026 abgeholt werden.",
+                    "aliases": [
+                        "Euromaster",
+                        "Michael Meyer",
+                        "Reifen-Auslagerung",
+                        "Räder",
+                        "Raeder",
+                        "Winterreifen",
+                    ],
+                }
+            )
+            break
+    return overrides
+
+
+def is_resolved_euromaster_reply(text: str) -> bool:
+    if "euromaster" not in text and "michael meyer" not in text:
+        return False
+    has_pickup_signal = any(marker in text for marker in ("abholen", "abholung", "abholtermin"))
+    has_ready_signal = any(marker in text for marker in ("vorbereitet", "wie geplant", "29 06 26", "29 06 2026"))
+    has_wheel_signal = any(marker in text for marker in ("räder", "raeder", "reifen", "winterreifen"))
+    return has_pickup_signal and has_ready_signal and has_wheel_signal
+
+
 def normalize_status_text(value: str) -> str:
     normalized = value.lower()
     normalized = re.sub(r"[\u2010-\u2015‑–—−-]+", " ", normalized)
@@ -1304,15 +1375,20 @@ def build_briefing(
     waiting_for_mail: list[dict[str, str]],
 ) -> str:
     today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
-    action_overrides = application_wiki.get("action_overrides", [])
+    action_overrides = (
+        application_wiki.get("action_overrides", [])
+        + load_resolved_topic_overrides()
+        + infer_resolved_action_overrides(recent_mail)
+    )
     today_reminders = filter_items_by_action_overrides(today_reminders, action_overrides)
     upcoming_reminders = filter_items_by_action_overrides(upcoming_reminders, action_overrides)
     waiting_reminders = filter_items_by_action_overrides(waiting_reminders, action_overrides)
     open_mail = filter_items_by_action_overrides(open_mail, action_overrides)
     waiting_for_mail = filter_items_by_action_overrides(waiting_for_mail, action_overrides)
-    waiting_for_items = merge_waiting_for_items(
-        waiting_for_mail + format_waiting_reminders(waiting_reminders) + format_application_waiting_items(application_wiki)
+    application_waiting = filter_items_by_action_overrides(
+        format_application_waiting_items(application_wiki), action_overrides
     )
+    waiting_for_items = merge_waiting_for_items(waiting_for_mail + format_waiting_reminders(waiting_reminders) + application_waiting)
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
