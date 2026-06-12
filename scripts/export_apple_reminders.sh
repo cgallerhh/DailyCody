@@ -15,7 +15,9 @@ rem export --incomplete --format json > "$tmp_file"
 python3 -m json.tool "$tmp_file" > data/reminders.json
 rm -f "$tmp_file"
 
-git add data/reminders.json
+scripts/export_application_wiki_snapshot.sh
+
+git add data/reminders.json data/application_wiki_snapshot.json
 if git diff --cached --quiet; then
   echo "Apple Reminders export unchanged."
 else

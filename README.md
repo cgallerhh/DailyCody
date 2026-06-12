@@ -48,6 +48,8 @@ Create a fine-grained GitHub token for `cgallerhh/DailyCody` with **Actions: Rea
 
 Apple Reminders are different from Gmail and Google Calendar: GitHub Actions cannot read them directly because Apple only exposes them through the signed-in Mac. Daily Cody therefore reads `data/reminders.json`, which your Mac can update and push before the morning briefing.
 
+The Bewerbungen Obsidian vault works the same way: GitHub Actions cannot read the local iCloud vault directly. The local export reads the curated dashboard at `LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md` and writes `data/application_wiki_snapshot.json`. Daily Cody uses that snapshot for application waiting points and for suppressing outdated follow-up reminders. It does not read `raw/INBOX` files.
+
 ## Required GitHub Secrets
 
 Create these secrets in `Settings -> Secrets and variables -> Actions`:
@@ -102,7 +104,7 @@ To let the Mac update the export automatically, install the local LaunchAgent:
 scripts/install_reminders_export_agent.sh
 ```
 
-The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions a fresh Reminders snapshot before the `06:00` briefing whenever the Mac was running overnight.
+The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions fresh Reminders and Bewerbungen dashboard snapshots before the `06:00` briefing whenever the Mac was running overnight.
 
 ## Delivery Status
 

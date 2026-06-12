@@ -30,6 +30,7 @@ ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
 ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
+APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 WORLD_CUP_TEAM_ALIASES = {
     "australia": "australien",
     "australien": "australien",
@@ -152,6 +153,7 @@ class Config:
     allow_duplicate: bool
     dry_run: bool
     reminders_export_path: str
+    application_wiki_snapshot_path: str
 
 
 def getenv(name: str, default: str | None = None) -> str:
@@ -186,6 +188,9 @@ def load_config() -> Config:
         allow_duplicate=os.getenv("ALLOW_DUPLICATE", "false").lower() == "true",
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
+        application_wiki_snapshot_path=getenv(
+            "APPLICATION_WIKI_SNAPSHOT_PATH", "data/application_wiki_snapshot.json"
+        ),
     )
 
 
@@ -269,11 +274,12 @@ def get_weather(config: Config) -> dict[str, Any]:
     low = min(temps[:24]) if temps else None
     rain_text = format_percent(max_afternoon_rain)
     temp_range = f"{format_temp(low)} bis {format_temp(high)}"
-    umbrella_note = (
-        "pack den Schirm ein, sonst lacht Hamburg zuletzt."
-        if max_afternoon_rain is not None and max_afternoon_rain >= 45
-        else "Schirm kannst du wahrscheinlich zuhause lassen."
-    )
+    if max_afternoon_rain is not None and max_afternoon_rain >= 45:
+        umbrella_note = "Schirm mitnehmen; am Nachmittag kann es nass werden."
+    elif max_afternoon_rain is not None and max_afternoon_rain >= 25:
+        umbrella_note = "Schirm ist kein Muss, aber auch keine schlechte Idee."
+    else:
+        umbrella_note = "Schirm muss wahrscheinlich nicht mit."
     summary = build_weather_summary(config.weather_label, current_temp, temp_range, rain_text, umbrella_note)
     return {
         "label": config.weather_label,
@@ -289,9 +295,10 @@ def get_weather(config: Config) -> dict[str, Any]:
 def build_weather_summary(
     label: str, current_temp: Any, temp_range: str, rain_text: str, umbrella_note: str
 ) -> str:
+    place = "Hamburg" if "hamburg" in label.lower() else label
     return (
-        f"Hamburg macht heute eher leise Töne: gerade {format_temp(current_temp)}, "
-        f"später {temp_range}. Am Nachmittag sind {rain_text} Regen drin — {umbrella_note}"
+        f"{place}: gerade {format_temp(current_temp)}, später {temp_range}. "
+        f"Am Nachmittag {rain_text} Regenwahrscheinlichkeit. {umbrella_note}"
     )
 
 
@@ -711,6 +718,15 @@ def parse_datetime_text(value: str, timezone: str) -> dt.datetime | None:
         return None
 
 
+def normalize_search_text(value: str) -> str:
+    value = value.replace("ß", "ss").replace("ẞ", "ss")
+    normalized = unicodedata.normalize("NFKD", value)
+    without_marks = "".join(char for char in normalized if not unicodedata.combining(char))
+    without_marks = without_marks.lower()
+    without_marks = re.sub(r"[^a-z0-9]+", " ", without_marks)
+    return re.sub(r"\s+", " ", without_marks).strip()
+
+
 def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, str]]:
     path = Path(config.reminders_export_path)
     if not path.is_absolute():
@@ -731,6 +747,25 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
 
     reminders.sort(key=lambda item: (item["sort_key"], item["title"].lower()))
     return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]]
+
+
+def read_application_wiki_snapshot(config: Config) -> dict[str, Any]:
+    path = Path(config.application_wiki_snapshot_path)
+    if not path.is_absolute():
+        path = ROOT_DIR / path
+    if not path.exists():
+        return {"items": [], "waiting_for": [], "action_overrides": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Application wiki snapshot unavailable: {exc}", file=sys.stderr)
+        return {"items": [], "waiting_for": [], "action_overrides": []}
+    if not isinstance(data, dict):
+        return {"items": [], "waiting_for": [], "action_overrides": []}
+    for key in ("items", "waiting_for", "action_overrides"):
+        if not isinstance(data.get(key), list):
+            data[key] = []
+    return data
 
 
 def split_reminders_for_briefing(
@@ -1262,16 +1297,29 @@ def build_briefing(
     upcoming_events: list[dict[str, Any]],
     world_cup_games: list[dict[str, str]],
     reminders: list[dict[str, str]],
+    application_wiki: dict[str, Any],
     recent_mail: list[dict[str, str]],
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
 ) -> str:
     today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
+    action_overrides = application_wiki.get("action_overrides", [])
+    today_reminders = filter_items_by_action_overrides(today_reminders, action_overrides)
+    upcoming_reminders = filter_items_by_action_overrides(upcoming_reminders, action_overrides)
+    waiting_reminders = filter_items_by_action_overrides(waiting_reminders, action_overrides)
+    open_mail = filter_items_by_action_overrides(open_mail, action_overrides)
+    waiting_for_mail = filter_items_by_action_overrides(waiting_for_mail, action_overrides)
+    waiting_for_items = merge_waiting_for_items(
+        waiting_for_mail + format_waiting_reminders(waiting_reminders) + format_application_waiting_items(application_wiki)
+    )
     context = {
         "date": format_long_german_date(now),
-        "affirmation": daily_affirmation(now),
+        "morning_quote": daily_morning_quote(now),
         "reminders_mode": "weekly_planning_full_list" if now.weekday() == 4 else "today_plus_two_days",
+        "personal_context": {
+            "Pia": "Pia beziehungsweise Pia-Lotta ist Christians Tochter.",
+        },
         "weather": weather,
         "today_events": filter_world_cup_events_from_calendar(today_events, world_cup_games),
         "world_cup_games": world_cup_games,
@@ -1281,7 +1329,8 @@ def build_briefing(
         "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
-        "waiting_for": waiting_for_mail + format_waiting_reminders(waiting_reminders),
+        "waiting_for": waiting_for_items,
+        "application_wiki": compact_application_wiki_context(application_wiki),
     }
     if config.openai_api_key:
         try:
@@ -1299,15 +1348,17 @@ def build_briefing(
 
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
-        "Du bist Cody, Christians persönlicher, lockerer Family Chief of Staff und arbeitest nur für ihn. "
-        "Schreib wie ein guter Freund, der morgens kurz hilft: warm, locker, vertraut, ein bisschen trocken-humorig, aber nie kitschig. "
-        "Keine sterile Assistenten-Sprache, keine Wetter-App-Sprache, keine Management-Floskeln. "
-        "Schreibe ein extrem kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster. "
-        "Nutze diese Markdown-Struktur: H1-Titel, ein einziger kursiver Satz, dann H2-Abschnitte "
+        "Du bist Cody, Christians persönliche Morgenmail. Du bist die erste Mail seines Tages: "
+        "wie jemand aus der Familie, der am Küchentisch kurz sortiert, was heute anliegt. "
+        "Schreib warm, ruhig, vertraut und klar. Ein bisschen trockener Humor ist okay, aber nur wenn er natürlich wirkt. "
+        "Keine sterile Assistenten-Sprache, keine Wetter-App-Sprache, keine Management-Floskeln, keine bemühten Running Gags. "
+        "Schreibe ein kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster, aber persönlicher und lesbarer. "
+        "Nutze diese Markdown-Struktur: H1-Titel, ein einziges kursives Zitat mit Autor, dann H2-Abschnitte "
         "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
         "'Waiting for...', 'Deliveries' und 'Approaching'. "
-        "Der kursive Satz direkt unter dem Titel muss exakt die im Kontext gelieferte affirmation sein. "
+        "Der kursive Satz direkt unter dem Titel muss exakt das im Kontext gelieferte morning_quote sein. "
         "Keine Aufgaben, Termine, Wetterdaten oder Erinnerungen in diese Zeile schreiben. "
+        "Das Zitat ist keine Affirmation und kein Coaching-Spruch; ändere daran nichts und erfinde keinen Ersatz. "
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Today ist der Tagesüberblick: Wetter, Termine, Dinge die heute passieren. "
@@ -1315,19 +1366,22 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
         "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
         "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
-        "Formuliere To-dos gern locker und hilfreich, z.B. 'Mutti anrufen — kurz durchklingeln, bevor der Tag voll wird'. "
+        "Formuliere To-dos knapp, freundlich und konkret; lieber natürlich als pointiert. "
         "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
         "Packe Wetter unter Today als eine persönliche Cody-Zeile. "
-        "Nutze weather.summary möglichst wörtlich; nicht zu 'Wetter: kühl...' umschreiben. "
-        "Gute Wetterzeile klingt so: 'Hamburg macht heute eher leise Töne: 15 Grad, später knapp 17. Schirm mitnehmen, sonst lacht Hamburg zuletzt.' "
+        "Nutze weather.summary möglichst wörtlich; keine Witze über Hamburg, kein 'Hamburg lacht zuletzt', keine Wiederholungsphrase. "
+        "Wenn Pia oder Pia-Lotta auftaucht: Das ist Christians Tochter. Schreib warm und schlicht, nicht wie ein Kontakt-Ping. "
         "Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
-        "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden. "
+        "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden; application_wiki ist der kuratierte Bewerbungs-Dashboard-Kontext. "
+        "Wenn application_wiki oder action_overrides sagen, dass ein Bewerbungskanal nicht aktiv nachverfolgt werden soll, "
+        "darf daraus kein To-do und keine Rückruf-Erinnerung entstehen. "
         "Wenn source=gmail_sent: echte gesendete Gmail, nutze subject, to und sent_local. "
         "Wenn source=reminder: als Nachfass-Erinnerung formulieren, nicht als gesendete Mail. "
+        "Wenn source=application_wiki: als Bewerbungs-/Wartepunkt formulieren und die nächste Aktion aus next_action beachten. "
         "Behaupte nie, Christian habe eine Antwort oder Mail gesendet, wenn source nicht gmail_sent ist. "
         "Daily-Cody-Mails an Christian selbst niemals in Waiting for aufnehmen. "
         "Amazon, Lieferungen, Rückgaben und Bestellungen gehören nicht in Waiting for..., sondern höchstens in Deliveries. "
@@ -1357,9 +1411,9 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
 def build_template_briefing(context: dict[str, Any]) -> str:
     weather = context["weather"]
     lines = [
-        f"# The Daily Cody — {context['date']}",
+        f"# Daily Cody — {context['date']}",
         "",
-        context["affirmation"],
+        context["morning_quote"],
         "",
         "## Today",
         f"- {weather['summary']}",
@@ -1409,60 +1463,39 @@ def ensure_world_cup_lines(briefing: str, world_cup_games: list[dict[str, str]])
     return "\n".join(lines)
 
 
-def daily_affirmation(now: dt.datetime) -> str:
-    affirmations = [
-        "Heute reicht ein klarer nächster Schritt.",
-        "Ruhig bleiben, freundlich bleiben, dranbleiben.",
-        "Du musst nicht alles gleichzeitig lösen; nur das Nächste gut.",
-        "Kleine Fortschritte zählen, besonders an vollen Tagen.",
-        "Fokus ist freundlich: weniger anfangen, mehr abschließen.",
-        "Heute darf leicht beginnen und trotzdem wirksam werden.",
-        "Ein guter Tag entsteht aus wenigen guten Entscheidungen.",
-        "Du hast genug Zeit für das, was wirklich wichtig ist.",
-        "Erst Überblick, dann Tempo.",
-        "Klarheit vor Geschwindigkeit.",
-        "Ein ruhiger Anfang ist auch ein Anfang.",
-        "Was heute zählt, darf heute Platz bekommen.",
-        "Nicht perfekt, aber präsent.",
-        "Ein klarer Kopf beginnt mit einem kurzen Innehalten.",
-        "Heute darf einfach und trotzdem gut sein.",
-        "Das Wichtige wird leichter, wenn es klein genug wird.",
-        "Freundlichkeit ist auch eine Arbeitsmethode.",
-        "Ein guter Rhythmus schlägt blinden Druck.",
-        "Heute zählt Richtung mehr als Tempo.",
-        "Du darfst Dinge nacheinander lösen.",
-        "Weniger Lärm, mehr nächster Schritt.",
-        "Gute Entscheidungen mögen ruhige Minuten.",
-        "Ein übersichtlicher Tag beginnt mit einem übersichtlichen Gedanken.",
-        "Konzentriert ist nicht hektisch.",
-        "Heute ist genug, wenn du beim Wesentlichen bleibst.",
-        "Nimm den Tag nicht schwerer, als er ist.",
-        "Kleine Ordnung macht große Dinge leichter.",
-        "Ein Satz, ein Anruf, ein Schritt: so bewegt sich der Tag.",
-        "Du musst nicht alles tragen, nur das Nächste greifen.",
-        "Gelassenheit ist kein Stillstand.",
-        "Was klar ist, wird leichter.",
-        "Der Tag muss nicht laut sein, um gut zu werden.",
-        "Sorgfalt vor Eile.",
-        "Heute darfst du mit ruhiger Energie starten.",
-        "Das Wesentliche erkennt man oft im Weglassen.",
-        "Ein bisschen Struktur ist schon Rückenwind.",
-        "Mach es freundlich. Mach es konkret.",
-        "Auch ein voller Tag passt durch eine schmale Tür: eins nach dem anderen.",
-        "Du bist nicht hinterher; du sortierst.",
-        "Gute Tage entstehen aus klaren Kleinigkeiten.",
-        "Atmen, schauen, anfangen.",
+def daily_morning_quote(now: dt.datetime) -> str:
+    quotes = [
+        ("Alles, was du dir vorstellen kannst, ist real.", "Pablo Picasso"),
+        ("Ab und zu ein bisschen Unsinn, daran findet auch der weiseste Mensch seinen Gefallen.", "Roald Dahl"),
+        ("Man verirrt sich nie so leicht, als wenn man glaubt, den Weg zu kennen.", "Chinesisches Sprichwort"),
+        ("Um glücklich zu sein, muss man seine Vorurteile abgelegt und seine Illusionen behalten haben.", "Émilie du Châtelet"),
+        ("Als Mathematik können wir das Gebiet bezeichnen, auf dem wir nie wissen, wovon wir eigentlich reden.", "Bertrand Russell"),
+        ("Jedes Lebewesen sollte die Chance haben, seinen Weg und sein Element möglichst frei zu finden.", "Eckart von Hirschhausen"),
     ]
-    return affirmations[now.toordinal() % len(affirmations)]
+    text, author = quotes[now.toordinal() % len(quotes)]
+    return f"„{text}“ — {author}"
 
 
 def format_items(items: list[dict[str, Any]], empty: str) -> list[str]:
     if not items:
         return [f"- {empty}"]
-    return [
-        f"- {format_time(item.get('start', ''))} {item.get('summary')} ({item.get('calendar')})".strip()
-        for item in items[:12]
-    ]
+    return [format_calendar_item(item) for item in items[:12]]
+
+
+def format_calendar_item(item: dict[str, Any]) -> str:
+    time_text = format_time(item.get("start", ""))
+    summary = format_event_summary(str(item.get("summary", "")))
+    calendar = str(item.get("calendar", "")).strip()
+    if "geburt" in calendar.lower() or "geburtstag" in summary.lower():
+        return f"- {time_text} {summary}".strip()
+    suffix = f" ({calendar})" if calendar else ""
+    return f"- {time_text} {summary}{suffix}".strip()
+
+
+def format_event_summary(summary: str) -> str:
+    if re.search(r"\bpia(?:-lotta)?\b", summary, flags=re.I) and "geburtstag" in summary.lower():
+        return "Pia hat Geburtstag."
+    return summary
 
 
 def format_world_cup_game_items(items: list[dict[str, str]]) -> list[str]:
@@ -1502,6 +1535,13 @@ def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
         if item.get("source") == "reminder":
             due = f"{item['due']} — " if item.get("due") else ""
             lines.append(f"- {due}{item['subject']} — nachfassen.")
+        elif item.get("source") == "application_wiki":
+            since = f"seit {item['since']}: " if item.get("since") else ""
+            snippet = item.get("snippet", "")
+            next_action = item.get("next_action", "")
+            if next_action and normalize_status_text(next_action) not in normalize_status_text(snippet):
+                snippet = f"{snippet} {next_action}".strip()
+            lines.append(f"- {item['subject']} — {since}{snippet}".strip())
         else:
             lines.append(
                 f"- {item['subject']} — an {item['to']}, gesendet {item.get('sent_local') or item.get('date', '')}; {item['snippet']}"
@@ -1535,6 +1575,82 @@ def format_waiting_reminders(items: list[dict[str, str]]) -> list[dict[str, str]
     return output
 
 
+def format_application_waiting_items(snapshot: dict[str, Any]) -> list[dict[str, str]]:
+    output = []
+    for item in snapshot.get("waiting_for", [])[:10]:
+        if not isinstance(item, dict):
+            continue
+        subject = str(item.get("subject") or item.get("company") or "").strip()
+        detail = str(item.get("detail") or item.get("waiting_for") or item.get("status") or "").strip()
+        next_action = str(item.get("next_action") or "").strip()
+        if not subject and not detail:
+            continue
+        output.append(
+            {
+                "source": "application_wiki",
+                "subject": strip_long(subject or "Bewerbungsprozess", 120),
+                "since": str(item.get("since") or "").strip(),
+                "snippet": strip_long(detail, 260),
+                "next_action": strip_long(next_action, 180),
+            }
+        )
+    return output
+
+
+def compact_application_wiki_context(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": snapshot.get("source", ""),
+        "generated_at": snapshot.get("generated_at", ""),
+        "dashboard_updated": snapshot.get("dashboard_updated", ""),
+        "items": snapshot.get("items", [])[:12],
+        "action_overrides": snapshot.get("action_overrides", [])[:20],
+    }
+
+
+def filter_items_by_action_overrides(
+    items: list[dict[str, Any]], action_overrides: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    if not action_overrides:
+        return items
+    return [item for item in items if not is_blocked_by_action_override(item, action_overrides)]
+
+
+def is_blocked_by_action_override(item: dict[str, Any], action_overrides: list[dict[str, Any]]) -> bool:
+    haystack = normalize_status_text(json.dumps(item, ensure_ascii=False))
+    if not haystack:
+        return False
+    blocking_actions = {"do_not_follow_up", "closed", "paused", "wait_only"}
+    for override in action_overrides:
+        if not isinstance(override, dict):
+            continue
+        if str(override.get("action", "")).strip() not in blocking_actions:
+            continue
+        terms = [str(override.get("topic", ""))]
+        aliases = override.get("aliases", [])
+        if isinstance(aliases, list):
+            terms.extend(str(alias) for alias in aliases)
+        for term in terms:
+            normalized = normalize_status_text(term)
+            if normalized and len(normalized) >= 4 and normalized in haystack:
+                return True
+    return False
+
+
+def merge_waiting_for_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    merged = []
+    seen = set()
+    for item in items:
+        key = normalize_status_text(item.get("subject") or item.get("to") or item.get("snippet") or "")
+        if not key:
+            key = normalize_status_text(json.dumps(item, ensure_ascii=False))
+        key = key[:80]
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return merged[:12]
+
+
 def format_today_todo_reminders(items: list[dict[str, str]]) -> list[str]:
     lines = []
     for item in items[:8]:
@@ -1558,7 +1674,12 @@ def format_time(value: str) -> str:
     if not value:
         return ""
     if len(value) == 10:
-        return value
+        try:
+            parsed_date = dt.date.fromisoformat(value)
+            weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+            return f"{weekdays[parsed_date.weekday()]} {parsed_date.day}.{parsed_date.month}."
+        except ValueError:
+            return value
     try:
         parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
         return parsed.strftime("%H:%M")
@@ -1722,6 +1843,7 @@ def build_sample_briefing() -> str:
         allow_duplicate=True,
         dry_run=True,
         reminders_export_path="data/reminders.json",
+        application_wiki_snapshot_path="data/application_wiki_snapshot.json",
     )
     return build_briefing(
         config,
@@ -1738,6 +1860,7 @@ def build_sample_briefing() -> str:
             },
         ],
         [],
+        {},
         [],
         [],
         [],
@@ -1770,6 +1893,7 @@ def main() -> int:
     today_events, upcoming_events = list_calendar_events(config, token, now)
     world_cup_games = list_world_cup_games(config, now, today_events)
     reminders = read_exported_reminders(config, now)
+    application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token)
     open_mail = list_yesterday_open_mail(token, now)
@@ -1782,6 +1906,7 @@ def main() -> int:
         upcoming_events,
         world_cup_games,
         reminders,
+        application_wiki,
         recent_mail,
         delivery_mail,
         open_mail,

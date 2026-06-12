@@ -41,6 +41,6 @@ launchctl unload "$plist" >/dev/null 2>&1 || true
 launchctl load "$plist"
 launchctl start "$label" >/dev/null 2>&1 || true
 
-echo "Installed Daily Cody Apple Reminders export agent."
-echo "It checks every 30 minutes and exports only between 23:59 and 06:59."
+echo "Installed Daily Cody local export agent."
+echo "It checks every 30 minutes and exports Reminders plus the Bewerbungen dashboard snapshot only between 23:59 and 06:59."
 echo "Logs: $log_dir/reminders-export.log"

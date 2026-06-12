@@ -1,0 +1,270 @@
+{
+  "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
+  "dashboard_updated": "2026-06-10",
+  "waiting_for": [
+    {
+      "subject": "hcVISION / Jörg Schreiber",
+      "detail": "Rückmeldung nach Jörgs WhatsApp vom 10.06.2026 und Christians zwei Anrufversuchen um 20:29 Uhr abwarten; nur bei konkretem Terminpfad weiterführen.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "dvelop",
+      "detail": "Rückmeldung zur Portalbewerbung vom 10.06.2026 abwarten; d.velop kündigt Antwort spätestens bis 24.06.2026 an.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "Ferchau",
+      "detail": "Rückmeldung zur Bewerbung vom 10.06.2026 abwarten; Eingang um 17:32 Uhr bestätigt und zeitnahe Rückmeldung angekündigt.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "IQVIA",
+      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 18:02 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage prüfen.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "act-digital",
+      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 18:37 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage prüfen.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "HMM-Deutschland",
+      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 19:16 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage oder Kontaktrecherche prüfen.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "Cloudflight",
+      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage oder Kontaktrecherche prüfen.",
+      "next_action": "Abwarten.",
+      "since": "10.06.2026"
+    },
+    {
+      "subject": "Euromaster / Reifen-Auslagerung",
+      "detail": "Antwort, ob für den 29.06.2026 ein separater Termin über die Website erforderlich ist oder Vorbeikommen im Laufe des 29.06. reicht.",
+      "next_action": "",
+      "since": ""
+    }
+  ],
+  "items": [
+    {
+      "priority": "Aktiv",
+      "company": "dvelop",
+      "status": "Portalbewerbung am 10.06.2026 eingereicht; Eingang um 16:52 Uhr bestätigt; Rückmeldung innerhalb von zwei Wochen angekündigt",
+      "next_action": "Bis 24.06.2026 warten; danach bei ausbleibender Rückmeldung kurze Nachfrage prüfen"
+    },
+    {
+      "priority": "Aktiv",
+      "company": "Ferchau",
+      "status": "Bewerbung am 10.06.2026 versandt; Eingang um 17:32 Uhr bestätigt; Unterlagen an zuständige Kontaktperson weitergeleitet",
+      "next_action": "Rückmeldung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+    },
+    {
+      "priority": "Aktiv",
+      "company": "IQVIA",
+      "status": "Initiativbewerbung am 10.06.2026 um 18:02 Uhr versandt; Eingang offen",
+      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+    },
+    {
+      "priority": "Aktiv",
+      "company": "act-digital",
+      "status": "Initiativbewerbung am 10.06.2026 um 18:37 Uhr an `digital@actdigital.eu` versandt; Eingang offen",
+      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+    },
+    {
+      "priority": "Aktiv",
+      "company": "HMM-Deutschland",
+      "status": "Initiativbewerbung am 10.06.2026 um 19:16 Uhr an `info@hmmdeutschland.de` versandt; Eingang offen",
+      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage oder Kontaktrecherche prüfen"
+    },
+    {
+      "priority": "Aktiv",
+      "company": "Cloudflight",
+      "status": "Initiativbewerbung am 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` für Senior Business Development Manager Health & Public Sector versandt; Eingang und Zielperson offen",
+      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage oder Kontaktrecherche prüfen"
+    },
+    {
+      "priority": "Zurückgestellt",
+      "company": "Faktor-D-XD-Faktor",
+      "status": "Unterlagen in Evidenz; keine Berücksichtigung für erste Runde; zwei andere Kandidaten sehen sehr gut aus",
+      "next_action": "Keine aktive Nachfassaktion; optional kurze Dankes-/Evidenz-Bestätigung; nur bei Reaktivierung oder neuer passender Ausschreibung wieder aufnehmen"
+    },
+    {
+      "priority": "Needs-review",
+      "company": "hcVISION",
+      "status": "Jörg schrieb am 10.06.2026 um 15:09 Uhr, er melde sich nach der Telko; um 20:29 Uhr sind zwei ausgehende Anrufversuche Christians dokumentiert, aber kein Terminpfad mit Volker",
+      "next_action": "Keine weitere aktive Nachfrage; nur bei konkreter Rückmeldung neuen Terminpfad mit Volker klären"
+    },
+    {
+      "priority": "Wartend",
+      "company": "BITMARCK",
+      "status": "Konkreter Kanal im engeren Auswahlverfahren aktuell blockiert",
+      "next_action": "Nicht eskalieren; nur bei neuem Anlass reagieren"
+    },
+    {
+      "priority": "Wartend",
+      "company": "Arvato Systems",
+      "status": "Kontakt Marcel Füchtenhans meldete aktuell keine neue Besetzung",
+      "next_action": "Nur bei neuer Rolle oder anderem belastbaren Kontakt reaktivieren"
+    }
+  ],
+  "action_overrides": [
+    {
+      "topic": "Solvistas",
+      "action": "do_not_follow_up",
+      "reason": "In den Faktor-D-XD-Faktor-/x-tention-Prozess integriert; keine Parallelansprache",
+      "aliases": [
+        "Solvistas"
+      ]
+    },
+    {
+      "topic": "Greenlight-Consulting",
+      "action": "do_not_follow_up",
+      "reason": "Geprüft und wegen d.velop-Nahe vorerst zurückgestellt; keine Parallelansprache zur aktiven dvelop-Bewerbung",
+      "aliases": [
+        "Greenlight-Consulting"
+      ]
+    },
+    {
+      "topic": "IP-Systems",
+      "action": "do_not_follow_up",
+      "reason": "Geprüft und als wenig passend zurückgestellt; keine aktive Bewerbung ohne konkreten GKV-/Healthcare-Anker",
+      "aliases": [
+        "IP-Systems"
+      ]
+    },
+    {
+      "topic": "IPSWAYS",
+      "action": "do_not_follow_up",
+      "reason": "Nutzerentscheidung: rausnehmen, kein Interesse an einer Bewerbung",
+      "aliases": [
+        "IPSWAYS"
+      ]
+    },
+    {
+      "topic": "BITMARCK",
+      "action": "do_not_follow_up",
+      "reason": "Sensibler Wartekanal; keine parallele Eskalation",
+      "aliases": [
+        "BITMARCK"
+      ]
+    },
+    {
+      "topic": "Arvato Systems",
+      "action": "do_not_follow_up",
+      "reason": "Kein aktiver Bedarf über den bekannten Kontakt",
+      "aliases": [
+        "Arvato Systems"
+      ]
+    },
+    {
+      "topic": "Deutsche Telekom / T-Systems",
+      "action": "do_not_follow_up",
+      "reason": "Konkrete Bewerbung beendet; auch auf Nachfragen keine Reaktion",
+      "aliases": [
+        "Deutsche Telekom / T-Systems"
+      ]
+    },
+    {
+      "topic": "aquinet",
+      "action": "do_not_follow_up",
+      "reason": "Initiativbewerbung abgesagt",
+      "aliases": [
+        "aquinet"
+      ]
+    },
+    {
+      "topic": "NICE / Cognigy",
+      "action": "do_not_follow_up",
+      "reason": "Kein Bedarf am Profil",
+      "aliases": [
+        "NICE / Cognigy"
+      ]
+    },
+    {
+      "topic": "smart2success",
+      "action": "do_not_follow_up",
+      "reason": "Kein Bedarf am Profil",
+      "aliases": [
+        "smart2success"
+      ]
+    },
+    {
+      "topic": "NTT-DATA",
+      "action": "do_not_follow_up",
+      "reason": "Konkrete Bewerbung abgesagt; nur bei neuer klar passender Rolle reaktivieren",
+      "aliases": [
+        "NTT-DATA"
+      ]
+    },
+    {
+      "topic": "Convista",
+      "action": "do_not_follow_up",
+      "reason": "Vorläufig geschlossen",
+      "aliases": [
+        "Convista"
+      ]
+    },
+    {
+      "topic": "AGORUM",
+      "action": "do_not_follow_up",
+      "reason": "Marktfit aktuell nicht belastbar",
+      "aliases": [
+        "AGORUM"
+      ]
+    },
+    {
+      "topic": "atacama",
+      "action": "do_not_follow_up",
+      "reason": "Nur bei Rolle ohne zwingende OSCARE-Erfahrung prüfen",
+      "aliases": [
+        "atacama"
+      ]
+    },
+    {
+      "topic": "GKV Informatik",
+      "action": "do_not_follow_up",
+      "reason": "AOK-/OSCARE-Fit aktuell zu schwach",
+      "aliases": [
+        "GKV Informatik"
+      ]
+    },
+    {
+      "topic": "Faktor-D-XD-Faktor",
+      "action": "paused",
+      "reason": "Keine aktive Nachfassaktion; optional kurze Dankes-/Evidenz-Bestätigung; nur bei Reaktivierung oder neuer passender Ausschreibung wieder aufnehmen",
+      "aliases": [
+        "Caroline Engljaehringer",
+        "Caroline Engljähringer",
+        "Faktor D",
+        "Faktor-D",
+        "Faktor-D-XD-Faktor",
+        "Frau Engljaehringer",
+        "Frau Engljähringer",
+        "XD-Faktor",
+        "x tension",
+        "x-tention",
+        "xD Consulting",
+        "xtention"
+      ]
+    },
+    {
+      "topic": "hcVISION",
+      "action": "wait_only",
+      "reason": "Keine weitere aktive Nachfrage; nur bei konkreter Rückmeldung neuen Terminpfad mit Volker klären",
+      "aliases": [
+        "Joerg Schreiber",
+        "Jörg Schreiber",
+        "Volker Keim",
+        "hc vision",
+        "hc:VISION",
+        "hcVISION"
+      ]
+    }
+  ]
+}
