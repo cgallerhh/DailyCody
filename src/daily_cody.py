@@ -1221,6 +1221,7 @@ def extract_message_text(payload: dict[str, Any]) -> str:
             except ValueError:
                 decoded = ""
             if mime_type == "text/html":
+                decoded = preserve_html_links(decoded)
                 decoded = re.sub(r"<br\s*/?>", "\n", decoded, flags=re.I)
                 decoded = re.sub(r"</p\s*>", "\n", decoded, flags=re.I)
                 decoded = re.sub(r"<[^>]+>", " ", decoded)
@@ -1230,6 +1231,24 @@ def extract_message_text(payload: dict[str, Any]) -> str:
 
     walk(payload)
     return " ".join(" ".join(chunks).split())
+
+
+def preserve_html_links(value: str) -> str:
+    def replace_link(match: re.Match[str]) -> str:
+        href = html.unescape(match.group(1)).strip()
+        label = clean_mail_excerpt(re.sub(r"<[^>]+>", " ", match.group(2)))
+        if not href.startswith(("http://", "https://")):
+            return label
+        if label:
+            return f"{label} {href}"
+        return href
+
+    return re.sub(
+        r"<a\b[^>]*\bhref=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
+        replace_link,
+        value,
+        flags=re.I | re.S,
+    )
 
 
 def extract_tracking_links(text: str) -> list[str]:
@@ -1251,9 +1270,28 @@ def extract_tracking_links(text: str) -> list[str]:
     )
     for link in links:
         clean = link.rstrip(".,;:")
-        if any(keyword in clean.lower() for keyword in keywords) and clean not in wanted:
+        if (
+            any(keyword in clean.lower() for keyword in keywords)
+            or has_tracking_context_near_link(text, clean)
+        ) and clean not in wanted:
             wanted.append(clean)
     return wanted
+
+
+def has_tracking_context_near_link(text: str, link: str) -> bool:
+    index = text.find(link)
+    if index == -1:
+        return False
+    context = normalize_status_text(text[max(0, index - 220) : index + len(link) + 80])
+    markers = (
+        "lieferung verfolgen",
+        "sendung verfolgen",
+        "paket verfolgen",
+        "dein paket wurde versendet",
+        "ankunft morgen",
+        "versendet",
+    )
+    return any(marker in context for marker in markers)
 
 
 def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
@@ -1553,9 +1591,21 @@ def delivery_display_title(subject: str, sender: str, text: str) -> str:
     product = extract_delivery_product_title(subject, text)
     if product:
         return product
+    inferred = infer_delivery_product_title(subject, text)
+    if inferred:
+        return inferred
     if merchant and (is_truncated_delivery_title(subject) or "amazon" in normalize_status_text(merchant)):
         return f"{merchant}-Bestellung"
     return strip_long(clean_mail_excerpt(clean_delivery_subject(subject)), 90)
+
+
+def infer_delivery_product_title(subject: str, text: str) -> str:
+    haystack = normalize_status_text(f"{subject} {text[:2000]}")
+    if "tragbare" in haystack and any(marker in haystack for marker in ("fußball", "fussball")) and "schultasche" in haystack:
+        return "Tragbare Fußballschuhtasche"
+    if any(marker in haystack for marker in ("fußball", "fussball")) and "schuh" in haystack and "tasche" in haystack:
+        return "Fußballschuhtasche"
+    return ""
 
 
 def delivery_merchant_name(subject: str, sender: str, text: str) -> str:
@@ -1801,7 +1851,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Unter Deliveries: offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Keine gekürzten oder abgebrochenen Artikelnamen nennen; wenn nur ein abgeschnittener Produktname vorliegt, "
-        "lieber Händler plus Bestellung schreiben. Tracking-URLs nie ausschreiben; der Linktext muss exakt 'Trackinglink' sein. "
+        "lieber die beste Produktkategorie oder Händler plus Bestellung schreiben. Niemals erklären, dass ein Artikelname abgeschnitten ist. "
+        "Tracking-URLs nie ausschreiben; der Linktext muss exakt 'Trackinglink' sein. "
         "Unter Waiting for... ausschließlich Einträge aus waiting_for verwenden; application_wiki ist der kuratierte Bewerbungs-Dashboard-Kontext. "
         "Wenn application_wiki oder action_overrides sagen, dass ein Bewerbungskanal nicht aktiv nachverfolgt werden soll, "
         "darf daraus kein To-do und keine Rückruf-Erinnerung entstehen. "
