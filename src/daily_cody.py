@@ -721,7 +721,7 @@ def extract_free_tv_sender_from_text(text: str) -> str:
 
 def extract_kickoff_from_text(text: str) -> str:
     match = re.search(
-        r"Spielbeginn(?:\s+ist)?(?:\s+um|:)?\s+(\d{1,2})(?::|\.| Uhr)?(\d{2})?",
+        r"(?:Spielbeginn|Anstoß|Anstoss)(?:\s+ist)?(?:\s+um|:)?\s+(\d{1,2})(?::|\.| Uhr)?(\d{2})?",
         text,
         flags=re.I,
     )
@@ -1101,18 +1101,19 @@ def list_delivery_mail(token: str, sender_email: str, recipient_email: str) -> l
         snippet = message.get("snippet", "")
         if is_delivery_noise(subject, snippet, text):
             continue
-        if is_suppressed_topic(subject, snippet, text, completed_topics=completed_topics):
-            continue
         if not looks_like_delivery(subject, snippet, text):
             continue
         status = classify_delivery_status(subject, snippet, text)
         if status == "unknown":
             continue
+        display_title = delivery_display_title(subject, sender, text)
+        if is_suppressed_topic(subject, snippet, text, display_title, completed_topics=completed_topics):
+            continue
         links = extract_tracking_links(text)
         candidates.append(
             {
                 "from": sender,
-                "subject": delivery_display_title(subject, sender, text),
+                "subject": display_title,
                 "date": headers.get("date", ""),
                 "snippet": delivery_status_summary(status, subject, snippet, text),
                 "status": status,
@@ -2307,7 +2308,7 @@ def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
     return lines
 
 
-def format_time(value: str) -> str:
+def format_time(value: str, timezone: str = "Europe/Berlin") -> str:
     if not value:
         return ""
     if len(value) == 10:
@@ -2319,6 +2320,8 @@ def format_time(value: str) -> str:
             return value
     try:
         parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(ZoneInfo(timezone))
         return parsed.strftime("%H:%M")
     except ValueError:
         return value
