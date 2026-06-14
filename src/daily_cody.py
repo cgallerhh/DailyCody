@@ -1077,7 +1077,7 @@ def list_recent_mail(token: str) -> list[dict[str, str]]:
     return output
 
 
-def list_delivery_mail(token: str, sender_email: str) -> list[dict[str, Any]]:
+def list_delivery_mail(token: str, sender_email: str, recipient_email: str) -> list[dict[str, Any]]:
     query_text = (
         "newer_than:21d "
         "{amazon bestellung bestellt versandt versendet lieferung zustellung "
@@ -1087,6 +1087,9 @@ def list_delivery_mail(token: str, sender_email: str) -> list[dict[str, Any]]:
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     candidates = []
     own = sender_email.lower()
+    completed_topics = load_completed_delivery_topics() + list_completed_delivery_mail_topics(
+        token, sender_email, recipient_email
+    )
     for item in messages[:40]:
         message = request_json(f"{GMAIL_API}/messages/{item['id']}?format=full", token=token)
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
@@ -1098,7 +1101,7 @@ def list_delivery_mail(token: str, sender_email: str) -> list[dict[str, Any]]:
         snippet = message.get("snippet", "")
         if is_delivery_noise(subject, snippet, text):
             continue
-        if is_suppressed_topic(subject, snippet, text):
+        if is_suppressed_topic(subject, snippet, text, completed_topics=completed_topics):
             continue
         if not looks_like_delivery(subject, snippet, text):
             continue
@@ -1451,12 +1454,53 @@ def extract_delivery_carrier(*values: str) -> str:
     return ""
 
 
-def is_suppressed_topic(*values: str) -> bool:
+def is_suppressed_topic(*values: str, completed_topics: list[str] | None = None) -> bool:
     haystack = normalize_status_text(" ".join(value or "" for value in values))
-    for entry in load_completed_delivery_topics():
+    for entry in completed_topics if completed_topics is not None else load_completed_delivery_topics():
         if normalize_status_text(entry) in haystack:
             return True
     return False
+
+
+def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient_email: str) -> list[str]:
+    query_text = (
+        f'newer_than:90d from:{sender_email} to:{recipient_email} '
+        '("Cody Lieferung erledigt" OR "Cody Lieferung zugestellt" OR "Cody Lieferung geliefert")'
+    )
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "20"})
+    messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
+    topics: list[str] = []
+    for item in messages[:20]:
+        message = request_json(
+            f"{GMAIL_API}/messages/{item['id']}?format=full",
+            token=token,
+        )
+        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        text = " ".join(
+            [
+                headers.get("subject", ""),
+                message.get("snippet", ""),
+                extract_message_text(message.get("payload", {})),
+            ]
+        )
+        for topic in extract_completed_delivery_topics_from_text(text):
+            if topic not in topics:
+                topics.append(topic)
+    return topics
+
+
+def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
+    topics = []
+    pattern = re.compile(
+        r"(?:^|\n)\s*cody\s+lieferung\s+(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*(.+)",
+        flags=re.I,
+    )
+    for match in pattern.finditer(text):
+        topic = strip_long(clean_mail_excerpt(match.group(1)), 120)
+        topic = re.split(r"\s+(?:\n|--|sent from|von meinem)", topic, maxsplit=1, flags=re.I)[0].strip()
+        if topic:
+            topics.append(topic)
+    return topics
 
 
 def load_completed_delivery_topics() -> list[str]:
@@ -2496,7 +2540,7 @@ def main() -> int:
     reminders = read_exported_reminders(config, now)
     application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
-    delivery_mail = list_delivery_mail(token, config.sender)
+    delivery_mail = list_delivery_mail(token, config.sender, config.recipient)
     open_mail = list_yesterday_open_mail(token, now)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
