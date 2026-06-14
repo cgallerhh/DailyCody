@@ -258,8 +258,22 @@ def refresh_google_token(config: Config) -> str:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.reason
+        try:
+            error_payload = json.loads(exc.read().decode("utf-8"))
+            error = error_payload.get("error")
+            description = error_payload.get("error_description")
+            if error and description:
+                detail = f"{error}: {description}"
+            elif error:
+                detail = str(error)
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        raise RuntimeError(f"Google token refresh failed with HTTP {exc.code}: {detail}") from exc
     return payload["access_token"]
 
 
