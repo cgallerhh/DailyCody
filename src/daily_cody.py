@@ -1476,14 +1476,12 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
             token=token,
         )
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
-        text = " ".join(
-            [
-                headers.get("subject", ""),
-                message.get("snippet", ""),
-                extract_message_text(message.get("payload", {})),
-            ]
-        )
-        for topic in extract_completed_delivery_topics_from_text(text):
+        message_parts = [
+            headers.get("subject", ""),
+            message.get("snippet", ""),
+            extract_message_text(message.get("payload", {})),
+        ]
+        for topic in extract_completed_delivery_topics_from_text("\n".join(message_parts)):
             if topic not in topics:
                 topics.append(topic)
     return topics
@@ -1492,7 +1490,7 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
 def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
     topics = []
     pattern = re.compile(
-        r"(?:^|\n)\s*cody\s+lieferung\s+(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*(.+)",
+        r"(?:^|\n)\s*cody\s+lieferung\s+(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*([^\n\r]+)",
         flags=re.I,
     )
     for match in pattern.finditer(text):
