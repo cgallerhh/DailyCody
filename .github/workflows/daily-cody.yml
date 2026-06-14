@@ -48,7 +48,7 @@ jobs:
           OPENAI_MAX_ATTEMPTS: ${{ vars.OPENAI_MAX_ATTEMPTS || '2' }}
           ALLOW_TEMPLATE_FALLBACK: ${{ vars.ALLOW_TEMPLATE_FALLBACK || 'false' }}
           REQUIRE_FRESH_REMINDERS: ${{ vars.REQUIRE_FRESH_REMINDERS || 'true' }}
-          REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '36' }}
+          REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '60' }}
           FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event.inputs.allow_duplicate || 'false' }}
         run: python src/daily_cody.py

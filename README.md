@@ -111,7 +111,7 @@ scripts/install_reminders_export_agent.sh
 
 The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions fresh Reminders and Bewerbungen dashboard snapshots before the `06:00` briefing whenever the Mac was running overnight.
 
-The GitHub workflow requires a fresh Reminders export by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=36`). If the local Mac export fails, Daily Cody fails instead of sending a briefing based on stale Reminders data. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
+The GitHub workflow requires a fresh Reminders export by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=60`). If the local Mac export fails for more than two mornings, Daily Cody fails instead of sending a briefing based on stale Reminders data. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
 
 ## Delivery Status
 

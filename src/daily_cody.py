@@ -201,7 +201,7 @@ def load_config() -> Config:
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
         include_undated_reminders=os.getenv("INCLUDE_UNDATED_REMINDERS", "false").lower() == "true",
         require_fresh_reminders=os.getenv("REQUIRE_FRESH_REMINDERS", "false").lower() == "true",
-        reminders_max_age_hours=int(getenv("REMINDERS_MAX_AGE_HOURS", "36")),
+        reminders_max_age_hours=int(getenv("REMINDERS_MAX_AGE_HOURS", "60")),
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
         application_wiki_snapshot_path=getenv(
             "APPLICATION_WIKI_SNAPSHOT_PATH", "data/application_wiki_snapshot.json"
@@ -2428,7 +2428,7 @@ def build_sample_briefing() -> str:
         dry_run=True,
         include_undated_reminders=False,
         require_fresh_reminders=False,
-        reminders_max_age_hours=36,
+        reminders_max_age_hours=60,
         reminders_export_path="data/reminders.json",
         application_wiki_snapshot_path="data/application_wiki_snapshot.json",
     )
