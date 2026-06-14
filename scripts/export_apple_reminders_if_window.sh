@@ -12,7 +12,8 @@ window_start=$((23 * 60 + 59))
 window_end=$((6 * 60 + 59))
 
 if (( now_minutes >= window_start || now_minutes <= window_end )); then
+  echo "Starting Apple Reminders export: $(date '+%Y-%m-%d %H:%M:%S %z')"
   scripts/export_apple_reminders.sh
 else
-  echo "Outside Apple Reminders export window: $(date '+%H:%M')"
+  echo "Outside Apple Reminders export window: $(date '+%Y-%m-%d %H:%M:%S %z')"
 fi

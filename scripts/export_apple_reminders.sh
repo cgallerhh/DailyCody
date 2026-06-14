@@ -14,7 +14,38 @@ mkdir -p data
 tmp_file="$(mktemp)"
 trap 'rm -f "$tmp_file"' EXIT
 
-rem export --incomplete --format json > "$tmp_file"
+rem_timeout_seconds="${REM_EXPORT_TIMEOUT_SECONDS:-120}"
+if ! python3 - "$tmp_file" "$rem_timeout_seconds" <<'PY'; then
+import subprocess
+import sys
+
+tmp_file = sys.argv[1]
+timeout_seconds = int(sys.argv[2])
+
+with open(tmp_file, "w", encoding="utf-8") as fh:
+    try:
+        subprocess.run(
+            ["rem", "export", "--incomplete", "--format", "json"],
+            stdout=fh,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout_seconds,
+            check=True,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"Apple Reminders export timed out after {timeout_seconds} seconds.",
+            file=sys.stderr,
+        )
+        raise SystemExit(124)
+    except subprocess.CalledProcessError as exc:
+        if exc.stderr:
+            print(exc.stderr, end="", file=sys.stderr)
+        raise SystemExit(exc.returncode)
+PY
+  echo "Apple Reminders export failed."
+  exit 1
+fi
 python3 -m json.tool "$tmp_file" > data/reminders.json
 python3 - "$tmp_file" <<'PY'
 import datetime as dt
