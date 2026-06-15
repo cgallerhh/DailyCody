@@ -1762,18 +1762,24 @@ def is_suppressed_topic(*values: str, completed_topics: list[str] | None = None)
 
 def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient_email: str) -> list[str]:
     query_text = (
-        f'newer_than:90d from:{sender_email} to:{recipient_email} '
-        '("Cody Lieferung erledigt" OR "Cody Lieferung zugestellt" OR "Cody Lieferung geliefert")'
+        'newer_than:90d in:anywhere '
+        '("Cody Lieferung erledigt" OR "Cody Lieferung zugestellt" OR '
+        '"Cody Lieferung geliefert" OR "Cody Lieferung angekommen")'
     )
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "20"})
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "50"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     topics: list[str] = []
-    for item in messages[:20]:
+    own_addresses = {address.lower() for address in (sender_email, recipient_email) if address}
+    for item in messages[:50]:
         message = request_json(
             f"{GMAIL_API}/messages/{item['id']}?format=full",
             token=token,
         )
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        sender = headers.get("from", "").lower()
+        recipient = headers.get("to", "").lower()
+        if own_addresses and not any(address in sender or address in recipient for address in own_addresses):
+            continue
         message_parts = [
             headers.get("subject", ""),
             message.get("snippet", ""),
@@ -1788,7 +1794,8 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
 def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
     topics = []
     pattern = re.compile(
-        r"(?:^|\n)\s*cody\s+lieferung\s+(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*([^\n\r]+)",
+        r"(?:^|[\n\r]|(?:re|fwd?|wg|aw)\s*:\s*)\s*cody\s+lieferung\s+"
+        r"(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*([^\n\r]+)",
         flags=re.I,
     )
     for match in pattern.finditer(text):
