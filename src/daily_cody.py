@@ -1376,8 +1376,8 @@ def list_recent_mail(token: str) -> list[dict[str, str]]:
 
 def list_delivery_mail(token: str, sender_email: str, recipient_email: str) -> list[dict[str, Any]]:
     query_text = (
-        "newer_than:21d "
-        "{amazon bestellung bestellt versandt versendet lieferung zustellung "
+        "newer_than:21d in:anywhere -in:trash -in:spam "
+        "{label:Amazon from:amazon.de from:amazon.com amazon bestellung bestellt versandt versendet lieferung zustellung "
         "sendung tracking paket dhl hermes dpd ups gls proraso comic}"
     )
     query = urllib.parse.urlencode({"q": query_text, "maxResults": "40"})
