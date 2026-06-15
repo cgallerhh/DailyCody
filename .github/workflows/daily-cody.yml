@@ -30,7 +30,7 @@ jobs:
 
       - name: Send Daily Cody
         env:
-          SENDER_EMAIL: christian.galler@gmail.com
+          SENDER_EMAIL: "Cody Chief of Staff <christian.galler+cody@gmail.com>"
           RECIPIENT_EMAIL: christian.galler@gmail.com
           TIMEZONE: Europe/Berlin
           WEATHER_LABEL: "21077 Hamburg"

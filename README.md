@@ -1,6 +1,6 @@
 # Daily Cody
 
-Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `christian.galler@gmail.com` to `christian.galler@gmail.com` around 06:00 `Europe/Berlin`.
+Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `Cody Chief of Staff <christian.galler+cody@gmail.com>` to `christian.galler@gmail.com` around 06:00 `Europe/Berlin`.
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
@@ -156,7 +156,8 @@ Remove `DRY_RUN=true` to actually send the email.
 
 The workflow already sets:
 
-- sender and recipient: `christian.galler@gmail.com`
+- sender: `Cody Chief of Staff <christian.galler+cody@gmail.com>`
+- recipient: `christian.galler@gmail.com`
 - timezone: `Europe/Berlin`
 - weather location: `21077 Hamburg`
 - calendar names: `privat,Geburtstage,A&C,MixedCup2026`
