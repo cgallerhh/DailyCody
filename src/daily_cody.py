@@ -1753,11 +1753,29 @@ def extract_delivery_carrier(*values: str) -> str:
 
 
 def is_suppressed_topic(*values: str, completed_topics: list[str] | None = None) -> bool:
-    haystack = normalize_status_text(" ".join(value or "" for value in values))
+    joined = " ".join(value or "" for value in values)
+    haystack = normalize_status_text(joined)
     for entry in completed_topics if completed_topics is not None else load_completed_delivery_topics():
-        if normalize_status_text(entry) in haystack:
+        if completed_delivery_topic_matches(entry, joined, haystack):
             return True
     return False
+
+
+def completed_delivery_topic_matches(entry: str, delivery_text: str, normalized_delivery_text: str) -> bool:
+    normalized_entry = normalize_status_text(entry)
+    if not normalized_entry:
+        return False
+    if normalized_entry in normalized_delivery_text:
+        return True
+    entry_order = extract_delivery_order_number(entry, "")
+    delivery_order = extract_delivery_order_number(delivery_text, "")
+    if entry_order or delivery_order:
+        return bool(entry_order and delivery_order and entry_order == delivery_order)
+    entry_tokens = [token for token in normalized_entry.split() if len(token) >= 4]
+    if not entry_tokens:
+        return False
+    matched_tokens = sum(1 for token in entry_tokens if token in normalized_delivery_text)
+    return matched_tokens >= min(2, len(entry_tokens))
 
 
 def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient_email: str) -> list[str]:
@@ -1794,7 +1812,7 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
 def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
     topics = []
     pattern = re.compile(
-        r"(?:^|[\n\r]|(?:re|fwd?|wg|aw)\s*:\s*)\s*cody\s+lieferung\s+"
+        r"\bcody\s+lieferung\s+"
         r"(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*([^\n\r]+)",
         flags=re.I,
     )
