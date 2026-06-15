@@ -25,6 +25,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
+DWD_WARNINGS_API = "https://www.dwd.de/DWD/warnungen/warnapp/json/warnings.json"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
 ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
 ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
@@ -283,13 +284,15 @@ def get_weather(config: Config) -> dict[str, Any]:
             "latitude": config.weather_latitude,
             "longitude": config.weather_longitude,
             "timezone": config.timezone,
-            "current": "temperature_2m,precipitation,rain",
-            "hourly": "temperature_2m,precipitation_probability,precipitation,rain",
-            "forecast_days": "2",
+            "current": "temperature_2m,precipitation,rain,wind_gusts_10m",
+            "hourly": "temperature_2m,precipitation_probability,precipitation,rain,wind_gusts_10m",
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_gusts_10m_max",
+            "forecast_days": "4",
         }
     )
     data = request_json(f"{OPEN_METEO_API}?{params}")
     hourly = data.get("hourly", {})
+    daily = data.get("daily", {})
     times = hourly.get("time", [])
     temps = hourly.get("temperature_2m", [])
     rain_probs = hourly.get("precipitation_probability", [])
@@ -299,42 +302,79 @@ def get_weather(config: Config) -> dict[str, Any]:
         if "12:00" <= timestamp[-5:] <= "18:00" and index < len(rain_probs)
     ]
     max_afternoon_rain = max(afternoon_probs) if afternoon_probs else None
-    current_temp = data.get("current", {}).get("temperature_2m")
-    high = max(temps[:24]) if temps else None
-    low = min(temps[:24]) if temps else None
+    current = data.get("current", {})
+    current_temp = current.get("temperature_2m")
+    highs = daily.get("temperature_2m_max", [])
+    lows = daily.get("temperature_2m_min", [])
+    today_wind_gust = first_list_value(daily.get("wind_gusts_10m_max", []))
+    high = highs[0] if highs else max(temps[:24]) if temps else None
+    low = lows[0] if lows else min(temps[:24]) if temps else None
     rain_text = format_percent(max_afternoon_rain)
     temp_range = f"{format_temp(low)} bis {format_temp(high)}"
-    weather_note = interpret_weather(current_temp, low, high, max_afternoon_rain)
-    summary = build_weather_summary(config.weather_label, current_temp, temp_range, rain_text, weather_note)
+    weather_note = interpret_weather(current_temp, low, high, max_afternoon_rain, today_wind_gust)
+    warnings = list_weather_warnings(config, dt.datetime.now(ZoneInfo(config.timezone)))
+    outlook = build_weather_outlook(daily, config.timezone)
+    summary = build_weather_summary(
+        config.weather_label,
+        current_temp,
+        temp_range,
+        rain_text,
+        weather_note,
+        outlook,
+        warnings,
+    )
     return {
         "label": config.weather_label,
         "current_temp_c": current_temp,
         "high_c": high,
         "low_c": low,
         "afternoon_rain_probability_pct": max_afternoon_rain,
+        "current_wind_gust_kmh": current.get("wind_gusts_10m"),
+        "today_wind_gust_kmh": today_wind_gust,
+        "outlook": outlook,
+        "warnings": warnings,
         "umbrella_note": weather_note,
         "summary": summary,
     }
 
 
 def build_weather_summary(
-    label: str, current_temp: Any, temp_range: str, rain_text: str, weather_note: str
+    label: str,
+    current_temp: Any,
+    temp_range: str,
+    rain_text: str,
+    weather_note: str,
+    outlook: str = "",
+    warnings: list[dict[str, Any]] | None = None,
 ) -> str:
     place = "Hamburg" if "hamburg" in label.lower() else label
-    return (
+    parts = [
         f"{place}: gerade {format_temp(current_temp)}, später {temp_range}. "
         f"Am Nachmittag {rain_text} Regenwahrscheinlichkeit. {weather_note}"
-    )
+    ]
+    if outlook:
+        parts.append(outlook)
+    warning_text = format_weather_warnings(warnings or [])
+    if warning_text:
+        parts.append(warning_text)
+    return " ".join(parts)
 
 
-def interpret_weather(current_temp: Any, low: Any, high: Any, rain_probability: Any) -> str:
+def interpret_weather(
+    current_temp: Any, low: Any, high: Any, rain_probability: Any, wind_gust_kmh: Any = None
+) -> str:
     rain = rain_probability if isinstance(rain_probability, (int, float)) else None
     current = current_temp if isinstance(current_temp, (int, float)) else None
     day_high = high if isinstance(high, (int, float)) else None
     day_low = low if isinstance(low, (int, float)) else None
+    wind = wind_gust_kmh if isinstance(wind_gust_kmh, (int, float)) else None
 
     if rain is None:
         return "Die Regenlage ist unklar; Temperatur und Himmel lieber kurz vor dem Rausgehen prüfen."
+    if wind is not None and wind >= 70:
+        return "Der Tag ist nicht sehr nass, aber der Wind ist der Wetterfaktor."
+    if wind is not None and wind >= 50:
+        return "Wenig Regen, aber spürbar windig; draußen lieber nichts Leichtes lose stehen lassen."
     if rain >= 65:
         return "Das ist ein klar nasser Nachmittag; draußen lieber mit trockenem Puffer planen."
     if rain >= 45:
@@ -350,6 +390,243 @@ def interpret_weather(current_temp: Any, low: Any, high: Any, rain_probability: 
     if day_low is not None and day_low <= 8:
         return "Trocken, aber mit kühlem Rand; morgens nicht zu optimistisch anziehen."
     return "Ruhiges Wetterbild; kein großer Wetterfaktor für den Tag."
+
+
+def build_weather_outlook(daily: dict[str, Any], timezone: str) -> str:
+    dates = daily.get("time", [])
+    codes = daily.get("weather_code", [])
+    highs = daily.get("temperature_2m_max", [])
+    rain_probs = daily.get("precipitation_probability_max", [])
+    gusts = daily.get("wind_gusts_10m_max", [])
+    if not dates or not highs:
+        return ""
+
+    sentences = [build_sky_sentence(codes[:4], rain_probs[:4])]
+
+    rain_sentence = build_rain_sentence(dates[:4], codes[:4], rain_probs[:4], timezone)
+    if rain_sentence:
+        sentences.append(rain_sentence)
+
+    trend_sentence = build_temperature_trend_sentence(highs[:2])
+    if trend_sentence:
+        sentences.append(trend_sentence)
+
+    wind_sentence = build_wind_sentence(first_list_value(gusts))
+    if wind_sentence:
+        sentences.append(wind_sentence)
+
+    return " ".join(sentence for sentence in sentences if sentence)
+
+
+def build_sky_sentence(codes: list[Any], rain_probs: list[Any]) -> str:
+    rainy = any(is_rainy_weather_code(code) for code in codes) or any(
+        isinstance(probability, (int, float)) and probability >= 45 for probability in rain_probs
+    )
+    sunny = any(code in {0, 1, 2} for code in codes if isinstance(code, int))
+    cloudy = any(code in {2, 3, 45, 48} for code in codes if isinstance(code, int))
+    if sunny and cloudy:
+        return "In den nächsten Tagen gibt es in Hamburg einen Mix aus Sonne und Wolken."
+    if sunny:
+        return "In den nächsten Tagen zeigt sich Hamburg eher freundlich."
+    if rainy:
+        return "In den nächsten Tagen bleibt das Wetter in Hamburg eher wechselhaft."
+    return "In den nächsten Tagen bleibt Hamburg wetterseitig eher ruhig."
+
+
+def build_rain_sentence(dates: list[Any], codes: list[Any], rain_probs: list[Any], timezone: str) -> str:
+    for index, raw_date in enumerate(dates):
+        code = codes[index] if index < len(codes) else None
+        probability = rain_probs[index] if index < len(rain_probs) else None
+        has_rain_signal = is_rainy_weather_code(code) or (
+            isinstance(probability, (int, float)) and probability >= 45
+        )
+        if not has_rain_signal:
+            continue
+        label = format_relative_weather_day(raw_date, timezone)
+        if label == "heute" and not (isinstance(probability, (int, float)) and probability >= 45):
+            continue
+        if label == "heute":
+            return "Heute ist Regen ein Thema."
+        if label == "morgen":
+            return "Morgen kommt Regen dazu."
+        return f"Am {label} fällt voraussichtlich Regen."
+    return ""
+
+
+def build_temperature_trend_sentence(highs: list[Any]) -> str:
+    if len(highs) < 2 or not all(isinstance(value, (int, float)) for value in highs[:2]):
+        return ""
+    today = int(round(highs[0]))
+    tomorrow = int(round(highs[1]))
+    if tomorrow >= today + 2:
+        return f"Es wird wärmer: Die Höchstwerte steigen von {today} Grad heute auf {tomorrow} Grad morgen."
+    if tomorrow <= today - 2:
+        return f"Es wird kühler: Die Höchstwerte fallen von {today} Grad heute auf {tomorrow} Grad morgen."
+    return f"Die Temperaturen bleiben ähnlich: heute etwa {today} Grad, morgen etwa {tomorrow} Grad."
+
+
+def build_wind_sentence(gust_kmh: Any) -> str:
+    if not isinstance(gust_kmh, (int, float)):
+        return ""
+    if gust_kmh >= 70:
+        return "Heute treten stürmische Böen auf."
+    if gust_kmh >= 50:
+        return "Heute sind kräftige Böen dabei."
+    return ""
+
+
+def is_rainy_weather_code(code: Any) -> bool:
+    return isinstance(code, int) and (
+        51 <= code <= 67 or 80 <= code <= 82 or 95 <= code <= 99
+    )
+
+
+def format_relative_weather_day(raw_date: Any, timezone: str) -> str:
+    try:
+        value = dt.date.fromisoformat(str(raw_date))
+    except ValueError:
+        return "kommenden Tag"
+    today = dt.datetime.now(ZoneInfo(timezone)).date()
+    if value == today:
+        return "heute"
+    if value == today + dt.timedelta(days=1):
+        return "morgen"
+    weekdays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+    return weekdays[value.weekday()]
+
+
+def list_weather_warnings(config: Config, now: dt.datetime) -> list[dict[str, Any]]:
+    try:
+        payload = request_text(DWD_WARNINGS_API)
+        data = parse_dwd_warning_payload(payload)
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError, UnicodeDecodeError) as exc:
+        print(f"Weather warning lookup skipped: {exc}", file=sys.stderr)
+        return []
+
+    warnings = []
+    now_ms = int(now.timestamp() * 1000)
+    cutoff_ms = int((now + dt.timedelta(hours=36)).timestamp() * 1000)
+    for warning_list in data.get("warnings", {}).values():
+        if not isinstance(warning_list, list):
+            continue
+        for warning in warning_list:
+            if not isinstance(warning, dict) or not is_hamburg_warning(warning):
+                continue
+            start = warning.get("start")
+            end = warning.get("end")
+            if isinstance(end, (int, float)) and end < now_ms:
+                continue
+            if isinstance(start, (int, float)) and start > cutoff_ms:
+                continue
+            warnings.append(warning)
+
+    warnings.sort(key=lambda item: (item.get("start") or 0, -(item.get("level") or 0)))
+    unique_warnings = []
+    seen = set()
+    for warning in warnings:
+        key = weather_warning_key(warning)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_warnings.append(warning)
+        if len(unique_warnings) == 3:
+            break
+    return unique_warnings
+
+
+def parse_dwd_warning_payload(payload: str) -> dict[str, Any]:
+    match = re.search(r"warnWetter\.loadWarnings\((.*)\)\s*;?\s*$", payload, re.S)
+    if not match:
+        raise ValueError("DWD warning payload has unexpected format")
+    data = json.loads(match.group(1))
+    if not isinstance(data, dict):
+        raise ValueError("DWD warning payload is not an object")
+    return data
+
+
+def is_hamburg_warning(warning: dict[str, Any]) -> bool:
+    state = str(warning.get("state", "")).lower()
+    state_short = str(warning.get("stateShort", "")).lower()
+    return state_short == "hh" or state == "hamburg"
+
+
+def format_weather_warnings(warnings: list[dict[str, Any]]) -> str:
+    if not warnings:
+        return ""
+    formatted = []
+    seen = set()
+    for warning in warnings:
+        key = weather_warning_key(warning)
+        if key in seen:
+            continue
+        seen.add(key)
+        formatted.append(format_weather_warning(warning))
+        if len(formatted) == 2:
+            break
+    formatted = [item for item in formatted if item]
+    if not formatted:
+        return ""
+    return "Warnung: " + " ".join(formatted)
+
+
+def weather_warning_key(warning: dict[str, Any]) -> tuple[str, str, Any, Any]:
+    return (
+        clean_warning_text(warning.get("event", "")).lower(),
+        clean_warning_text(warning.get("description", "")).lower(),
+        warning.get("start"),
+        warning.get("end"),
+    )
+
+
+def format_weather_warning(warning: dict[str, Any]) -> str:
+    event = format_warning_event(warning.get("event") or warning.get("headline") or "Wetterwarnung")
+    description = clean_warning_text(warning.get("description", ""))
+    start = format_warning_time(warning.get("start"))
+    end = format_warning_time(warning.get("end"))
+    time_text = ""
+    if start and end:
+        time_text = f" von {start} bis {end}"
+    elif start:
+        time_text = f" ab {start}"
+    elif end:
+        time_text = f" bis {end}"
+    detail = shorten_warning_description(description)
+    if detail:
+        return f"{event}{time_text}: {detail}."
+    return f"{event}{time_text}."
+
+
+def format_warning_event(value: Any) -> str:
+    text = clean_warning_text(value)
+    if text.isupper():
+        return text.capitalize()
+    return text
+
+
+def clean_warning_text(value: Any) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" .")
+
+
+def shorten_warning_description(description: str) -> str:
+    if not description:
+        return ""
+    first_sentence = re.split(r"(?<=[.!?])\s+", description.strip(), maxsplit=1)[0]
+    return first_sentence[:180].rstrip(" .,;")
+
+
+def format_warning_time(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return ""
+    return dt.datetime.fromtimestamp(value / 1000, tz=ZoneInfo("Europe/Berlin")).strftime("%H:%M")
+
+
+def first_list_value(values: Any) -> Any:
+    if isinstance(values, list) and values:
+        return values[0]
+    return None
 
 
 def list_calendar_events(config: Config, token: str, now: dt.datetime) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
