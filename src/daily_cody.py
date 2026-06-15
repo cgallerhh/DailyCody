@@ -1077,7 +1077,7 @@ def format_short_reminder_date(value: dt.date) -> str:
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
-    query = urllib.parse.urlencode({"q": "newer_than:2d -category:promotions", "maxResults": "25"})
+    query = urllib.parse.urlencode({"q": "newer_than:2d -category:promotions -from:me", "maxResults": "25"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     output = []
     for item in messages[:25]:
@@ -1861,7 +1861,6 @@ def build_briefing(
         "upcoming_events": upcoming_events,
         "reminders": upcoming_reminders,
         "today_todos": today_reminders,
-        "recent_mail": recent_mail,
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
@@ -1938,7 +1937,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Packe Wetter unter Today als eine persönliche Cody-Zeile. "
         "Nutze weather.summary möglichst wörtlich; keine Witze über Hamburg, kein 'Hamburg lacht zuletzt', keine Wiederholungsphrase. "
         "Wenn Pia oder Pia-Lotta auftaucht: Das ist Christians Tochter. Schreib warm und schlicht, nicht wie ein Kontakt-Ping. "
-        "Unter Deliveries: offene Bestellungen und Lieferungen "
+        "Unter Deliveries: ausschließlich Einträge aus deliveries verwenden; keine Lieferungen aus recent_mail, "
+        "alten Daily-Cody-Mails oder sonstigem Kontext rekonstruieren. Offene Bestellungen und Lieferungen "
         "aller Händler, zum Beispiel Amazon, Proraso oder Comics, mit Liefertermin und Trackinglink, falls vorhanden. "
         "Keine gekürzten oder abgebrochenen Artikelnamen nennen; wenn nur ein abgeschnittener Produktname vorliegt, "
         "lieber die beste Produktkategorie oder Händler plus Bestellung schreiben. Niemals erklären, dass ein Artikelname abgeschnitten ist. "
