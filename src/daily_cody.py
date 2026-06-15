@@ -1655,6 +1655,9 @@ def is_delivery_noise(subject: str, snippet: str, text: str) -> bool:
 
 
 def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
+    subject_status = classify_delivery_status_from_subject(subject)
+    if subject_status:
+        return subject_status
     haystack = normalize_status_text(f"{subject} {snippet} {text[:1200]}")
     if any(marker in haystack for marker in ("geliefert", "zugestellt", "wurde zugestellt")):
         return "delivered"
@@ -1667,6 +1670,19 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
     if "tracking" in haystack or "sendung verfolgen" in haystack:
         return "shipped"
     return "unknown"
+
+
+def classify_delivery_status_from_subject(subject: str) -> str:
+    normalized = normalize_status_text(subject)
+    if normalized.startswith("geliefert") or normalized.startswith("zugestellt"):
+        return "delivered"
+    if normalized.startswith("in zustellung"):
+        return "out_for_delivery"
+    if normalized.startswith(("versendet", "versandt", "verschickt")):
+        return "shipped"
+    if normalized.startswith(("bestellt", "bestellung")):
+        return "ordered"
+    return ""
 
 
 def delivery_status_rank(status: str) -> int:
@@ -1729,7 +1745,15 @@ def delivery_status_summary(status: str, subject: str, snippet: str, text: str) 
 
 
 def extract_delivery_eta(*values: str) -> str:
-    haystack = normalize_status_text(" ".join(values))
+    raw_text = clean_mail_excerpt(" ".join(values))
+    date_range = re.search(
+        r"zustellung\s*:\s*(\d{1,2}\.\s*[A-Za-zÄÖÜäöü]+)\s*[-–]\s*(\d{1,2}\.\s*[A-Za-zÄÖÜäöü]+)",
+        raw_text,
+        flags=re.I,
+    )
+    if date_range:
+        return f"Zustellung {date_range.group(1)}–{date_range.group(2)}"
+    haystack = normalize_status_text(raw_text)
     if "ankunft morgen" in haystack:
         return "Ankunft morgen"
     if any(marker in haystack for marker in ("kommt heute", "ankunft heute", "wird heute zugestellt")):
@@ -1939,6 +1963,7 @@ def normalize_delivery_key(subject: str, sender: str, text: str = "") -> str:
 def extract_delivery_order_number(subject: str, text: str) -> str:
     haystack = f"{subject} {text[:1000]}"
     patterns = (
+        r"\b(\d{3}-\d{7}-\d{7})\b",
         r"#\s*(\d{4,})",
         r"\bbestell(?:ung|nummer)?\D{0,20}(\d{4,})",
         r"\border\D{0,20}(\d{4,})",
@@ -1952,11 +1977,25 @@ def extract_delivery_order_number(subject: str, text: str) -> str:
 
 def extract_delivery_product_title(subject: str, text: str = "") -> str:
     candidates = re.findall(r"[„\"]([^“\"]{4,140})[“\"]", f"{subject} {text[:1500]}")
+    candidates.extend(re.findall(r"\[([^\[\]]{8,180})\]\(https?://[^\s)]+/dp/", text[:2500], flags=re.I))
     for candidate in candidates:
         title = clean_mail_excerpt(candidate)
-        if title and not is_truncated_delivery_title(title):
-            return title
+        if title and not is_truncated_delivery_title(title) and is_plausible_product_title(title):
+            return strip_long(title, 110)
     return ""
+
+
+def is_plausible_product_title(title: str) -> bool:
+    normalized = normalize_status_text(title)
+    generic_labels = {
+        "meine bestellungen",
+        "mein konto",
+        "erneut kaufen",
+        "bestellung ansehen oder ändern",
+        "bestellung ansehen oder andern",
+        "amazon de",
+    }
+    return bool(normalized) and normalized not in generic_labels
 
 
 def is_truncated_delivery_title(value: str) -> bool:
@@ -1978,9 +2017,11 @@ def clean_delivery_subject(subject: str) -> str:
 def delivery_display_title(subject: str, sender: str, text: str) -> str:
     order_number = extract_delivery_order_number(subject, text)
     merchant = delivery_merchant_name(subject, sender, text)
+    product = extract_delivery_product_title(subject, text)
+    if product and merchant and "amazon" in normalize_status_text(merchant):
+        return product
     if order_number and merchant:
         return f"{merchant} #{order_number}"
-    product = extract_delivery_product_title(subject, text)
     if product:
         return product
     inferred = infer_delivery_product_title(subject, text)
