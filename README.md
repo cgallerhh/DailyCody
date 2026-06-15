@@ -4,7 +4,7 @@ Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
-- weather for `21077 Hamburg`, including temperature, rain probability, and an umbrella note
+- weather for `21077 Hamburg`, including temperature, rain probability, and a short practical interpretation
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
 - today's FIFA World Cup matches, including kickoff time and the ARD/ZDF Free-TV sender when found
 - Apple Reminders from a local Mac export

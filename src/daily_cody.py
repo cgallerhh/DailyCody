@@ -304,32 +304,52 @@ def get_weather(config: Config) -> dict[str, Any]:
     low = min(temps[:24]) if temps else None
     rain_text = format_percent(max_afternoon_rain)
     temp_range = f"{format_temp(low)} bis {format_temp(high)}"
-    if max_afternoon_rain is not None and max_afternoon_rain >= 45:
-        umbrella_note = "Schirm mitnehmen; am Nachmittag kann es nass werden."
-    elif max_afternoon_rain is not None and max_afternoon_rain >= 25:
-        umbrella_note = "Schirm ist kein Muss, aber auch keine schlechte Idee."
-    else:
-        umbrella_note = "Schirm muss wahrscheinlich nicht mit."
-    summary = build_weather_summary(config.weather_label, current_temp, temp_range, rain_text, umbrella_note)
+    weather_note = interpret_weather(current_temp, low, high, max_afternoon_rain)
+    summary = build_weather_summary(config.weather_label, current_temp, temp_range, rain_text, weather_note)
     return {
         "label": config.weather_label,
         "current_temp_c": current_temp,
         "high_c": high,
         "low_c": low,
         "afternoon_rain_probability_pct": max_afternoon_rain,
-        "umbrella_note": umbrella_note,
+        "umbrella_note": weather_note,
         "summary": summary,
     }
 
 
 def build_weather_summary(
-    label: str, current_temp: Any, temp_range: str, rain_text: str, umbrella_note: str
+    label: str, current_temp: Any, temp_range: str, rain_text: str, weather_note: str
 ) -> str:
     place = "Hamburg" if "hamburg" in label.lower() else label
     return (
         f"{place}: gerade {format_temp(current_temp)}, später {temp_range}. "
-        f"Am Nachmittag {rain_text} Regenwahrscheinlichkeit. {umbrella_note}"
+        f"Am Nachmittag {rain_text} Regenwahrscheinlichkeit. {weather_note}"
     )
+
+
+def interpret_weather(current_temp: Any, low: Any, high: Any, rain_probability: Any) -> str:
+    rain = rain_probability if isinstance(rain_probability, (int, float)) else None
+    current = current_temp if isinstance(current_temp, (int, float)) else None
+    day_high = high if isinstance(high, (int, float)) else None
+    day_low = low if isinstance(low, (int, float)) else None
+
+    if rain is None:
+        return "Die Regenlage ist unklar; Temperatur und Himmel lieber kurz vor dem Rausgehen prüfen."
+    if rain >= 65:
+        return "Das ist ein klar nasser Nachmittag; draußen lieber mit trockenem Puffer planen."
+    if rain >= 45:
+        return "Der Nachmittag hat nasse Kanten; kurze Wege und ein Plan B sind sinnvoll."
+    if rain >= 25:
+        return "Leicht wechselhaft, aber noch kein Dauerregen-Signal."
+    if day_high is not None and day_high <= 17:
+        return "Kühl und ziemlich trocken; heute zählt eher eine Jacke als Regenplanung."
+    if day_high is not None and day_high >= 22:
+        return "Trockenes, mildes Fenster; draußen spricht wenig dagegen."
+    if current is not None and current <= 10:
+        return "Eher frisch als nass; Schichten sind wichtiger als Regenzeug."
+    if day_low is not None and day_low <= 8:
+        return "Trocken, aber mit kühlem Rand; morgens nicht zu optimistisch anziehen."
+    return "Ruhiges Wetterbild; kein großer Wetterfaktor für den Tag."
 
 
 def list_calendar_events(config: Config, token: str, now: dt.datetime) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
