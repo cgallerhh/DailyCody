@@ -1,62 +1,13 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-06-12",
-  "waiting_for": [
-    {
-      "subject": "hcVISION / Jörg Schreiber",
-      "detail": "Vor-Ort-Termin am 23.06.2026 um 13:00 Uhr in Düsseldorf vorbereiten; Volker-Teilnahme, Prozess-/Produktverständnis, Wachstumshebel und Rollenmodell fokussieren.",
-      "next_action": "",
-      "since": "23.06.2026"
-    },
-    {
-      "subject": "dvelop",
-      "detail": "Rückmeldung zur Portalbewerbung vom 10.06.2026 abwarten; d.velop kündigt Antwort spätestens bis 24.06.2026 an.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "Ferchau",
-      "detail": "Rückmeldung zur Bewerbung vom 10.06.2026 abwarten; Eingang um 17:32 Uhr bestätigt und zeitnahe Rückmeldung angekündigt.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "IQVIA",
-      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 18:02 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage prüfen.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "act-digital",
-      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 18:37 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage prüfen.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "HMM-Deutschland",
-      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 19:16 Uhr abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage oder Kontaktrecherche prüfen.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "Cloudflight",
-      "detail": "Rückmeldung oder Eingangsbestätigung zur Initiativbewerbung vom 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` abwarten; bei ausbleibender Antwort ab ca. 24.06.2026 kurze Nachfrage oder Kontaktrecherche prüfen.",
-      "next_action": "Abwarten.",
-      "since": "10.06.2026"
-    },
-    {
-      "subject": "Euromaster / Reifen-Auslagerung",
-      "detail": "Antwort, ob für den 29.06.2026 ein separater Termin über die Website erforderlich ist oder Vorbeikommen im Laufe des 29.06. reicht.",
-      "next_action": "",
-      "since": ""
-    }
-  ],
+  "dashboard_updated": "2026-06-16",
+  "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv",
+      "priority": "Geschlossen / Kandidatenpool optional",
       "company": "dvelop",
-      "status": "Portalbewerbung am 10.06.2026 eingereicht; Eingang um 16:52 Uhr bestätigt; Rückmeldung innerhalb von zwei Wochen angekündigt",
-      "next_action": "Bis 24.06.2026 warten; danach bei ausbleibender Rückmeldung kurze Nachfrage prüfen"
+      "status": "Portalbewerbung am 10.06.2026 eingereicht; am 16.06.2026 Rückmeldung: keine passende offene Vakanz, Kandidatenpool mit Einwilligung moeglich",
+      "next_action": "Entscheiden, ob Einwilligung zur Datenspeicherung gesendet wird"
     },
     {
       "priority": "Aktiv",
@@ -232,6 +183,15 @@
       "reason": "AOK-/OSCARE-Fit aktuell zu schwach",
       "aliases": [
         "GKV Informatik"
+      ]
+    },
+    {
+      "topic": "dvelop",
+      "action": "closed",
+      "reason": "Entscheiden, ob Einwilligung zur Datenspeicherung gesendet wird",
+      "aliases": [
+        "d.velop",
+        "dvelop"
       ]
     },
     {
