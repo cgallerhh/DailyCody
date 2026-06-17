@@ -1,19 +1,19 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-06-16",
+  "dashboard_updated": "2026-06-17",
   "waiting_for": [],
   "items": [
     {
-      "priority": "Geschlossen / Kandidatenpool optional",
+      "priority": "Geschlossen / Kandidatenpool bestätigt",
       "company": "dvelop",
-      "status": "Portalbewerbung am 10.06.2026 eingereicht; am 16.06.2026 Rückmeldung: keine passende offene Vakanz, Kandidatenpool mit Einwilligung moeglich",
-      "next_action": "Entscheiden, ob Einwilligung zur Datenspeicherung gesendet wird"
+      "status": "Portalbewerbung am 10.06.2026 eingereicht; am 16.06.2026 Rückmeldung: keine passende offene Vakanz; Kandidatenpool-Einwilligung am 17.06.2026 um ca. 15:40 Uhr an Cathrin versandt",
+      "next_action": "Keine Nachfassaktion; nur bei d.velop-Rueckfrage oder neuer passender Health-&-Care-/GKV-Rolle reaktivieren"
     },
     {
-      "priority": "Aktiv",
+      "priority": "Geschlossen",
       "company": "Ferchau",
-      "status": "Bewerbung am 10.06.2026 versandt; Eingang um 17:32 Uhr bestätigt; Unterlagen an zuständige Kontaktperson weitergeleitet",
-      "next_action": "Rückmeldung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+      "status": "Absage am 17.06.2026 durch Lea Kuck / FERCHAU Hamburg-Suederelbe: keine passende Position",
+      "next_action": "Keine Nachfassaktion; nur bei spaeterer anderer konkreter FERCHAU-Rolle oder anderem Standort reaktivieren"
     },
     {
       "priority": "Aktiv",
@@ -71,6 +71,14 @@
       "reason": "Kein separater Nachfasskanal nach beendetem Faktor-D-XD-Faktor-/x-tention-Prozess; nur bei eigenstaendiger neuer Rolle oder direktem Anlass reaktivieren",
       "aliases": [
         "Solvistas"
+      ]
+    },
+    {
+      "topic": "INIT/HBSN",
+      "action": "do_not_follow_up",
+      "reason": "Kontrollierte Reserve-/Notfalloption; keine aktive Bewerbung, kein Karriereformular und keine \"ich suche gerade\"-Ansprache ohne positives Signal oder Dritteinführung",
+      "aliases": [
+        "INIT/HBSN"
       ]
     },
     {
@@ -188,10 +196,18 @@
     {
       "topic": "dvelop",
       "action": "closed",
-      "reason": "Entscheiden, ob Einwilligung zur Datenspeicherung gesendet wird",
+      "reason": "Keine Nachfassaktion; nur bei d.velop-Rueckfrage oder neuer passender Health-&-Care-/GKV-Rolle reaktivieren",
       "aliases": [
         "d.velop",
         "dvelop"
+      ]
+    },
+    {
+      "topic": "Ferchau",
+      "action": "closed",
+      "reason": "Keine Nachfassaktion; nur bei spaeterer anderer konkreter FERCHAU-Rolle oder anderem Standort reaktivieren",
+      "aliases": [
+        "Ferchau"
       ]
     },
     {
