@@ -13,19 +13,6 @@
         "alarms": []
     },
     {
-        "id": "BF2CDB4E-781A-48F8-8DC7-8A5EF2DD8C4A",
-        "name": "pia ist in Narvik ab 15.6 - gute Fahrt w\u00fcnscheb",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-15T00:00:00",
-        "creation_date": "2026-06-14T21:41:09",
-        "modification_date": "2026-06-14T21:41:09",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
@@ -146,18 +133,6 @@
         "list_name": "_INBOX",
         "creation_date": "2026-06-07T20:07:24",
         "modification_date": "2026-06-07T20:07:24",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "D687CA74-1FE3-4445-958E-122494925616",
-        "name": "Altkleider Wetternstra\u00dfe, 21079 Hamburg (Harburg)",
-        "list_name": "_INBOX",
-        "creation_date": "2026-06-12T00:06:53",
-        "modification_date": "2026-06-12T00:06:53",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
