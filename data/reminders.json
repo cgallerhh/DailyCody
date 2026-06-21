@@ -13,64 +13,6 @@
         "alarms": []
     },
     {
-        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
-        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-20T18:00:00",
-        "remind_me_date": "2026-06-20T18:00:00",
-        "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-06-14T19:03:34",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week on sunday, saturday",
-                "frequency": "weekly",
-                "interval": 1,
-                "days_of_week": [
-                    "sunday",
-                    "saturday"
-                ]
-            }
-        ],
-        "alarms": [
-            {
-                "absolute_date": "2026-06-20T18:00:00",
-                "description": "Sat Jun 20, 2026 at 6:00 PM"
-            }
-        ]
-    },
-    {
-        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
-        "name": "Mutti anrufen",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-21T00:00:00",
-        "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-06-14T19:03:38",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
-        ],
-        "alarms": []
-    },
-    {
         "id": "D28BD170-6B9C-4352-B7BE-08A355E3B39E",
         "name": "pia zur\u00fcck am 26.6 und gute Fahrt w\u00fcnschen",
         "list_name": "_INBOX",
@@ -96,6 +38,64 @@
         "completed": false,
         "tags": [
             "adesso"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-27T18:00:00",
+        "remind_me_date": "2026-06-27T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-06-21T20:00:09",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week on sunday, saturday",
+                "frequency": "weekly",
+                "interval": 1,
+                "days_of_week": [
+                    "sunday",
+                    "saturday"
+                ]
+            }
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-06-27T18:00:00",
+                "description": "Sat Jun 27, 2026 at 6:00 PM"
+            }
+        ]
+    },
+    {
+        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
+        "name": "Mutti anrufen",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-28T00:00:00",
+        "creation_date": "2026-06-07T20:09:27",
+        "modification_date": "2026-06-21T20:00:13",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
         ],
         "alarms": []
     },
