@@ -161,6 +161,7 @@ class Config:
     dry_run: bool
     include_undated_reminders: bool
     require_fresh_reminders: bool
+    fail_on_stale_reminders: bool
     reminders_max_age_hours: int
     reminders_export_path: str
     application_wiki_snapshot_path: str
@@ -202,6 +203,7 @@ def load_config() -> Config:
         dry_run=os.getenv("DRY_RUN", "false").lower() == "true",
         include_undated_reminders=os.getenv("INCLUDE_UNDATED_REMINDERS", "false").lower() == "true",
         require_fresh_reminders=os.getenv("REQUIRE_FRESH_REMINDERS", "false").lower() == "true",
+        fail_on_stale_reminders=os.getenv("FAIL_ON_STALE_REMINDERS", "false").lower() == "true",
         reminders_max_age_hours=int(getenv("REMINDERS_MAX_AGE_HOURS", "60")),
         reminders_export_path=getenv("REMINDERS_EXPORT_PATH", "data/reminders.json"),
         application_wiki_snapshot_path=getenv(
@@ -272,6 +274,12 @@ def refresh_google_token(config: Config) -> str:
                 detail = f"{error}: {description}"
             elif error:
                 detail = str(error)
+            if error == "invalid_grant":
+                detail = (
+                    f"{detail}. Refresh token is no longer valid. Check whether the Google "
+                    "OAuth consent screen is still in Testing status, the user revoked access, "
+                    "or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET were changed."
+                )
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
         raise RuntimeError(f"Google token refresh failed with HTTP {exc.code}: {detail}") from exc
@@ -284,9 +292,12 @@ def get_weather(config: Config) -> dict[str, Any]:
             "latitude": config.weather_latitude,
             "longitude": config.weather_longitude,
             "timezone": config.timezone,
-            "current": "temperature_2m,precipitation,rain,wind_gusts_10m",
+            "current": "temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_gusts_10m",
             "hourly": "temperature_2m,precipitation_probability,precipitation,rain,wind_gusts_10m",
-            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_gusts_10m_max",
+            "daily": (
+                "weather_code,temperature_2m_max,temperature_2m_min,"
+                "precipitation_probability_max,precipitation_sum,wind_gusts_10m_max"
+            ),
             "forecast_days": "4",
         }
     )
@@ -309,176 +320,157 @@ def get_weather(config: Config) -> dict[str, Any]:
     today_wind_gust = first_list_value(daily.get("wind_gusts_10m_max", []))
     high = highs[0] if highs else max(temps[:24]) if temps else None
     low = lows[0] if lows else min(temps[:24]) if temps else None
-    rain_text = format_percent(max_afternoon_rain)
-    temp_range = f"{format_temp(low)} bis {format_temp(high)}"
-    weather_note = interpret_weather(current_temp, low, high, max_afternoon_rain, today_wind_gust)
+    place = weather_place(config.weather_label)
     warnings = list_weather_warnings(config, dt.datetime.now(ZoneInfo(config.timezone)))
-    outlook = build_weather_outlook(daily, config.timezone)
+    compact_warnings = compact_weather_warnings(warnings)
+    next_days = build_weather_daily_items(daily, config.timezone)
     summary = build_weather_summary(
-        config.weather_label,
+        place,
         current_temp,
-        temp_range,
-        rain_text,
-        weather_note,
-        outlook,
-        warnings,
+        current.get("apparent_temperature"),
+        low,
+        high,
+        max_afternoon_rain,
+        today_wind_gust,
+        compact_warnings,
     )
     return {
         "label": config.weather_label,
+        "place": place,
         "current_temp_c": current_temp,
+        "apparent_temp_c": current.get("apparent_temperature"),
         "high_c": high,
         "low_c": low,
         "afternoon_rain_probability_pct": max_afternoon_rain,
+        "current_precipitation_mm": current.get("precipitation"),
+        "current_rain_mm": current.get("rain"),
+        "current_weather_code": current.get("weather_code"),
+        "current_condition": describe_weather_code(current.get("weather_code")),
         "current_wind_gust_kmh": current.get("wind_gusts_10m"),
         "today_wind_gust_kmh": today_wind_gust,
-        "outlook": outlook,
-        "warnings": warnings,
-        "umbrella_note": weather_note,
+        "today": {
+            "condition": next_days[0]["condition"] if next_days else "",
+            "current_temp_c": current_temp,
+            "apparent_temp_c": current.get("apparent_temperature"),
+            "low_c": low,
+            "high_c": high,
+            "afternoon_rain_probability_pct": max_afternoon_rain,
+            "precipitation_sum_mm": first_list_value(daily.get("precipitation_sum", [])),
+            "wind_gust_kmh": today_wind_gust,
+        },
+        "next_days": next_days,
+        "warnings": compact_warnings,
         "summary": summary,
     }
 
 
-def build_weather_summary(
-    label: str,
-    current_temp: Any,
-    temp_range: str,
-    rain_text: str,
-    weather_note: str,
-    outlook: str = "",
-    warnings: list[dict[str, Any]] | None = None,
-) -> str:
-    place = "Hamburg" if "hamburg" in label.lower() else label
-    parts = [
-        f"{place}: gerade {format_temp(current_temp)}, später {temp_range}. "
-        f"Am Nachmittag {rain_text} Regenwahrscheinlichkeit. {weather_note}"
-    ]
-    if outlook:
-        parts.append(outlook)
-    warning_text = format_weather_warnings(warnings or [])
-    if warning_text:
-        parts.append(warning_text)
-    return " ".join(parts)
+def weather_place(label: str) -> str:
+    return "Hamburg" if "hamburg" in label.lower() else label
 
 
-def interpret_weather(
-    current_temp: Any, low: Any, high: Any, rain_probability: Any, wind_gust_kmh: Any = None
-) -> str:
-    rain = rain_probability if isinstance(rain_probability, (int, float)) else None
-    current = current_temp if isinstance(current_temp, (int, float)) else None
-    day_high = high if isinstance(high, (int, float)) else None
-    day_low = low if isinstance(low, (int, float)) else None
-    wind = wind_gust_kmh if isinstance(wind_gust_kmh, (int, float)) else None
-
-    if rain is None:
-        return "Die Regenlage ist unklar; Temperatur und Himmel lieber kurz vor dem Rausgehen prüfen."
-    if wind is not None and wind >= 70:
-        return "Der Tag ist nicht sehr nass, aber der Wind ist der Wetterfaktor."
-    if wind is not None and wind >= 50:
-        return "Wenig Regen, aber spürbar windig; draußen lieber nichts Leichtes lose stehen lassen."
-    if rain >= 65:
-        return "Das ist ein klar nasser Nachmittag; draußen lieber mit trockenem Puffer planen."
-    if rain >= 45:
-        return "Der Nachmittag hat nasse Kanten; kurze Wege und ein Plan B sind sinnvoll."
-    if rain >= 25:
-        return "Leicht wechselhaft, aber noch kein Dauerregen-Signal."
-    if day_high is not None and day_high <= 17:
-        return "Kühl und ziemlich trocken; heute zählt eher eine Jacke als Regenplanung."
-    if day_high is not None and day_high >= 22:
-        return "Trockenes, mildes Fenster; draußen spricht wenig dagegen."
-    if current is not None and current <= 10:
-        return "Eher frisch als nass; Schichten sind wichtiger als Regenzeug."
-    if day_low is not None and day_low <= 8:
-        return "Trocken, aber mit kühlem Rand; morgens nicht zu optimistisch anziehen."
-    return "Ruhiges Wetterbild; kein großer Wetterfaktor für den Tag."
-
-
-def build_weather_outlook(daily: dict[str, Any], timezone: str) -> str:
+def build_weather_daily_items(daily: dict[str, Any], timezone: str) -> list[dict[str, Any]]:
     dates = daily.get("time", [])
     codes = daily.get("weather_code", [])
     highs = daily.get("temperature_2m_max", [])
+    lows = daily.get("temperature_2m_min", [])
     rain_probs = daily.get("precipitation_probability_max", [])
+    precipitation = daily.get("precipitation_sum", [])
     gusts = daily.get("wind_gusts_10m_max", [])
-    if not dates or not highs:
-        return ""
-
-    sentences = [build_sky_sentence(codes[:4], rain_probs[:4])]
-
-    rain_sentence = build_rain_sentence(dates[:4], codes[:4], rain_probs[:4], timezone)
-    if rain_sentence:
-        sentences.append(rain_sentence)
-
-    trend_sentence = build_temperature_trend_sentence(highs[:2])
-    if trend_sentence:
-        sentences.append(trend_sentence)
-
-    wind_sentence = build_wind_sentence(first_list_value(gusts))
-    if wind_sentence:
-        sentences.append(wind_sentence)
-
-    return " ".join(sentence for sentence in sentences if sentence)
-
-
-def build_sky_sentence(codes: list[Any], rain_probs: list[Any]) -> str:
-    rainy = any(is_rainy_weather_code(code) for code in codes) or any(
-        isinstance(probability, (int, float)) and probability >= 45 for probability in rain_probs
-    )
-    sunny = any(code in {0, 1, 2} for code in codes if isinstance(code, int))
-    cloudy = any(code in {2, 3, 45, 48} for code in codes if isinstance(code, int))
-    if sunny and cloudy:
-        return "In den nächsten Tagen gibt es in Hamburg einen Mix aus Sonne und Wolken."
-    if sunny:
-        return "In den nächsten Tagen zeigt sich Hamburg eher freundlich."
-    if rainy:
-        return "In den nächsten Tagen bleibt das Wetter in Hamburg eher wechselhaft."
-    return "In den nächsten Tagen bleibt Hamburg wetterseitig eher ruhig."
-
-
-def build_rain_sentence(dates: list[Any], codes: list[Any], rain_probs: list[Any], timezone: str) -> str:
-    for index, raw_date in enumerate(dates):
-        code = codes[index] if index < len(codes) else None
-        probability = rain_probs[index] if index < len(rain_probs) else None
-        has_rain_signal = is_rainy_weather_code(code) or (
-            isinstance(probability, (int, float)) and probability >= 45
+    items = []
+    for index, raw_date in enumerate(dates[:4]):
+        code = list_value(codes, index)
+        items.append(
+            {
+                "date": str(raw_date),
+                "day": format_relative_weather_day(raw_date, timezone),
+                "condition": describe_weather_code(code),
+                "weather_code": code,
+                "low_c": list_value(lows, index),
+                "high_c": list_value(highs, index),
+                "rain_probability_pct": list_value(rain_probs, index),
+                "precipitation_sum_mm": list_value(precipitation, index),
+                "wind_gust_kmh": list_value(gusts, index),
+            }
         )
-        if not has_rain_signal:
-            continue
-        label = format_relative_weather_day(raw_date, timezone)
-        if label == "heute" and not (isinstance(probability, (int, float)) and probability >= 45):
-            continue
-        if label == "heute":
-            return "Heute ist Regen ein Thema."
-        if label == "morgen":
-            return "Morgen kommt Regen dazu."
-        return f"Am {label} fällt voraussichtlich Regen."
-    return ""
+    return items
 
 
-def build_temperature_trend_sentence(highs: list[Any]) -> str:
-    if len(highs) < 2 or not all(isinstance(value, (int, float)) for value in highs[:2]):
+def compact_weather_warnings(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact = []
+    for warning in warnings[:3]:
+        event = format_warning_event(warning.get("event") or warning.get("headline") or "Wetterwarnung")
+        description = clean_warning_text(warning.get("description", ""))
+        compact.append(
+            {
+                "event": event,
+                "headline": clean_warning_text(warning.get("headline", "")),
+                "start_time": format_warning_time(warning.get("start")),
+                "end_time": format_warning_time(warning.get("end")),
+                "description": shorten_warning_description(description),
+                "level": warning.get("level"),
+                "state": warning.get("stateShort") or warning.get("state"),
+            }
+        )
+    return compact
+
+
+def describe_weather_code(code: Any) -> str:
+    if not isinstance(code, int):
         return ""
-    today = int(round(highs[0]))
-    tomorrow = int(round(highs[1]))
-    if tomorrow >= today + 2:
-        return f"Es wird wärmer: Die Höchstwerte steigen von {today} Grad heute auf {tomorrow} Grad morgen."
-    if tomorrow <= today - 2:
-        return f"Es wird kühler: Die Höchstwerte fallen von {today} Grad heute auf {tomorrow} Grad morgen."
-    return f"Die Temperaturen bleiben ähnlich: heute etwa {today} Grad, morgen etwa {tomorrow} Grad."
+    if code == 0:
+        return "klar"
+    if code == 1:
+        return "überwiegend klar"
+    if code == 2:
+        return "teils bewölkt"
+    if code == 3:
+        return "bewölkt"
+    if code in {45, 48}:
+        return "neblig"
+    if 51 <= code <= 57:
+        return "Nieselregen"
+    if 61 <= code <= 67:
+        return "Regen"
+    if 71 <= code <= 77:
+        return "Schnee"
+    if 80 <= code <= 82:
+        return "Regenschauer"
+    if 85 <= code <= 86:
+        return "Schneeschauer"
+    if 95 <= code <= 99:
+        return "Gewitter"
+    return "wechselhaft"
 
 
-def build_wind_sentence(gust_kmh: Any) -> str:
-    if not isinstance(gust_kmh, (int, float)):
-        return ""
-    if gust_kmh >= 70:
-        return "Heute treten stürmische Böen auf."
-    if gust_kmh >= 50:
-        return "Heute sind kräftige Böen dabei."
-    return ""
-
-
-def is_rainy_weather_code(code: Any) -> bool:
-    return isinstance(code, int) and (
-        51 <= code <= 67 or 80 <= code <= 82 or 95 <= code <= 99
-    )
+def build_weather_summary(
+    place: str,
+    current_temp: Any,
+    apparent_temp: Any,
+    low: Any,
+    high: Any,
+    rain_probability: Any,
+    wind_gust_kmh: Any,
+    warnings: list[dict[str, Any]] | None = None,
+) -> str:
+    parts = [f"{place}: aktuell {format_temp(current_temp)}"]
+    if isinstance(apparent_temp, (int, float)) and isinstance(current_temp, (int, float)):
+        if abs(apparent_temp - current_temp) >= 2:
+            parts.append(f"gefühlt {format_temp(apparent_temp)}")
+    if low is not None or high is not None:
+        parts.append(f"Tagesbereich {format_temp(low)} bis {format_temp(high)}")
+    if rain_probability is not None:
+        parts.append(f"Regenrisiko am Nachmittag {format_percent(rain_probability)}")
+    if wind_gust_kmh is not None:
+        parts.append(f"Böen bis {format_speed(wind_gust_kmh)}")
+    for warning in (warnings or [])[:2]:
+        event = warning.get("event", "Wetterwarnung")
+        start = warning.get("start_time")
+        end = warning.get("end_time")
+        if start and end:
+            parts.append(f"Warnung {event} {start}-{end}")
+        else:
+            parts.append(f"Warnung {event}")
+    return "; ".join(parts) + "."
 
 
 def format_relative_weather_day(raw_date: Any, timezone: str) -> str:
@@ -599,7 +591,7 @@ def format_weather_warning(warning: dict[str, Any]) -> str:
 def format_warning_event(value: Any) -> str:
     text = clean_warning_text(value)
     if text.isupper():
-        return text.capitalize()
+        return text.title()
     return text
 
 
@@ -613,7 +605,7 @@ def clean_warning_text(value: Any) -> str:
 def shorten_warning_description(description: str) -> str:
     if not description:
         return ""
-    first_sentence = re.split(r"(?<=[.!?])\s+", description.strip(), maxsplit=1)[0]
+    first_sentence = re.split(r"(?<!\d\.)(?<=[.!?])\s+", description.strip(), maxsplit=1)[0]
     return first_sentence[:180].rstrip(" .,;")
 
 
@@ -626,6 +618,12 @@ def format_warning_time(value: Any) -> str:
 def first_list_value(values: Any) -> Any:
     if isinstance(values, list) and values:
         return values[0]
+    return None
+
+
+def list_value(values: Any, index: int) -> Any:
+    if isinstance(values, list) and index < len(values):
+        return values[index]
     return None
 
 
@@ -1054,18 +1052,26 @@ def normalize_search_text(value: str) -> str:
     return re.sub(r"\s+", " ", without_marks).strip()
 
 
-def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, str]]:
+def read_exported_reminders(config: Config, now: dt.datetime) -> tuple[list[dict[str, str]], str | None]:
     path = Path(config.reminders_export_path)
     if not path.is_absolute():
         path = ROOT_DIR / path
     if not path.exists():
-        return []
-    validate_reminders_export_freshness(config, now)
+        return [], None
+    freshness_warning = get_reminders_export_freshness_warning(config, now)
+    if freshness_warning:
+        if config.require_fresh_reminders and config.fail_on_stale_reminders:
+            raise RuntimeError(f"{freshness_warning} No briefing sent with stale Reminders data.")
+        if config.require_fresh_reminders:
+            message = f"{freshness_warning} Apple Reminders skipped for this briefing."
+            print(message, file=sys.stderr)
+            return [], message
+        print(freshness_warning, file=sys.stderr)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"Apple Reminders export unavailable: {exc}", file=sys.stderr)
-        return []
+        return [], None
 
     reminders = []
     for raw in iter_reminder_records(data):
@@ -1074,14 +1080,14 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> list[dict[str, 
             reminders.append(reminder)
 
     reminders.sort(key=lambda item: (item["sort_key"], item["title"].lower()))
-    return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]]
+    return [{key: value for key, value in item.items() if key != "sort_key"} for item in reminders[:12]], None
 
 
-def validate_reminders_export_freshness(config: Config, now: dt.datetime) -> None:
+def get_reminders_export_freshness_warning(config: Config, now: dt.datetime) -> str | None:
     freshness = read_reminders_export_freshness(now)
     max_age = dt.timedelta(hours=max(1, config.reminders_max_age_hours))
     if freshness and freshness <= max_age:
-        return
+        return None
     if freshness is None:
         message = "Apple Reminders export status missing; data/reminders.json may be stale."
     else:
@@ -1089,9 +1095,7 @@ def validate_reminders_export_freshness(config: Config, now: dt.datetime) -> Non
             "Apple Reminders export is stale: "
             f"{freshness.total_seconds() / 3600:.1f} hours old; max is {max_age.total_seconds() / 3600:.0f}."
         )
-    if config.require_fresh_reminders:
-        raise RuntimeError(f"{message} No briefing sent with stale Reminders data.")
-    print(message, file=sys.stderr)
+    return message
 
 
 def read_reminders_export_freshness(now: dt.datetime) -> dt.timedelta | None:
@@ -1374,20 +1378,22 @@ def list_recent_mail(token: str) -> list[dict[str, str]]:
     return output
 
 
-def list_delivery_mail(token: str, sender_email: str, recipient_email: str) -> list[dict[str, Any]]:
+def list_delivery_mail(
+    token: str, sender_email: str, recipient_email: str, now: dt.datetime
+) -> list[dict[str, Any]]:
     query_text = (
-        "newer_than:21d in:anywhere -in:trash -in:spam "
+        "newer_than:45d in:anywhere -in:trash -in:spam "
         "{label:Amazon from:amazon.de from:amazon.com amazon bestellung bestellt versandt versendet lieferung zustellung "
-        "sendung tracking paket dhl hermes dpd ups gls proraso comic}"
+        "sendung tracking paket dhl hermes dpd ups gls proraso comic delivered shipped arriving dispatched}"
     )
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "40"})
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "120"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     candidates = []
     own = sender_email.lower()
     completed_topics = load_completed_delivery_topics() + list_completed_delivery_mail_topics(
         token, sender_email, recipient_email
     )
-    for item in messages[:40]:
+    for item in messages[:120]:
         message = request_json(f"{GMAIL_API}/messages/{item['id']}?format=full", token=token)
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
         subject = headers.get("subject", "(ohne Betreff)")
@@ -1416,12 +1422,13 @@ def list_delivery_mail(token: str, sender_email: str, recipient_email: str) -> l
                 "status": status,
                 "status_rank": delivery_status_rank(status),
                 "topic_key": normalize_delivery_key(subject, sender, text),
+                "thread_id": message.get("threadId", ""),
                 "sort_key": int(message.get("internalDate", "0")),
                 "tracking_links": links[:3],
                 "details": strip_long(clean_mail_excerpt(text), 900),
             }
         )
-    return summarize_delivery_candidates(candidates)
+    return summarize_delivery_candidates(candidates, now)
 
 
 def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str]]:
@@ -1659,13 +1666,58 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
     if subject_status:
         return subject_status
     haystack = normalize_status_text(f"{subject} {snippet} {text[:1200]}")
-    if any(marker in haystack for marker in ("geliefert", "zugestellt", "wurde zugestellt")):
+    if any(
+        marker in haystack
+        for marker in (
+            "geliefert",
+            "zugestellt",
+            "wurde zugestellt",
+            "ist zugestellt",
+            "zugestellt am",
+            "abgelegt",
+            "delivered",
+            "has been delivered",
+        )
+    ):
         return "delivered"
-    if any(marker in haystack for marker in ("in zustellung", "kommt heute", "wird heute zugestellt")):
+    if any(
+        marker in haystack
+        for marker in (
+            "in zustellung",
+            "kommt heute",
+            "wird heute zugestellt",
+            "zustellung heute",
+            "out for delivery",
+            "arriving today",
+        )
+    ):
         return "out_for_delivery"
-    if any(marker in haystack for marker in ("versendet", "versandt", "verschickt", "unterwegs")):
+    if any(
+        marker in haystack
+        for marker in (
+            "versendet",
+            "versandt",
+            "verschickt",
+            "unterwegs",
+            "auf dem weg",
+            "shipped",
+            "dispatched",
+            "on the way",
+        )
+    ):
         return "shipped"
-    if any(marker in haystack for marker in ("bestellt", "bestellung eingegangen", "bestätigung deiner bestellung")):
+    if any(
+        marker in haystack
+        for marker in (
+            "bestellt",
+            "bestellung eingegangen",
+            "bestätigung deiner bestellung",
+            "bestellung bestätigt",
+            "order placed",
+            "order confirmation",
+            "order confirmed",
+        )
+    ):
         return "ordered"
     if "tracking" in haystack or "sendung verfolgen" in haystack:
         return "shipped"
@@ -1674,13 +1726,13 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
 
 def classify_delivery_status_from_subject(subject: str) -> str:
     normalized = normalize_status_text(subject)
-    if normalized.startswith("geliefert") or normalized.startswith("zugestellt"):
+    if normalized.startswith(("geliefert", "zugestellt", "delivered")):
         return "delivered"
-    if normalized.startswith("in zustellung"):
+    if normalized.startswith(("in zustellung", "out for delivery", "arriving today")):
         return "out_for_delivery"
-    if normalized.startswith(("versendet", "versandt", "verschickt")):
+    if normalized.startswith(("versendet", "versandt", "verschickt", "shipped", "dispatched")):
         return "shipped"
-    if normalized.startswith(("bestellt", "bestellung")):
+    if normalized.startswith(("bestellt", "bestellung", "order placed", "order confirmation")):
         return "ordered"
     return ""
 
@@ -1694,7 +1746,7 @@ def delivery_status_rank(status: str) -> int:
     }.get(status, 0)
 
 
-def summarize_delivery_candidates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for item in items:
         key = item.get("topic_key", "")
@@ -1702,6 +1754,7 @@ def summarize_delivery_candidates(items: list[dict[str, Any]]) -> list[dict[str,
             continue
         grouped.setdefault(key, []).append(item)
 
+    now_ms = int(now.timestamp() * 1000)
     current = []
     for group in grouped.values():
         latest_delivered = max(
@@ -1711,22 +1764,64 @@ def summarize_delivery_candidates(items: list[dict[str, Any]]) -> list[dict[str,
         active_items = [
             item
             for item in group
-            if item.get("status") != "delivered" and item.get("sort_key", 0) > latest_delivered
+            if item.get("status") != "delivered"
+            and item.get("sort_key", 0) > latest_delivered
+            and not is_stale_delivery_item(item, now_ms)
         ]
-        if not active_items:
-            continue
-        current.append(
-            max(
-                active_items,
-                key=lambda item: (item.get("status_rank", 0), item.get("sort_key", 0)),
+        if active_items:
+            current.append(
+                max(
+                    active_items,
+                    key=lambda item: (item.get("status_rank", 0), item.get("sort_key", 0)),
+                )
             )
-        )
+            continue
+
+        delivered_updates = [
+            item
+            for item in group
+            if item.get("status") == "delivered" and is_recent_delivery_update(item, now_ms)
+        ]
+        if delivered_updates:
+            current.append(max(delivered_updates, key=lambda item: item.get("sort_key", 0)))
 
     current.sort(key=lambda item: item.get("sort_key", 0), reverse=True)
     return [
-        {key: value for key, value in item.items() if key not in {"topic_key", "sort_key", "status_rank"}}
+        {
+            key: value
+            for key, value in item.items()
+            if key not in {"topic_key", "thread_id", "sort_key", "status_rank"}
+        }
         for item in current[:5]
     ]
+
+
+def is_recent_delivery_update(item: dict[str, Any], now_ms: int) -> bool:
+    return delivery_age_hours(item, now_ms) <= 36
+
+
+def is_stale_delivery_item(item: dict[str, Any], now_ms: int) -> bool:
+    age_hours = delivery_age_hours(item, now_ms)
+    status = item.get("status")
+    if status == "out_for_delivery":
+        return age_hours > 36
+    if status == "shipped":
+        return age_hours > 14 * 24
+    if status == "ordered":
+        return age_hours > 10 * 24
+    return False
+
+
+def delivery_age_hours(item: dict[str, Any], now_ms: int) -> float:
+    sort_key = item.get("sort_key", 0)
+    if not isinstance(sort_key, int):
+        try:
+            sort_key = int(sort_key)
+        except (TypeError, ValueError):
+            return 0
+    if sort_key <= 0:
+        return 0
+    return max(0, now_ms - sort_key) / 3_600_000
 
 
 def delivery_status_summary(status: str, subject: str, snippet: str, text: str) -> str:
@@ -2168,6 +2263,7 @@ def build_briefing(
     upcoming_events: list[dict[str, Any]],
     world_cup_games: list[dict[str, str]],
     reminders: list[dict[str, str]],
+    reminders_warning: str | None,
     application_wiki: dict[str, Any],
     recent_mail: list[dict[str, str]],
     delivery_mail: list[dict[str, Any]],
@@ -2204,6 +2300,7 @@ def build_briefing(
         "upcoming_events": upcoming_events,
         "reminders": upcoming_reminders,
         "today_todos": today_reminders,
+        "data_warnings": [reminders_warning] if reminders_warning else [],
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
@@ -2252,6 +2349,14 @@ def build_briefing(
     return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
 
 
+def build_ai_context(context: dict[str, Any]) -> dict[str, Any]:
+    ai_context = dict(context)
+    weather = dict(ai_context.get("weather") or {})
+    weather.pop("summary", None)
+    ai_context["weather"] = weather
+    return ai_context
+
+
 def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
         "Du bist Cody, Christians persönliche Morgenmail. Du bist die erste Mail seines Tages: "
@@ -2268,6 +2373,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Alles außer Titel und Einleitung muss als kurze Bulletpoints erscheinen. "
         "Kein langer Brief, keine Begrüßung mit Leerzeilen, keine horizontalen Trennstriche, keine Tabellen. "
         "Today ist der Tagesüberblick: Wetter, Termine, Dinge die heute passieren. "
+        "Wenn data_warnings vorhanden sind, nenne sie unter Today als knappen Hinweis und formuliere sie nicht als Aufgabe. "
         "Wenn world_cup_games vorhanden ist: Unter Today jedes WM-Spiel als eigene kurze Zeile nennen, "
         "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
         "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
@@ -2277,8 +2383,12 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
-        "Packe Wetter unter Today als eine persönliche Cody-Zeile. "
-        "Nutze weather.summary möglichst wörtlich; keine Witze über Hamburg, kein 'Hamburg lacht zuletzt', keine Wiederholungsphrase. "
+        "Packe Wetter unter Today als eine persönliche Cody-Zeile, höchstens zwei kurze Wetter-Bullets wenn zusätzlich eine Warnung wichtig ist. "
+        "Formuliere Wetter aus weather.today, weather.next_days und weather.warnings selbst: natürlich, intelligent, ohne Rohdaten-Litanei. "
+        "Schreibe nicht im Muster 'Hamburg: gerade X, später Y bis Z' und nicht im Wetter-App-Stil 'Am Nachmittag N % Regenwahrscheinlichkeit'. "
+        "Nenne nur Zahlen, die für die Entscheidung des Tages wirklich helfen, zum Beispiel Hitze, Regenfenster, Warnung oder starke Böen; runde Temperaturen auf ganze Grad. "
+        "Bei Wetterwarnungen: klar sagen, was relevant ist und was Christian praktisch tun sollte, aber ohne Alarmismus und ohne Helden-/Mittagssonnen-Floskeln. "
+        "Keine Witze über Hamburg, kein 'Hamburg lacht zuletzt', keine Wiederholungsphrase. "
         "Wenn Pia oder Pia-Lotta auftaucht: Das ist Christians Tochter. Schreib warm und schlicht, nicht wie ein Kontakt-Ping. "
         "Unter Deliveries: ausschließlich Einträge aus deliveries verwenden; keine Lieferungen aus recent_mail, "
         "alten Daily-Cody-Mails oder sonstigem Kontext rekonstruieren. Offene Bestellungen und Lieferungen "
@@ -2301,22 +2411,53 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Sei nützlich, konkret, freundlich, und erfinde keine Fakten."
     )
     user = "Nutze diese Daten und schreibe die E-Mail als Markdown:\n\n" + json.dumps(
-        context, ensure_ascii=False, indent=2
+        build_ai_context(context), ensure_ascii=False, indent=2
     )
-    body = {
-        "model": config.openai_model,
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-    }
-    if not config.openai_model.startswith("gpt-5"):
-        body["temperature"] = 0.4
-    response = request_json(
-        OPENAI_API,
-        method="POST",
-        token=config.openai_api_key,
-        body=body,
-        timeout_seconds=config.openai_timeout_seconds,
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    for style_attempt in range(2):
+        body = {
+            "model": config.openai_model,
+            "messages": messages,
+        }
+        if not config.openai_model.startswith("gpt-5"):
+            body["temperature"] = 0.4
+        response = request_json(
+            OPENAI_API,
+            method="POST",
+            token=config.openai_api_key,
+            body=body,
+            timeout_seconds=config.openai_timeout_seconds,
+        )
+        briefing = response["choices"][0]["message"]["content"].strip()
+        if not has_weather_style_problem(briefing) or style_attempt == 1:
+            return briefing
+        messages = [
+            *messages,
+            {"role": "assistant", "content": briefing},
+            {
+                "role": "user",
+                "content": (
+                    "Schreibe die komplette Mail neu. Die Wetterpassage klingt noch wie eine "
+                    "vorformulierte Wetter-App-Zeile. Keine Konstruktion wie 'Hamburg: gerade...', "
+                    "keine 'Regenwahrscheinlichkeit'-Formulierung, keine Helden-/Mittagssonnen-Floskel, "
+                    "keine 'nasse Kanten'. Formuliere nur eine natürliche, hilfreiche Einschätzung."
+                ),
+            },
+        ]
+    raise RuntimeError("OpenAI briefing generation returned no content.")
+
+
+def has_weather_style_problem(briefing: str) -> bool:
+    normalized = normalize_search_text(briefing)
+    banned_phrases = (
+        "nasse kanten",
+        "nicht den helden",
+        "helden in der mittagssonne",
+        "regenwahrscheinlichkeit",
     )
-    return response["choices"][0]["message"]["content"].strip()
+    if any(phrase in normalized for phrase in banned_phrases):
+        return True
+    return bool(re.search(r"hamburg\s+gerade\s+\d", normalized))
 
 
 def build_template_briefing(context: dict[str, Any]) -> str:
@@ -2329,6 +2470,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
         "## Today",
         f"- {weather['summary']}",
     ]
+    lines.extend(format_data_warning_items(context.get("data_warnings", [])))
     lines.extend(format_items(context["today_events"], "Heute steht nichts Kritisches im Kalender."))
     lines.extend(format_world_cup_game_items(context["world_cup_games"]))
     lines.extend(["", "## Today's to-dos"])
@@ -2481,6 +2623,10 @@ def format_items(items: list[dict[str, Any]], empty: str) -> list[str]:
     if not items:
         return [f"- {empty}"]
     return [format_calendar_item(item) for item in items[:12]]
+
+
+def format_data_warning_items(warnings: list[str]) -> list[str]:
+    return [f"- Hinweis: {warning}" for warning in warnings[:3] if warning]
 
 
 def format_calendar_item(item: dict[str, Any]) -> str:
@@ -2708,6 +2854,15 @@ def format_percent(value: Any) -> str:
         return str(value)
 
 
+def format_speed(value: Any) -> str:
+    if value is None:
+        return "keine Daten"
+    try:
+        return f"{round(float(value))} km/h"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def format_long_german_date(value: dt.datetime) -> str:
     weekdays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
     return f"{weekdays[value.weekday()]}, {value:%d.%m.%Y}"
@@ -2850,6 +3005,7 @@ def build_sample_briefing() -> str:
         dry_run=True,
         include_undated_reminders=False,
         require_fresh_reminders=False,
+        fail_on_stale_reminders=False,
         reminders_max_age_hours=60,
         reminders_export_path="data/reminders.json",
         application_wiki_snapshot_path="data/application_wiki_snapshot.json",
@@ -2869,6 +3025,7 @@ def build_sample_briefing() -> str:
             },
         ],
         [],
+        None,
         {},
         [],
         [],
@@ -2901,10 +3058,10 @@ def main() -> int:
     weather = get_weather(config)
     today_events, upcoming_events = list_calendar_events(config, token, now)
     world_cup_games = list_world_cup_games(config, now, today_events)
-    reminders = read_exported_reminders(config, now)
+    reminders, reminders_warning = read_exported_reminders(config, now)
     application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
-    delivery_mail = list_delivery_mail(token, config.sender, config.recipient)
+    delivery_mail = list_delivery_mail(token, config.sender, config.recipient, now)
     open_mail = list_yesterday_open_mail(token, now)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
@@ -2915,6 +3072,7 @@ def main() -> int:
         upcoming_events,
         world_cup_games,
         reminders,
+        reminders_warning,
         application_wiki,
         recent_mail,
         delivery_mail,
