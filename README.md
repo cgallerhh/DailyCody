@@ -79,6 +79,11 @@ Create an OAuth client in Google Cloud. A Desktop app client is the easiest opti
 - Gmail send
 - Calendar read-only
 
+Important: make sure the OAuth consent screen is published. If the app stays in
+Google's `Testing` publishing status, refresh tokens usually expire after 7
+days. Daily Cody will then fail with a Google token refresh error until
+`GOOGLE_REFRESH_TOKEN` is replaced again in the GitHub Actions secrets.
+
 Then run the one-time helper:
 
 ```bash
@@ -109,9 +114,9 @@ To let the Mac update the export automatically, install the local LaunchAgent:
 scripts/install_reminders_export_agent.sh
 ```
 
-The agent checks every 30 minutes while the Mac is awake and only exports between `23:59` and `06:59`. This gives GitHub Actions fresh Reminders and Bewerbungen dashboard snapshots before the `06:00` briefing whenever the Mac was running overnight.
+The agent checks every 30 minutes while the Mac is awake. It exports during the normal `23:59` to `06:59` window, and it also runs a catch-up export outside that window whenever the previous export is older than 24 hours. This lets the Mac repair a missed overnight export as soon as it wakes up. The catch-up age can be changed with `REMINDERS_CATCHUP_MAX_AGE_HOURS`.
 
-The GitHub workflow requires a fresh Reminders export by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=60`). If the local Mac export fails for more than two mornings, Daily Cody fails instead of sending a briefing based on stale Reminders data. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
+The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=60`) but it no longer drops the whole briefing when that export is stale. Instead, Daily Cody skips Apple Reminders for that run, adds a short warning to the briefing, and still sends the rest of the morning mail. Set `FAIL_ON_STALE_REMINDERS=true` only if you want the old fail-closed behavior back. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
 
 ## Delivery Status
 
