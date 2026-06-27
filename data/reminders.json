@@ -1,31 +1,5 @@
 [
     {
-        "id": "EB8814E7-3B11-4903-8663-A56024272574",
-        "name": "Ab 14.6 sind Mutti und Vati f\u00fcr ca 10 Tage in der Ferienwohnung in Laasphe",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-14T00:00:00",
-        "creation_date": "2026-06-07T20:12:09",
-        "modification_date": "2026-06-14T19:03:56",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "D28BD170-6B9C-4352-B7BE-08A355E3B39E",
-        "name": "pia zur\u00fcck am 26.6 und gute Fahrt w\u00fcnschen",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-25T00:00:00",
-        "creation_date": "2026-06-14T21:39:57",
-        "modification_date": "2026-06-14T21:40:33",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
         "name": "Letzte Gehaltsabrechnung anfordern",
         "list_name": "_INBOX",
