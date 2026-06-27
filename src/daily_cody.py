@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import email.message
+import email.utils
 import html
 import json
 import os
@@ -1424,6 +1425,7 @@ def list_delivery_mail(
                 "topic_key": normalize_delivery_key(subject, sender, text),
                 "thread_id": message.get("threadId", ""),
                 "sort_key": int(message.get("internalDate", "0")),
+                "eta_end_date": extract_delivery_eta_end_date(now, subject, snippet, text),
                 "tracking_links": links[:3],
                 "details": strip_long(clean_mail_excerpt(text), 900),
             }
@@ -1656,9 +1658,44 @@ def is_delivery_noise(subject: str, snippet: str, text: str) -> bool:
     )
     if any(marker in haystack for marker in noise_markers):
         return True
+    if is_non_delivery_account_notification(haystack):
+        return True
     if "hvv" in haystack and any(marker in haystack for marker in ("ticket", "fahrkarte", "onlineshop")):
         return True
     return False
+
+
+def is_non_delivery_account_notification(haystack: str) -> bool:
+    official_markers = (
+        "bundesagentur fur arbeit",
+        "bundesagentur für arbeit",
+        "arbeitsagentur",
+        "jobcenter",
+    )
+    notification_markers = (
+        "neue mitteilung",
+        "neue mitteilungen",
+        "postfach",
+        "bescheid",
+        "dokument",
+    )
+    delivery_markers = (
+        "amazon",
+        "bestellung",
+        "paket",
+        "sendung",
+        "tracking",
+        "dhl",
+        "hermes",
+        "dpd",
+        "ups",
+        "gls",
+    )
+    return (
+        any(marker in haystack for marker in official_markers)
+        and any(marker in haystack for marker in notification_markers)
+        and not any(marker in haystack for marker in delivery_markers)
+    )
 
 
 def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
@@ -1775,15 +1812,6 @@ def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime)
                     key=lambda item: (item.get("status_rank", 0), item.get("sort_key", 0)),
                 )
             )
-            continue
-
-        delivered_updates = [
-            item
-            for item in group
-            if item.get("status") == "delivered" and is_recent_delivery_update(item, now_ms)
-        ]
-        if delivered_updates:
-            current.append(max(delivered_updates, key=lambda item: item.get("sort_key", 0)))
 
     current.sort(key=lambda item: item.get("sort_key", 0), reverse=True)
     return [
@@ -1796,13 +1824,12 @@ def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime)
     ]
 
 
-def is_recent_delivery_update(item: dict[str, Any], now_ms: int) -> bool:
-    return delivery_age_hours(item, now_ms) <= 36
-
-
 def is_stale_delivery_item(item: dict[str, Any], now_ms: int) -> bool:
     age_hours = delivery_age_hours(item, now_ms)
     status = item.get("status")
+    eta_end_date = parse_delivery_item_date(item.get("eta_end_date"))
+    if eta_end_date and eta_end_date < dt.datetime.fromtimestamp(now_ms / 1000).date():
+        return True
     if status == "out_for_delivery":
         return age_hours > 36
     if status == "shipped":
@@ -1837,6 +1864,82 @@ def delivery_status_summary(status: str, subject: str, snippet: str, text: str) 
         summary = "geliefert"
     eta = extract_delivery_eta(subject, snippet, text)
     return f"{summary}, {eta}" if eta and normalize_status_text(eta) not in normalize_status_text(summary) else summary
+
+
+def extract_delivery_eta_end_date(now: dt.datetime, *values: str) -> str:
+    raw_text = clean_mail_excerpt(" ".join(values))
+    date_range = re.search(
+        r"zustellung\s*:?\s*\d{1,2}\.\s*([A-Za-zÄÖÜäöü]+)\s*[-–]\s*(\d{1,2})\.\s*([A-Za-zÄÖÜäöü]+)",
+        raw_text,
+        flags=re.I,
+    )
+    if date_range:
+        parsed = parse_german_month_date(int(date_range.group(2)), date_range.group(3), now)
+        return parsed.isoformat() if parsed else ""
+
+    single_date = re.search(
+        r"(?:zustellung|ankunft|lieferung)\s*(?:bis|am|:)?\s*(\d{1,2})\.\s*([A-Za-zÄÖÜäöü]+)",
+        raw_text,
+        flags=re.I,
+    )
+    if single_date:
+        parsed = parse_german_month_date(int(single_date.group(1)), single_date.group(2), now)
+        return parsed.isoformat() if parsed else ""
+    return ""
+
+
+def parse_german_month_date(day: int, month_name: str, now: dt.datetime) -> dt.date | None:
+    month = german_month_number(month_name)
+    if not month:
+        return None
+    year = now.year
+    candidate = dt.date(year, month, day)
+    if candidate < now.date() - dt.timedelta(days=240):
+        candidate = dt.date(year + 1, month, day)
+    if candidate > now.date() + dt.timedelta(days=240):
+        candidate = dt.date(year - 1, month, day)
+    return candidate
+
+
+def german_month_number(value: str) -> int | None:
+    normalized = normalize_search_text(value)
+    months = {
+        "januar": 1,
+        "jan": 1,
+        "februar": 2,
+        "feb": 2,
+        "maerz": 3,
+        "marz": 3,
+        "märz": 3,
+        "mrz": 3,
+        "april": 4,
+        "apr": 4,
+        "mai": 5,
+        "juni": 6,
+        "jun": 6,
+        "juli": 7,
+        "jul": 7,
+        "august": 8,
+        "aug": 8,
+        "september": 9,
+        "sep": 9,
+        "oktober": 10,
+        "okt": 10,
+        "november": 11,
+        "nov": 11,
+        "dezember": 12,
+        "dez": 12,
+    }
+    return months.get(normalized)
+
+
+def parse_delivery_item_date(value: Any) -> dt.date | None:
+    if not value:
+        return None
+    try:
+        return dt.date.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 def extract_delivery_eta(*values: str) -> str:
@@ -1898,24 +2001,34 @@ def completed_delivery_topic_matches(entry: str, delivery_text: str, normalized_
 
 
 def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient_email: str) -> list[str]:
+    cody_addresses = delivery_completion_addresses(sender_email, recipient_email)
+    cody_query_terms = " OR ".join(f'"{address}"' for address in sorted(cody_addresses))
+    cody_filter = f"(cody OR {cody_query_terms})" if cody_query_terms else "cody"
     query_text = (
-        'newer_than:90d in:anywhere '
-        '("Cody Lieferung erledigt" OR "Cody Lieferung zugestellt" OR '
-        '"Cody Lieferung geliefert" OR "Cody Lieferung angekommen")'
+        "newer_than:180d in:anywhere "
+        f"{cody_filter} "
+        "(lieferung OR paket OR bestellung OR sendung OR angekommen OR erhalten OR erledigt OR zugestellt OR geliefert)"
     )
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "50"})
+    query = urllib.parse.urlencode({"q": query_text, "maxResults": "100"})
     messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
     topics: list[str] = []
-    own_addresses = {address.lower() for address in (sender_email, recipient_email) if address}
-    for item in messages[:50]:
+    for item in messages[:100]:
         message = request_json(
             f"{GMAIL_API}/messages/{item['id']}?format=full",
             token=token,
         )
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
-        sender = headers.get("from", "").lower()
-        recipient = headers.get("to", "").lower()
-        if own_addresses and not any(address in sender or address in recipient for address in own_addresses):
+        if "the daily cody" in headers.get("subject", "").lower():
+            continue
+        participants = " ".join(
+            [
+                headers.get("from", ""),
+                headers.get("to", ""),
+                headers.get("cc", ""),
+                headers.get("bcc", ""),
+            ]
+        )
+        if cody_addresses and not message_references_any_address(participants, cody_addresses):
             continue
         message_parts = [
             headers.get("subject", ""),
@@ -1928,19 +2041,65 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
     return topics
 
 
+def delivery_completion_addresses(sender_email: str, recipient_email: str) -> set[str]:
+    addresses = {address for address in extract_email_addresses(f"{sender_email} {recipient_email}") if address}
+    expanded = set(addresses)
+    for address in addresses:
+        local, separator, domain = address.partition("@")
+        if separator and "+" not in local:
+            expanded.add(f"{local}+cody@{domain}")
+    return expanded
+
+
+def extract_email_addresses(value: str) -> set[str]:
+    addresses = {address.lower() for _, address in email.utils.getaddresses([value]) if address}
+    addresses.update(match.lower() for match in re.findall(r"[\w.+-]+@[\w.-]+\.\w+", value))
+    return addresses
+
+
+def message_references_any_address(value: str, addresses: set[str]) -> bool:
+    haystack = value.lower()
+    return any(address in haystack for address in addresses)
+
+
 def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
     topics = []
-    pattern = re.compile(
-        r"\bcody\s+lieferung\s+"
-        r"(?:erledigt|zugestellt|geliefert|angekommen)\s*[:\-]\s*([^\n\r]+)",
-        flags=re.I,
+    patterns = (
+        re.compile(
+            r"\bcody[\s,:;-]*(?:lieferung|paket|bestellung|sendung)?\s*"
+            r"(?:erledigt|zugestellt|geliefert|angekommen|erhalten|ist da)\s*[:\-]?\s*([^\n\r]+)",
+            flags=re.I,
+        ),
+        re.compile(
+            r"\b(?:lieferung|paket|bestellung|sendung)\s+"
+            r"(?:erledigt|zugestellt|geliefert|angekommen|erhalten|ist da)\s*[:\-]?\s*([^\n\r]+)",
+            flags=re.I,
+        ),
+        re.compile(
+            r"\b([^\n\r]{4,120}?)\s+"
+            r"(?:ist\s+)?(?:erledigt|zugestellt|geliefert|angekommen|erhalten|da)\b",
+            flags=re.I,
+        ),
     )
-    for match in pattern.finditer(text):
-        topic = strip_long(clean_mail_excerpt(match.group(1)), 120)
-        topic = re.split(r"\s+(?:\n|--|sent from|von meinem)", topic, maxsplit=1, flags=re.I)[0].strip()
-        if topic:
-            topics.append(topic)
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            topic = clean_completed_delivery_topic(match.group(1))
+            if topic and topic not in topics:
+                topics.append(topic)
     return topics
+
+
+def clean_completed_delivery_topic(value: str) -> str:
+    topic = strip_long(clean_mail_excerpt(value), 120)
+    topic = re.split(r"\s+(?:\n|--|sent from|von meinem)", topic, maxsplit=1, flags=re.I)[0].strip()
+    topic = re.sub(r"^(?:cody|hi cody|hallo cody|an cody)\s*[:,;-]?\s*", "", topic, flags=re.I).strip()
+    topic = re.sub(
+        r"^(?:lieferung|paket|bestellung|sendung)\s*(?:ist\s*)?",
+        "",
+        topic,
+        flags=re.I,
+    ).strip(" :-")
+    return topic
 
 
 def load_completed_delivery_topics() -> list[str]:
@@ -2665,10 +2824,11 @@ def format_mail_items(items: list[dict[str, str]]) -> list[str]:
 
 
 def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
-    if not items:
+    open_items = [item for item in items if item.get("status") != "delivered"]
+    if not open_items:
         return ["- Keine offenen Liefer- oder Bestellmails gefunden."]
     lines = []
-    for item in items[:8]:
+    for item in open_items[:8]:
         link = f" — [Trackinglink]({item['tracking_links'][0]})" if item.get("tracking_links") else ""
         lines.append(f"- {item['subject']} — {item['snippet']}{link}")
     return lines

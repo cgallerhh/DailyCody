@@ -120,13 +120,15 @@ The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDER
 
 ## Delivery Status
 
-Daily Cody can see shipment and order emails, but it cannot know what physically arrived in the mailbox unless a delivery email says so. For quick manual "done" signals, send yourself an email with this subject:
+Daily Cody can see shipment and order emails, but it cannot know what physically arrived in the mailbox unless a delivery email says so. For quick manual "done" signals, send Cody an email with one clear marker in the subject or body:
 
 ```text
 Cody Lieferung erledigt: Kaffeetraum #20111
+Cody Lieferung erhalten: Amazon #305-1314679-9745914
+Cody, Fix Foxi Album ist angekommen
 ```
 
-Use a specific marker from the briefing such as the merchant plus order number or tracking number. Daily Cody reads these self-sent completion notes from the last 90 days and hides matching deliveries from future briefings.
+Use a specific marker from the briefing such as the merchant plus order number, product title, or tracking number. Daily Cody reads these Cody-addressed completion notes from the last 180 days and hides matching deliveries from future briefings. Delivered-only updates are not shown in the Deliveries section; they only close older open shipment lines.
 
 For durable repo-side overrides, use `data/delivery_status.json`:
 
