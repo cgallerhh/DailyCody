@@ -67,9 +67,14 @@ with open("data/reminders_export_status.json", "w", encoding="utf-8") as fh:
     fh.write("\n")
 PY
 
-scripts/export_application_wiki_snapshot.sh
+git add data/reminders.json data/reminders_export_status.json
 
-git add data/reminders.json data/reminders_export_status.json data/application_wiki_snapshot.json
+if scripts/export_application_wiki_snapshot.sh; then
+  git add data/application_wiki_snapshot.json
+else
+  echo "Application wiki snapshot failed; continuing with Apple Reminders export." >&2
+fi
+
 if git diff --cached --quiet; then
   echo "Apple Reminders export unchanged."
 else
