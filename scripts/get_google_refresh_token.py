@@ -20,6 +20,11 @@ SCOPES = [
 
 
 def main() -> None:
+    print(
+        "Hinweis: Wenn die Google-OAuth-App im Publishing-Status 'Testing' ist, "
+        "laufen Refresh Tokens typischerweise nach 7 Tagen ab. Stelle die App "
+        "auf 'In production', bevor du den Token dauerhaft in GitHub Secrets nutzt.\n"
+    )
     client_id = input("Google OAuth Client ID: ").strip()
     client_secret = input("Google OAuth Client Secret: ").strip()
     redirect_uri = "http://localhost:8765/callback"
