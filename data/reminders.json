@@ -116,6 +116,19 @@
         "alarms": []
     },
     {
+        "id": "25255056-0AAF-4F7B-9E92-664194B33F23",
+        "name": "GitHub - loriss84/open-plaude: open-plaude \u00b7 GitHub",
+        "list_name": "Irgendwann-Vielleicht",
+        "creation_date": "2026-06-26T19:09:45",
+        "modification_date": "2026-06-26T19:09:45",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://github.com/loriss84/open-plaude",
+        "alarms": []
+    },
+    {
         "id": "08A1284A-E6EA-4E2C-8B53-26CA8A5A2B13",
         "name": "Vinted: Alte Anz\u00fcge verkaufen",
         "list_name": "_INBOX",

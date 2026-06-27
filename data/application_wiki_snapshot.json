@@ -1,8 +1,14 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-06-23",
+  "dashboard_updated": "2026-06-26",
   "waiting_for": [],
   "items": [
+    {
+      "priority": "Aktiv / Erstgespraech positiv",
+      "company": "puntus",
+      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Erstgespraech am 26.06.2026 war positiv, Steinlach will Christian vorstellen, Rückmeldung mit Terminvorschlaegen wird ab Montag bis spätestens Mittwoch nach dem Gespraech erwartet. Oeffentliche Recherche stuetzt den fachlichen Fit; Milovan Dzakic spiegelte GKV als relevante regulierte Erfahrung. Für Daniel-Strehl ist oeffentlich die Linie `Growth & Market` plus Process Intelligence / technische Umsetzung sichtbar. Netzwerk-Fit bleibt sensibel, weil Christian kein klassisches Banking-/Insurance-Netzwerk hat.",
+      "next_action": "Rückmeldung abwarten; bei Einladung auf Daniel-Strehl vorbereiten: 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions und GKV als Proof Point für regulierte IT-Maerkte"
+    },
     {
       "priority": "Geschlossen / Kandidatenpool bestätigt",
       "company": "dvelop",
@@ -19,25 +25,25 @@
       "priority": "Aktiv",
       "company": "IQVIA",
       "status": "Initiativbewerbung am 10.06.2026 um 18:02 Uhr versandt; Eingang offen",
-      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+      "next_action": "Erste kurze Nachfrage ist jetzt faellig; Zielrolle R1531935 und DAVASO-/COMLINE-Bezug validieren"
     },
     {
       "priority": "Aktiv",
       "company": "act-digital",
       "status": "Initiativbewerbung am 10.06.2026 um 18:37 Uhr an `digital@actdigital.eu` versandt; Eingang offen",
-      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage prüfen"
+      "next_action": "Erste kurze Nachfrage ist jetzt faellig; konkrete Einheit und act-digital-/ALTER-SOLUTIONS-Bezug klaeren"
     },
     {
       "priority": "Aktiv",
       "company": "HMM-Deutschland",
       "status": "Initiativbewerbung am 10.06.2026 um 19:16 Uhr an `info@hmmdeutschland.de` versandt; Eingang offen",
-      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage oder Kontaktrecherche prüfen"
+      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche ist jetzt faellig; fachliche Zielperson klaeren"
     },
     {
       "priority": "Aktiv",
       "company": "Cloudflight",
       "status": "Initiativbewerbung am 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` für Senior Business Development Manager Health & Public Sector versandt; Eingang und Zielperson offen",
-      "next_action": "Rückmeldung oder Eingangsbestätigung abwarten; ab ca. 24.06.2026 bei ausbleibender Antwort kurze Nachfrage oder Kontaktrecherche prüfen"
+      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche ist jetzt faellig; fachliche Zielperson für Health / Public Sector / GKV klaeren"
     },
     {
       "priority": "Geschlossen",
@@ -48,8 +54,8 @@
     {
       "priority": "Aktiv",
       "company": "hcVISION",
-      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich und persoenlich stark; Jörg sieht Christians Hilfe als potenziell wertvoll, muss aber Risiko, Rolle, Angebot und Volker-Perspektive prüfen",
-      "next_action": "Auf nächste Bewegung von Jörg/Volker warten; falls bis 24.06. oder 25.06.2026 keine Rückmeldung kommt, kurzes wertschätzendes Follow-up senden"
+      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich und persoenlich stark; Follow-up-Mail am 23.06.2026 um 23:34 Uhr versandt; Jörg sieht Christians Hilfe als potenziell wertvoll, muss aber Risiko, Rolle, Angebot und Volker-Perspektive prüfen",
+      "next_action": "Auf nächste Bewegung von Jörg/Volker warten; keine weitere aktive Nachfrage"
     },
     {
       "priority": "Wartend",
@@ -227,6 +233,19 @@
         "x-tention",
         "xD Consulting",
         "xtention"
+      ]
+    },
+    {
+      "topic": "hcVISION",
+      "action": "wait_only",
+      "reason": "Auf nächste Bewegung von Jörg/Volker warten; keine weitere aktive Nachfrage",
+      "aliases": [
+        "Joerg Schreiber",
+        "Jörg Schreiber",
+        "Volker Keim",
+        "hc vision",
+        "hc:VISION",
+        "hcVISION"
       ]
     }
   ]
