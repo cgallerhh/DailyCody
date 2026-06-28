@@ -1,11 +1,11 @@
 [
     {
         "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
-        "name": "Letzte Gehaltsabrechnung anfordern",
+        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
         "list_name": "_INBOX",
         "due_date": "2026-06-26T00:00:00",
         "creation_date": "2026-06-07T20:14:00",
-        "modification_date": "2026-06-07T20:15:28",
+        "modification_date": "2026-06-28T13:05:11",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -14,40 +14,6 @@
             "adesso"
         ],
         "alarms": []
-    },
-    {
-        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
-        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-27T18:00:00",
-        "remind_me_date": "2026-06-27T18:00:00",
-        "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-06-21T20:00:09",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week on sunday, saturday",
-                "frequency": "weekly",
-                "interval": 1,
-                "days_of_week": [
-                    "sunday",
-                    "saturday"
-                ]
-            }
-        ],
-        "alarms": [
-            {
-                "absolute_date": "2026-06-27T18:00:00",
-                "description": "Sat Jun 27, 2026 at 6:00 PM"
-            }
-        ]
     },
     {
         "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
@@ -72,6 +38,40 @@
             }
         ],
         "alarms": []
+    },
+    {
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-06-28T18:00:00",
+        "remind_me_date": "2026-06-28T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-06-28T13:04:49",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week on sunday, saturday",
+                "frequency": "weekly",
+                "interval": 1,
+                "days_of_week": [
+                    "sunday",
+                    "saturday"
+                ]
+            }
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-06-28T18:00:00",
+                "description": "Sun Jun 28, 2026 at 6:00 PM"
+            }
+        ]
     },
     {
         "id": "425FC50A-C528-4ECF-AD5D-34A2F3E39CBF",
