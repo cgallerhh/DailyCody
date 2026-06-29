@@ -16,26 +16,18 @@
         "alarms": []
     },
     {
-        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
-        "name": "Mutti anrufen",
+        "id": "425FC50A-C528-4ECF-AD5D-34A2F3E39CBF",
+        "name": "Check: Welche Arbeitsmaterialien muss ich abgeben?",
         "list_name": "_INBOX",
-        "due_date": "2026-06-28T00:00:00",
-        "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-06-21T20:00:13",
+        "due_date": "2026-06-29T00:00:00",
+        "creation_date": "2026-06-07T20:10:53",
+        "modification_date": "2026-06-07T20:15:41",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
         "completed": false,
         "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
+            "adesso"
         ],
         "alarms": []
     },
@@ -43,10 +35,10 @@
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
-        "due_date": "2026-06-28T18:00:00",
-        "remind_me_date": "2026-06-28T18:00:00",
+        "due_date": "2026-07-04T18:00:00",
+        "remind_me_date": "2026-07-04T18:00:00",
         "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-06-28T13:04:49",
+        "modification_date": "2026-06-29T21:37:52",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -68,24 +60,32 @@
         ],
         "alarms": [
             {
-                "absolute_date": "2026-06-28T18:00:00",
-                "description": "Sun Jun 28, 2026 at 6:00 PM"
+                "absolute_date": "2026-07-04T18:00:00",
+                "description": "Sat Jul 04, 2026 at 6:00 PM"
             }
         ]
     },
     {
-        "id": "425FC50A-C528-4ECF-AD5D-34A2F3E39CBF",
-        "name": "Check: Welche Arbeitsmaterialien muss ich abgeben?",
+        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
+        "name": "Mutti anrufen",
         "list_name": "_INBOX",
-        "due_date": "2026-06-29T00:00:00",
-        "creation_date": "2026-06-07T20:10:53",
-        "modification_date": "2026-06-07T20:15:41",
+        "due_date": "2026-07-05T00:00:00",
+        "creation_date": "2026-06-07T20:09:27",
+        "modification_date": "2026-06-29T21:37:53",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
         "completed": false,
         "tags": [
-            "adesso"
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
         ],
         "alarms": []
     },
