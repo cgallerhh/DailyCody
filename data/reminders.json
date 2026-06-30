@@ -16,19 +16,16 @@
         "alarms": []
     },
     {
-        "id": "425FC50A-C528-4ECF-AD5D-34A2F3E39CBF",
-        "name": "Check: Welche Arbeitsmaterialien muss ich abgeben?",
+        "id": "9443AE6C-F401-49F2-9446-0B091863A4EE",
+        "name": "Agniesza: 40\u20ac da?",
         "list_name": "_INBOX",
-        "due_date": "2026-06-29T00:00:00",
-        "creation_date": "2026-06-07T20:10:53",
-        "modification_date": "2026-06-07T20:15:41",
+        "due_date": "2026-06-30T00:00:00",
+        "creation_date": "2026-06-30T19:16:15",
+        "modification_date": "2026-06-30T19:16:15",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
         "completed": false,
-        "tags": [
-            "adesso"
-        ],
         "alarms": []
     },
     {
