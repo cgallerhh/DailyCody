@@ -50,6 +50,7 @@ jobs:
           REQUIRE_FRESH_REMINDERS: ${{ vars.REQUIRE_FRESH_REMINDERS || 'true' }}
           FAIL_ON_STALE_REMINDERS: ${{ vars.FAIL_ON_STALE_REMINDERS || 'false' }}
           REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '60' }}
+          REFRESH_STALE_REMINDERS: ${{ vars.REFRESH_STALE_REMINDERS || 'false' }}
           FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event.inputs.allow_duplicate || 'false' }}
         run: python src/daily_cody.py

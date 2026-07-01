@@ -49,5 +49,5 @@ launchctl load "$plist"
 launchctl start "$label" >/dev/null 2>&1 || true
 
 echo "Installed Daily Cody local export agent."
-echo "It checks every 30 minutes, exports between 23:59 and 06:59, and runs a catch-up export whenever the last export is older than 24 hours."
+echo "It checks every 30 minutes, exports between 23:59 and 06:59, retries pending pushes, and runs a catch-up export whenever the last export is older than 24 hours."
 echo "Logs: $log_dir/reminders-export.log"

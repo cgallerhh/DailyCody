@@ -15,6 +15,34 @@ catchup_max_age_hours="${REMINDERS_CATCHUP_MAX_AGE_HOURS:-24}"
 if (( now_minutes >= window_start || now_minutes <= window_end )); then
   echo "Starting Apple Reminders export (scheduled window): $(date '+%Y-%m-%d %H:%M:%S %z')"
   scripts/export_apple_reminders.sh
+elif pending_reason="$(python3 - <<'PY'
+import subprocess
+
+try:
+    upstream = subprocess.check_output(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    ahead = int(
+        subprocess.check_output(
+            ["git", "rev-list", "--count", f"{upstream}..HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    )
+except (OSError, subprocess.CalledProcessError, ValueError):
+    raise SystemExit(1)
+
+if ahead > 0:
+    print(f"{ahead} local commit(s) pending push")
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+)"; then
+  echo "Starting Apple Reminders export (pending remote sync: $pending_reason): $(date '+%Y-%m-%d %H:%M:%S %z')"
+  scripts/export_apple_reminders.sh
 elif catchup_reason="$(python3 - "$catchup_max_age_hours" <<'PY'
 import datetime as dt
 import json

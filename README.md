@@ -116,7 +116,13 @@ scripts/install_reminders_export_agent.sh
 
 The agent checks every 30 minutes while the Mac is awake. It exports during the normal `23:59` to `06:59` window, and it also runs a catch-up export outside that window whenever the previous export is older than 24 hours. This lets the Mac repair a missed overnight export as soon as it wakes up. The catch-up age can be changed with `REMINDERS_CATCHUP_MAX_AGE_HOURS`.
 
+The export script syncs with `origin/main` before committing and retries the push after a rebase if GitHub rejects it. This matters because a local export can be fresh while the GitHub Actions copy is still stale if the push was rejected. Outside the normal export window, the LaunchAgent also wakes the export when local commits are still pending push.
+
 The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=60`) but it no longer drops the whole briefing when that export is stale. Instead, Daily Cody skips Apple Reminders for that run, adds a short warning to the briefing, and still sends the rest of the morning mail. Set `FAIL_ON_STALE_REMINDERS=true` only if you want the old fail-closed behavior back. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
+
+When Daily Cody runs locally and sees a missing or stale export, it attempts `scripts/export_apple_reminders_if_window.sh` before reading `data/reminders.json`. Control this with `REFRESH_STALE_REMINDERS`, `REMINDERS_REFRESH_COMMAND`, and `REMINDERS_REFRESH_TIMEOUT_SECONDS`.
+
+If Cody says the export is many hours old, check `~/Library/Logs/DailyCody/reminders-export.err.log` first. Repeated `fetch first` / rejected push messages mean the Mac exported correctly but could not publish the updated JSON to GitHub.
 
 ## Delivery Status
 
@@ -142,6 +148,14 @@ For durable repo-side overrides, use `data/delivery_status.json`:
 ```
 
 Any delivery, return, or waiting item matching one of these phrases is hidden from future briefings. Keep entries short and specific.
+
+The reusable detection routine lives in `src/delivery_detection.py` and is documented in `docs/delivery_detection.md`. It can also be run outside Cody with:
+
+```bash
+python3 scripts/detect_deliveries.py mails.json
+```
+
+Update that routine and its tests whenever a new merchant or carrier pattern is added.
 
 ## Manual Local Test
 
