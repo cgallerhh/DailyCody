@@ -1,73 +1,43 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-06-30",
+  "dashboard_updated": "2026-07-01",
   "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv / Kennenlernen bestätigt",
+      "priority": "Aktiv / Termin bestätigt",
       "company": "puntus",
-      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Erstgespraech am 26.06.2026 war positiv, erstes Kennenlernen mit Daniel-Strehl und Franziska-Roth ist für 07.07.2026 um 09:30 Uhr bestätigt. Oeffentliche Recherche stuetzt den fachlichen Fit; Milovan Dzakic spiegelte GKV als relevante regulierte Erfahrung. Für Daniel-Strehl ist oeffentlich die Linie `Growth & Market` plus Process Intelligence / technische Umsetzung sichtbar. Netzwerk-Fit bleibt sensibel, weil Christian kein klassisches Banking-/Insurance-Netzwerk hat.",
+      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; erstes Kennenlernen mit Daniel-Strehl und Franziska-Roth ist für 07.07.2026 um 09:30-10:30 Uhr bestätigt",
       "next_action": "Vorbereitung auf Daniel-Strehl und Franziska-Roth: 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Rolle von Franziska Roth und GKV als Proof Point für regulierte IT-Maerkte"
     },
     {
-      "priority": "Geschlossen / Kandidatenpool bestätigt",
-      "company": "dvelop",
-      "status": "Portalbewerbung am 10.06.2026 eingereicht; am 16.06.2026 Rückmeldung: keine passende offene Vakanz; Kandidatenpool-Einwilligung am 17.06.2026 um ca. 15:40 Uhr an Cathrin versandt",
-      "next_action": "Keine Nachfassaktion; nur bei d.velop-Rueckfrage oder neuer passender Health-&-Care-/GKV-Rolle reaktivieren"
-    },
-    {
-      "priority": "Geschlossen",
-      "company": "Ferchau",
-      "status": "Absage am 17.06.2026 durch Lea Kuck / FERCHAU Hamburg-Suederelbe: keine passende Position",
-      "next_action": "Keine Nachfassaktion; nur bei spaeterer anderer konkreter FERCHAU-Rolle oder anderem Standort reaktivieren"
-    },
-    {
-      "priority": "Aktiv",
-      "company": "IQVIA",
-      "status": "Initiativbewerbung am 10.06.2026 um 18:02 Uhr versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage ist jetzt faellig; Zielrolle R1531935 und DAVASO-/COMLINE-Bezug validieren"
-    },
-    {
-      "priority": "Aktiv",
-      "company": "act-digital",
-      "status": "Initiativbewerbung am 10.06.2026 um 18:37 Uhr an `digital@actdigital.eu` versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage ist jetzt faellig; konkrete Einheit und act-digital-/ALTER-SOLUTIONS-Bezug klaeren"
-    },
-    {
-      "priority": "Aktiv",
-      "company": "HMM-Deutschland",
-      "status": "Initiativbewerbung am 10.06.2026 um 19:16 Uhr an `info@hmmdeutschland.de` versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche ist jetzt faellig; fachliche Zielperson klaeren"
-    },
-    {
-      "priority": "Aktiv",
-      "company": "Cloudflight",
-      "status": "Initiativbewerbung am 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` für Senior Business Development Manager Health & Public Sector versandt; Eingang und Zielperson offen",
-      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche ist jetzt faellig; fachliche Zielperson für Health / Public Sector / GKV klaeren"
-    },
-    {
-      "priority": "Geschlossen",
-      "company": "Faktor-D-XD-Faktor",
-      "status": "Nutzerentscheidung vom 11.06.2026: Prozess beenden und nicht weiter verfolgen; Evidenz-/Wartelisten-Restoffenheit operativ verworfen",
-      "next_action": "Keine weitere Aktion; nur bei spaeterem neuem explizitem Anlass wieder oeffnen"
-    },
-    {
-      "priority": "Aktiv",
+      "priority": "Aktiv / wartet auf Gegenseite",
       "company": "hcVISION",
-      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich und persoenlich stark; Follow-up-Mail am 23.06.2026 um 23:34 Uhr versandt; Jörg sieht Christians Hilfe als potenziell wertvoll, muss aber Risiko, Rolle, Angebot und Volker-Perspektive prüfen",
+      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich und persoenlich stark; Follow-up-Mail am 23.06.2026 um 23:34 Uhr versandt; Jörg/Volker prüfen Rolle, Risiko und Angebot",
       "next_action": "Auf nächste Bewegung von Jörg/Volker warten; keine weitere aktive Nachfrage"
     },
     {
-      "priority": "Wartend",
-      "company": "BITMARCK",
-      "status": "Konkreter Kanal im engeren Auswahlverfahren aktuell blockiert",
-      "next_action": "Nicht eskalieren; nur bei neuem Anlass reagieren"
+      "priority": "Aktiv / Follow-up faellig",
+      "company": "IQVIA",
+      "status": "Initiativbewerbung am 10.06.2026 um 18:02 Uhr versandt; Eingang offen",
+      "next_action": "Erste kurze Nachfrage; Zielrolle R1531935 und DAVASO-/COMLINE-Bezug validieren"
     },
     {
-      "priority": "Wartend",
-      "company": "Arvato Systems",
-      "status": "Kontakt Marcel Füchtenhans meldete aktuell keine neue Besetzung",
-      "next_action": "Nur bei neuer Rolle oder anderem belastbaren Kontakt reaktivieren"
+      "priority": "Aktiv / Follow-up faellig",
+      "company": "act-digital",
+      "status": "Initiativbewerbung am 10.06.2026 um 18:37 Uhr an `digital@actdigital.eu` versandt; Eingang offen",
+      "next_action": "Erste kurze Nachfrage; konkrete Einheit und act-digital-/ALTER-SOLUTIONS-Bezug klaeren"
+    },
+    {
+      "priority": "Aktiv / Follow-up faellig",
+      "company": "HMM-Deutschland",
+      "status": "Initiativbewerbung am 10.06.2026 um 19:16 Uhr an `info@hmmdeutschland.de` versandt; Eingang offen",
+      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche; fachliche Zielperson klaeren"
+    },
+    {
+      "priority": "Aktiv / Follow-up faellig",
+      "company": "Cloudflight",
+      "status": "Initiativbewerbung am 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` versandt; Eingang und Zielperson offen",
+      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche; fachliche Zielperson für Health / Public Sector / GKV klaeren"
     }
   ],
   "action_overrides": [
@@ -197,42 +167,6 @@
       "reason": "AOK-/OSCARE-Fit aktuell zu schwach",
       "aliases": [
         "GKV Informatik"
-      ]
-    },
-    {
-      "topic": "dvelop",
-      "action": "closed",
-      "reason": "Keine Nachfassaktion; nur bei d.velop-Rueckfrage oder neuer passender Health-&-Care-/GKV-Rolle reaktivieren",
-      "aliases": [
-        "d.velop",
-        "dvelop"
-      ]
-    },
-    {
-      "topic": "Ferchau",
-      "action": "closed",
-      "reason": "Keine Nachfassaktion; nur bei spaeterer anderer konkreter FERCHAU-Rolle oder anderem Standort reaktivieren",
-      "aliases": [
-        "Ferchau"
-      ]
-    },
-    {
-      "topic": "Faktor-D-XD-Faktor",
-      "action": "closed",
-      "reason": "Keine weitere Aktion; nur bei spaeterem neuem explizitem Anlass wieder oeffnen",
-      "aliases": [
-        "Caroline Engljaehringer",
-        "Caroline Engljähringer",
-        "Faktor D",
-        "Faktor-D",
-        "Faktor-D-XD-Faktor",
-        "Frau Engljaehringer",
-        "Frau Engljähringer",
-        "XD-Faktor",
-        "x tension",
-        "x-tention",
-        "xD Consulting",
-        "xtention"
       ]
     },
     {
