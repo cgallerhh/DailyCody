@@ -132,7 +132,7 @@ def delivery_search_queries() -> list[str]:
         ),
         (
             f"{base} {{from:dhl.de from:myhermes.de from:hermesworld.com from:dpd.de from:ups.com "
-            "from:gls-germany.com DHL Hermes DPD UPS GLS}} "
+            "from:gls-germany.com DHL Hermes DPD UPS GLS} "
             "{sendung paket zustellung zugestellt geliefert unterwegs \"kommt heute\" \"liegt nebenan\" "
             "sendungsstatus sendungsnummer}"
         ),

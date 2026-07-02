@@ -104,10 +104,13 @@ class DeliveryFilteringTest(unittest.TestCase):
         )
 
     def test_delivery_search_queries_cover_known_merchants_and_carriers(self):
-        query_text = " ".join(delivery_detection.delivery_search_queries()).lower()
+        queries = delivery_detection.delivery_search_queries()
+        query_text = " ".join(queries).lower()
 
         for marker in ("amazon", "bestsecret", "golighter", "wellster", "dhl", "hermes"):
             self.assertIn(marker, query_text)
+        for query in queries:
+            self.assertEqual(query.count("{"), query.count("}"), query)
 
     def test_own_delivery_sender_matches_direct_and_cody_aliases(self):
         self.assertTrue(
@@ -250,6 +253,34 @@ class DeliveryFilteringTest(unittest.TestCase):
         self.assertEqual(delivery_detection.extract_delivery_eta_end_date(NOW, dhl_text), "2026-07-01")
         self.assertEqual(delivery_detection.extract_delivery_eta(dhl_text), "Zustellung 01.07.")
         self.assertEqual(delivery_detection.extract_delivery_eta_end_date(NOW, hermes_text), "2025-11-11")
+
+    def test_dhl_bestsecret_tracking_mail_stays_open_until_eta(self):
+        now = dt.datetime(2026, 7, 2, 6, 2, tzinfo=ZoneInfo("Europe/Berlin"))
+        messages = [
+            {
+                "from": "DHL Paket <noreply@dhl.de>",
+                "subject": "Ihre BESTSECRET Sendung ist unterwegs",
+                "snippet": (
+                    "Ihre BESTSECRET Sendung wurde von uns bearbeitet und wird Ihnen "
+                    "voraussichtlich am Freitag, den 03.07. zugestellt."
+                ),
+                "body": (
+                    "Hallo Christian Galler, Ihre BESTSECRET Sendung wurde von uns bearbeitet "
+                    "und wird Ihnen voraussichtlich am Freitag, den 03.07. zugestellt. "
+                    "Sendungsstatus einsehen 00340434515530000000 "
+                    "https://custcomm.dhl.de/go/?piececode=00340434515530000000"
+                ),
+                "sort_key": int(dt.datetime(2026, 7, 1, 18, 22, tzinfo=ZoneInfo("Europe/Berlin")).timestamp() * 1000),
+            }
+        ]
+
+        result = delivery_detection.detect_open_deliveries(messages, now)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["subject"], "BestSecret Sendung")
+        self.assertEqual(result[0]["status"], "shipped")
+        self.assertEqual(result[0]["eta_end_date"], "2026-07-03")
+        self.assertIn("Zustellung 03.07.", result[0]["snippet"])
 
     def test_public_detector_api_accepts_normalized_messages(self):
         messages = [
