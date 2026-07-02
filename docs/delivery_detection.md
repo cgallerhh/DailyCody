@@ -81,6 +81,10 @@ Wenn eine Sendungsnummer vorhanden ist, ist sie der stärkste Schlüssel. Dadurc
 
 Delivered-Mails schließen ältere offene Status derselben Gruppe. Veraltete offene Mails werden anhand von ETA und Alter ausgeblendet.
 
+## Erledigt-Suppression
+
+Manuelle Cody-Hinweise dürfen nur spezifische Lieferungen schließen. Generische Topics wie `Sendung`, `Paket`, `Bestellung`, `Amazon`, `DHL` oder `BestSecret` werden ignoriert, damit alte oder zu breite Erledigt-Mails keine aktuellen Lieferungen global ausblenden. Verlässlich geschlossen wird über Bestellnummer, Trackingnummer oder einen ausreichend spezifischen Produkt-/Liefertext.
+
 ## Bekannte Händler-Muster
 
 - Amazon: Status im Betreff, Bestellnummer im Body, Trackinglink `progress-tracker`.
