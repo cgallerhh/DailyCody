@@ -231,12 +231,13 @@ def has_tracking_context_near_link(text: str, link: str) -> bool:
 
 
 def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
+    if classify_delivery_status_from_subject(subject):
+        return True
     haystack = f"{subject} {snippet} {text[:1200]}".lower()
-    markers = (
+    normalized = normalize_status_text(haystack)
+    strong_markers = (
         "bestellung",
         "bestellt",
-        "versandt",
-        "versendet",
         "lieferung",
         "zugestellt",
         "zustellung",
@@ -266,7 +267,33 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
         "wellster",
         "comic",
     )
-    return any(marker in haystack for marker in markers)
+    if any(marker in haystack for marker in strong_markers):
+        return True
+    weak_status_markers = (
+        "versandt",
+        "versendet",
+        "verschickt",
+        "unterwegs",
+        "auf dem weg",
+        "kommt heute",
+        "shipped",
+        "dispatched",
+    )
+    known_sender_markers = (
+        "amazon",
+        "bestsecret",
+        "best secret",
+        "dhl",
+        "dpd",
+        "gls",
+        "golighter",
+        "hermes",
+        "ups",
+        "wellster",
+    )
+    return any(marker in normalized for marker in weak_status_markers) and any(
+        marker in normalized for marker in known_sender_markers
+    )
 
 
 def is_delivery_noise(subject: str, snippet: str, text: str) -> bool:
@@ -367,6 +394,7 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
             "zugestellt am",
             "abgelegt",
             "abgegeben",
+            "ablageort",
             "liegt nebenan",
             "delivered",
             "has been delivered",
@@ -952,6 +980,9 @@ def normalize_delivery_key(subject: str, sender: str, text: str = "") -> str:
     product = extract_delivery_product_title(subject, text)
     if product:
         return f"{sender_domain}:product:{normalize_status_text(product)[:80]}"
+    inferred = infer_delivery_product_title(subject, text)
+    if inferred:
+        return f"{sender_domain}:product:{normalize_status_text(inferred)[:80]}"
     cleaned = clean_delivery_subject(subject)
     cleaned = re.sub(r"\d+", "#", cleaned)
     return f"{sender_domain}:{cleaned[:80]}"
@@ -1057,6 +1088,15 @@ def infer_delivery_product_title(subject: str, text: str) -> str:
         return "Tragbare Fußballschuhtasche"
     if any(marker in haystack for marker in ("fußball", "fussball")) and "schuh" in haystack and "tasche" in haystack:
         return "Fußballschuhtasche"
+    sender_subject_match = re.search(
+        r"\b(?:ihre|deine)\s+(.{2,80}?)\s+sendung\b",
+        subject,
+        flags=re.I,
+    )
+    if sender_subject_match:
+        sender_name = clean_mail_excerpt(sender_subject_match.group(1))
+        if sender_name and normalize_status_text(sender_name) not in {"dhl", "paket"}:
+            return f"{sender_name} Sendung"
     return ""
 
 
