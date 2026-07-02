@@ -173,7 +173,7 @@ def delivery_search_queries() -> list[str]:
         f"{base} -category:promotions sendungsnummer",
     ]
     broad_safety_net = [
-        "newer_than:14d in:anywhere -in:trash -in:spam -from:me",
+        "newer_than:14d in:anywhere -in:trash -in:spam -from:me -category:promotions -category:social",
         "newer_than:30d in:anywhere -in:trash -in:spam category:updates",
     ]
     return simple_queries + structured_queries + broad_safety_net
@@ -251,7 +251,6 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
         "apotheke",
         "versandbereit",
         "versandvorbereitung",
-        "kommt",
         "unterwegs",
         "auf dem weg",
         "dhl",
@@ -551,7 +550,7 @@ def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime)
             for item in group
             if item.get("status") != "delivered"
             and item.get("sort_key", 0) > latest_delivered
-            and not is_stale_delivery_item(item, now_ms)
+            and not is_stale_delivery_item(item, now)
         ]
         if active_items:
             current.append(
@@ -572,11 +571,14 @@ def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime)
     ]
 
 
-def is_stale_delivery_item(item: dict[str, Any], now_ms: int) -> bool:
+def is_stale_delivery_item(item: dict[str, Any], now: dt.datetime) -> bool:
+    now_ms = int(now.timestamp() * 1000)
     age_hours = delivery_age_hours(item, now_ms)
     status = item.get("status")
     eta_end_date = parse_delivery_item_date(item.get("eta_end_date"))
-    if eta_end_date and eta_end_date < dt.datetime.fromtimestamp(now_ms / 1000).date():
+    if eta_end_date and eta_end_date < now.date():
+        return True
+    if eta_end_date and eta_end_date == now.date() and status in {"shipped", "out_for_delivery"} and now.hour >= 20:
         return True
     if status == "out_for_delivery":
         return age_hours > 36
