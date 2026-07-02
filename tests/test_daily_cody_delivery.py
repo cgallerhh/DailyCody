@@ -182,6 +182,9 @@ class DeliveryFilteringTest(unittest.TestCase):
         simple_queries = [query for query in queries if "{" not in query and "}" not in query]
         for marker in ("from:dhl.de", "from:amazon.de", "from:service.bestsecret.com", "bestsecret"):
             self.assertTrue(any(marker in query.lower() for query in simple_queries), marker)
+        self.assertTrue(
+            any("-category:promotions" in query.lower() for query in queries if "newer_than:14d" in query.lower())
+        )
 
     def test_own_delivery_sender_matches_direct_and_cody_aliases(self):
         self.assertTrue(
@@ -350,6 +353,22 @@ class DeliveryFilteringTest(unittest.TestCase):
         ]
 
         self.assertEqual(delivery_detection.detect_open_deliveries(messages, now), [])
+
+    def test_today_eta_shipping_mail_is_stale_after_evening(self):
+        now = dt.datetime(2026, 7, 2, 21, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+        items = [
+            delivery_item(
+                subject="Adidas AG Sendung",
+                snippet="versendet per DHL, Zustellung 02.07.",
+                eta_end_date="2026-07-02",
+                sort_key=int(
+                    dt.datetime(2026, 7, 1, 14, 43, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+                    * 1000
+                ),
+            )
+        ]
+
+        self.assertEqual(delivery_detection.summarize_delivery_candidates(items, now), [])
 
     def test_numeric_delivery_dates_from_carrier_mail_are_parsed(self):
         dhl_text = "Ihre BESTSECRET Sendung wird Ihnen voraussichtlich am Mittwoch, den 01.07. zugestellt."
