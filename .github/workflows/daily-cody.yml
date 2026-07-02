@@ -1,6 +1,9 @@
 name: Daily Cody
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # GitHub schedules use UTC. Run every 5 minutes during the UTC morning
     # range that covers 06:00 Europe/Berlin in both CET and CEST. The script
@@ -19,6 +22,7 @@ on:
 
 jobs:
   send-briefing:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[daily-cody-smoke]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -51,6 +55,6 @@ jobs:
           FAIL_ON_STALE_REMINDERS: ${{ vars.FAIL_ON_STALE_REMINDERS || 'false' }}
           REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '60' }}
           REFRESH_STALE_REMINDERS: ${{ vars.REFRESH_STALE_REMINDERS || 'false' }}
-          FORCE_SEND: ${{ github.event.inputs.force_send || 'false' }}
-          ALLOW_DUPLICATE: ${{ github.event.inputs.allow_duplicate || 'false' }}
+          FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
+          ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}
         run: python src/daily_cody.py
