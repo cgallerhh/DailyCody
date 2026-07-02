@@ -136,6 +136,23 @@ def delivery_search_queries() -> list[str]:
             "{sendung paket zustellung zugestellt geliefert unterwegs \"kommt heute\" \"liegt nebenan\" "
             "sendungsstatus sendungsnummer}"
         ),
+        # Fallback queries deliberately avoid grouped Gmail syntax. GitHub
+        # Actions talks to the raw Gmail API; these keep merchant/carrier
+        # coverage even if a complex query is interpreted differently.
+        f"{base} -category:promotions from:dhl.de",
+        f"{base} -category:promotions from:myhermes.de",
+        f"{base} -category:promotions from:hermesworld.com",
+        f"{base} -category:promotions from:dpd.de",
+        f"{base} -category:promotions from:ups.com",
+        f"{base} -category:promotions from:gls-germany.com",
+        f"{base} -category:promotions from:amazon.de",
+        f"{base} -category:promotions from:amazon.com",
+        f"{base} -category:promotions from:service.bestsecret.com",
+        f"{base} -category:promotions from:partner-program@bestsecret.com",
+        f"{base} -category:promotions bestsecret",
+        f"{base} -category:promotions from:golighter.de",
+        f"{base} -category:promotions from:wellstermedical.com",
+        f"{base} -category:promotions sendungsnummer",
     ]
 
 
