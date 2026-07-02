@@ -154,6 +154,23 @@ def delivery_search_queries() -> list[str]:
             "{sendung paket zustellung zugestellt geliefert unterwegs \"kommt heute\" \"liegt nebenan\" "
             "sendungsstatus sendungsnummer}"
         ),
+        # Fallback queries deliberately avoid grouped Gmail syntax. GitHub
+        # Actions talks to the raw Gmail API; these keep merchant/carrier
+        # coverage even if a complex query is interpreted differently.
+        f"{base} -category:promotions from:dhl.de",
+        f"{base} -category:promotions from:myhermes.de",
+        f"{base} -category:promotions from:hermesworld.com",
+        f"{base} -category:promotions from:dpd.de",
+        f"{base} -category:promotions from:ups.com",
+        f"{base} -category:promotions from:gls-germany.com",
+        f"{base} -category:promotions from:amazon.de",
+        f"{base} -category:promotions from:amazon.com",
+        f"{base} -category:promotions from:service.bestsecret.com",
+        f"{base} -category:promotions from:partner-program@bestsecret.com",
+        f"{base} -category:promotions bestsecret",
+        f"{base} -category:promotions from:golighter.de",
+        f"{base} -category:promotions from:wellstermedical.com",
+        f"{base} -category:promotions sendungsnummer",
     ]
     broad_safety_net = [
         "newer_than:14d in:anywhere -in:trash -in:spam -from:me",
@@ -758,17 +775,52 @@ def completed_delivery_topic_matches(entry: str, delivery_text: str, normalized_
     normalized_entry = normalize_status_text(entry)
     if not normalized_entry:
         return False
-    if normalized_entry in normalized_delivery_text:
-        return True
     entry_order = extract_delivery_order_number(entry, "")
     delivery_order = extract_delivery_order_number(delivery_text, "")
     if entry_order or delivery_order:
         return bool(entry_order and delivery_order and entry_order == delivery_order)
-    entry_tokens = [token for token in normalized_entry.split() if len(token) >= 4]
+    entry_tracking = extract_delivery_tracking_number("", entry)
+    delivery_tracking = extract_delivery_tracking_number("", delivery_text)
+    if entry_tracking or delivery_tracking:
+        return bool(entry_tracking and delivery_tracking and entry_tracking == delivery_tracking)
+    entry_tokens = meaningful_completed_topic_tokens(normalized_entry)
     if not entry_tokens:
         return False
+    if normalized_entry in normalized_delivery_text:
+        return len(entry_tokens) >= 2 or len(entry_tokens[0]) >= 10
     matched_tokens = sum(1 for token in entry_tokens if token in normalized_delivery_text)
-    return matched_tokens >= min(2, len(entry_tokens))
+    if len(entry_tokens) == 1:
+        return len(entry_tokens[0]) >= 10 and matched_tokens == 1
+    return matched_tokens >= min(3, len(entry_tokens))
+
+
+def meaningful_completed_topic_tokens(normalized_entry: str) -> list[str]:
+    generic_tokens = {
+        "amazon",
+        "bestellung",
+        "bestellt",
+        "bestellnummer",
+        "bestsecret",
+        "cody",
+        "dhl",
+        "erhalten",
+        "erledigt",
+        "geliefert",
+        "golighter",
+        "hermes",
+        "lieferung",
+        "paket",
+        "sendung",
+        "versand",
+        "versendet",
+        "wellster",
+        "zugestellt",
+    }
+    return [
+        token
+        for token in normalized_entry.split()
+        if len(token) >= 4 and token not in generic_tokens
+    ]
 
 
 def delivery_completion_addresses(sender_email: str, recipient_email: str) -> set[str]:
