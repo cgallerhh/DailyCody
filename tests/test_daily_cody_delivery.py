@@ -250,6 +250,15 @@ class DeliveryFilteringTest(unittest.TestCase):
             )
         )
 
+    def test_weak_shipping_word_without_known_context_is_not_delivery(self):
+        self.assertFalse(
+            delivery_detection.looks_like_delivery(
+                "Christian hier ist ein neues Game für den Fernseher",
+                "Ich habe dir den Link versendet.",
+                "Viel Spaß damit.",
+            )
+        )
+
     def test_golighter_and_dhl_tracking_number_share_topic_key(self):
         tracking = "00340434664138415176"
         golighter_key = delivery_detection.normalize_delivery_key(
@@ -316,6 +325,31 @@ class DeliveryFilteringTest(unittest.TestCase):
         ]
 
         self.assertEqual(delivery_detection.summarize_delivery_candidates(items, NOW), [])
+
+    def test_carrier_sender_subject_groups_delivered_update_with_open_status(self):
+        now = dt.datetime(2026, 7, 2, 21, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+        messages = [
+            {
+                "from": "DHL Paket <noreply@dhl.de>",
+                "subject": "Ihre Adidas AG Sendung kommt heute",
+                "snippet": "Ihre Sendung kommt heute.",
+                "sort_key": int(
+                    dt.datetime(2026, 7, 2, 10, 50, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+                    * 1000
+                ),
+            },
+            {
+                "from": "DHL Paket <noreply@dhl.de>",
+                "subject": "Ihre Adidas AG Sendung liegt am gewünschten Ablageort",
+                "snippet": "Ihre Sendung liegt am gewünschten Ablageort.",
+                "sort_key": int(
+                    dt.datetime(2026, 7, 2, 14, 37, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+                    * 1000
+                ),
+            },
+        ]
+
+        self.assertEqual(delivery_detection.detect_open_deliveries(messages, now), [])
 
     def test_numeric_delivery_dates_from_carrier_mail_are_parsed(self):
         dhl_text = "Ihre BESTSECRET Sendung wird Ihnen voraussichtlich am Mittwoch, den 01.07. zugestellt."
