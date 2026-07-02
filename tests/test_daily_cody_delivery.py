@@ -103,6 +103,24 @@ class DeliveryFilteringTest(unittest.TestCase):
             )
         )
 
+    def test_completion_addresses_exclude_plain_recipient(self):
+        addresses = delivery_detection.delivery_completion_request_addresses(
+            "Cody Chief of Staff <christian.galler+cody@gmail.com>",
+            "christian.galler@gmail.com",
+        )
+
+        self.assertIn("christian.galler+cody@gmail.com", addresses)
+        self.assertNotIn("christian.galler@gmail.com", addresses)
+
+    def test_future_dhl_zustellung_is_not_manual_completion(self):
+        text = (
+            "Ihre BESTSECRET Sendung wurde von uns bearbeitet und wird Ihnen voraussichtlich "
+            "am Freitag, den 03.07. zugestellt. Ihr dauerhaft gebuchter Ablageort wird bei "
+            "der Zustellung berücksichtigt."
+        )
+
+        self.assertEqual(delivery_detection.extract_completed_delivery_topics_from_text(text), [])
+
     def test_delivery_search_queries_cover_known_merchants_and_carriers(self):
         queries = delivery_detection.delivery_search_queries()
         query_text = " ".join(queries).lower()

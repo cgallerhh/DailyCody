@@ -758,6 +758,21 @@ def delivery_completion_addresses(sender_email: str, recipient_email: str) -> se
     return expanded
 
 
+def delivery_completion_request_addresses(sender_email: str, recipient_email: str) -> set[str]:
+    """Return addresses that should receive manual delivery-completion notes.
+
+    Do not include the plain recipient address here. Normal delivery mails are
+    also sent there and may contain words like "zugestellt" for a future ETA.
+    """
+
+    addresses = {address for address in extract_email_addresses(sender_email) if address}
+    for address in extract_email_addresses(recipient_email):
+        local, separator, domain = address.partition("@")
+        if separator:
+            addresses.add(address if "+cody" in local else f"{local}+cody@{domain}")
+    return addresses
+
+
 def extract_email_addresses(value: str) -> set[str]:
     addresses = {address.lower() for _, address in email.utils.getaddresses([value]) if address}
     addresses.update(match.lower() for match in re.findall(r"[\w.+-]+@[\w.-]+\.\w+", value))
@@ -778,22 +793,47 @@ def extract_completed_delivery_topics_from_text(text: str) -> list[str]:
             flags=re.I,
         ),
         re.compile(
-            r"\b(?:lieferung|paket|bestellung|sendung)\s+"
+            r"\bcody[\s,:;-]+([^\n\r]{4,120}?)\s+"
+            r"(?:ist\s+)?(?:erledigt|zugestellt|geliefert|angekommen|erhalten|da)\b",
+            flags=re.I,
+        ),
+        re.compile(
+            r"(?:^|[\n\r])\s*(?:lieferung|paket|bestellung|sendung)\s+"
             r"(?:erledigt|zugestellt|geliefert|angekommen|erhalten|ist da)\s*[:\-]?\s*([^\n\r]+)",
             flags=re.I,
         ),
         re.compile(
-            r"\b([^\n\r]{4,120}?)\s+"
+            r"(?:^|[\n\r])\s*([^\n\r]{4,120}?)\s+"
             r"(?:ist\s+)?(?:erledigt|zugestellt|geliefert|angekommen|erhalten|da)\b",
             flags=re.I,
         ),
     )
     for pattern in patterns:
         for match in pattern.finditer(text):
+            if looks_like_future_delivery_completion_false_positive(match.group(0)):
+                continue
             topic = clean_completed_delivery_topic(match.group(1))
             if topic and topic not in topics:
                 topics.append(topic)
     return topics
+
+
+def looks_like_future_delivery_completion_false_positive(value: str) -> bool:
+    normalized = normalize_status_text(value)
+    future_markers = (
+        "voraussichtlich",
+        "wird ihnen",
+        "wird dir",
+        "wird zugestellt",
+        "am montag",
+        "am dienstag",
+        "am mittwoch",
+        "am donnerstag",
+        "am freitag",
+        "am samstag",
+        "am sonntag",
+    )
+    return "zugestellt" in normalized and any(marker in normalized for marker in future_markers)
 
 
 def clean_completed_delivery_topic(value: str) -> str:

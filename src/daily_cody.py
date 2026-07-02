@@ -1679,7 +1679,7 @@ def preserve_html_links(value: str) -> str:
 
 
 def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient_email: str) -> list[str]:
-    cody_addresses = delivery_detection.delivery_completion_addresses(sender_email, recipient_email)
+    cody_addresses = delivery_detection.delivery_completion_request_addresses(sender_email, recipient_email)
     cody_query_terms = " OR ".join(f'"{address}"' for address in sorted(cody_addresses))
     cody_filter = f"(cody OR {cody_query_terms})" if cody_query_terms else "cody"
     query_text = (
