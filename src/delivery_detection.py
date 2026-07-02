@@ -16,7 +16,7 @@ from typing import Any
 
 DELIVERY_LOOKBACK_DAYS = 60
 DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY = 80
-DELIVERY_SEARCH_TOTAL_LIMIT = 180
+DELIVERY_SEARCH_TOTAL_LIMIT = 360
 
 
 def detect_open_deliveries(
@@ -113,7 +113,25 @@ def delivery_search_queries() -> list[str]:
         "zugestellt geliefert sendung paket tracking sendungsstatus sendungsnummer \"kommt heute\" "
         "\"in zustellung\" \"auf dem weg\" \"ist unterwegs\" \"liegt nebenan\" shipped delivered dispatched arriving}"
     )
-    return [
+    simple_queries = [
+        # Run exact merchant/carrier lookups first. They are cheap and prevent
+        # broad status queries from filling the total cap before DHL/Amazon/etc.
+        f"{base} -category:promotions from:dhl.de",
+        f"{base} -category:promotions from:amazon.de",
+        f"{base} -category:promotions from:amazon.com",
+        f"{base} -category:promotions from:service.bestsecret.com",
+        f"{base} -category:promotions from:partner-program@bestsecret.com",
+        f"{base} -category:promotions from:golighter.de",
+        f"{base} -category:promotions from:wellstermedical.com",
+        f"{base} -category:promotions from:myhermes.de",
+        f"{base} -category:promotions from:hermesworld.com",
+        f"{base} -category:promotions from:dpd.de",
+        f"{base} -category:promotions from:ups.com",
+        f"{base} -category:promotions from:gls-germany.com",
+        f"{base} -category:promotions sendungsnummer",
+        f"{base} -category:promotions bestsecret",
+    ]
+    structured_queries = [
         f"{base} -category:promotions {status_terms}",
         (
             f"{base} {{label:Amazon from:amazon.de from:amazon.com amazon}} "
@@ -136,24 +154,12 @@ def delivery_search_queries() -> list[str]:
             "{sendung paket zustellung zugestellt geliefert unterwegs \"kommt heute\" \"liegt nebenan\" "
             "sendungsstatus sendungsnummer}"
         ),
-        # Fallback queries deliberately avoid grouped Gmail syntax. GitHub
-        # Actions talks to the raw Gmail API; these keep merchant/carrier
-        # coverage even if a complex query is interpreted differently.
-        f"{base} -category:promotions from:dhl.de",
-        f"{base} -category:promotions from:myhermes.de",
-        f"{base} -category:promotions from:hermesworld.com",
-        f"{base} -category:promotions from:dpd.de",
-        f"{base} -category:promotions from:ups.com",
-        f"{base} -category:promotions from:gls-germany.com",
-        f"{base} -category:promotions from:amazon.de",
-        f"{base} -category:promotions from:amazon.com",
-        f"{base} -category:promotions from:service.bestsecret.com",
-        f"{base} -category:promotions from:partner-program@bestsecret.com",
-        f"{base} -category:promotions bestsecret",
-        f"{base} -category:promotions from:golighter.de",
-        f"{base} -category:promotions from:wellstermedical.com",
-        f"{base} -category:promotions sendungsnummer",
     ]
+    broad_safety_net = [
+        "newer_than:14d in:anywhere -in:trash -in:spam -from:me",
+        "newer_than:30d in:anywhere -in:trash -in:spam category:updates",
+    ]
+    return simple_queries + structured_queries + broad_safety_net
 
 
 def is_own_delivery_sender(sender: str, sender_email: str, recipient_email: str) -> bool:
