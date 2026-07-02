@@ -129,6 +129,8 @@ class DeliveryFilteringTest(unittest.TestCase):
             self.assertIn(marker, query_text)
         for query in queries:
             self.assertEqual(query.count("{"), query.count("}"), query)
+        self.assertIn("from:dhl.de", queries[0].lower())
+        self.assertIn("from:amazon.de", queries[1].lower())
         simple_queries = [query for query in queries if "{" not in query and "}" not in query]
         for marker in ("from:dhl.de", "from:amazon.de", "from:service.bestsecret.com", "bestsecret"):
             self.assertTrue(any(marker in query.lower() for query in simple_queries), marker)
