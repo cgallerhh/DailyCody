@@ -121,6 +121,54 @@ class DeliveryFilteringTest(unittest.TestCase):
 
         self.assertEqual(delivery_detection.extract_completed_delivery_topics_from_text(text), [])
 
+    def test_generic_completed_topics_do_not_suppress_active_deliveries(self):
+        messages = [
+            {
+                "from": '"Amazon.de" versandbestaetigung@amazon.de',
+                "subject": "Versendet: „Fliegengitter Balkontür...“",
+                "snippet": "Versendet: „Fliegengitter Balkontür...“",
+                "body": "",
+                "thread_id": "amazon-thread",
+                "sort_key": internal_date(1),
+            },
+            {
+                "from": "DHL Paket <noreply@dhl.de>",
+                "subject": "Ihre BESTSECRET Sendung ist unterwegs",
+                "snippet": "Ihre Sendung ist unterwegs.",
+                "body": "",
+                "thread_id": "dhl-thread",
+                "sort_key": internal_date(2),
+            },
+        ]
+
+        result = delivery_detection.detect_open_deliveries(
+            messages,
+            NOW,
+            completed_topics=["sendung", "paket", "bestellung", "bestsecret", "amazon"],
+        )
+
+        subjects = {item["subject"] for item in result}
+        self.assertIn("Amazon-Bestellung", subjects)
+        self.assertIn("BestSecret Sendung", subjects)
+
+    def test_specific_completed_topic_still_suppresses_matching_delivery(self):
+        self.assertTrue(
+            delivery_detection.completed_delivery_topic_matches(
+                "Fliegengitter Balkontür",
+                "Versendet: Fliegengitter Balkontür mit Magnetverschluss",
+                delivery_detection.normalize_status_text(
+                    "Versendet: Fliegengitter Balkontür mit Magnetverschluss"
+                ),
+            )
+        )
+        self.assertTrue(
+            delivery_detection.completed_delivery_topic_matches(
+                "Amazon #305-1314679-9745914",
+                "Amazon #305-1314679-9745914 versendet",
+                delivery_detection.normalize_status_text("Amazon #305-1314679-9745914 versendet"),
+            )
+        )
+
     def test_delivery_search_queries_cover_known_merchants_and_carriers(self):
         queries = delivery_detection.delivery_search_queries()
         query_text = " ".join(queries).lower()
