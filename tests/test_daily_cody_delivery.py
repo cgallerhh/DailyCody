@@ -129,6 +129,9 @@ class DeliveryFilteringTest(unittest.TestCase):
             self.assertIn(marker, query_text)
         for query in queries:
             self.assertEqual(query.count("{"), query.count("}"), query)
+        simple_queries = [query for query in queries if "{" not in query and "}" not in query]
+        for marker in ("from:dhl.de", "from:amazon.de", "from:service.bestsecret.com", "bestsecret"):
+            self.assertTrue(any(marker in query.lower() for query in simple_queries), marker)
 
     def test_own_delivery_sender_matches_direct_and_cody_aliases(self):
         self.assertTrue(
@@ -299,6 +302,55 @@ class DeliveryFilteringTest(unittest.TestCase):
         self.assertEqual(result[0]["status"], "shipped")
         self.assertEqual(result[0]["eta_end_date"], "2026-07-03")
         self.assertIn("Zustellung 03.07.", result[0]["snippet"])
+
+    def test_dhl_bestsecret_subject_is_enough_when_body_is_sparse(self):
+        now = dt.datetime(2026, 7, 2, 18, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+        result = delivery_detection.detect_open_deliveries(
+            [
+                {
+                    "from": "DHL Paket <noreply@dhl.de>",
+                    "subject": "Ihre BESTSECRET Sendung ist unterwegs",
+                    "snippet": "Wichtige Informationen zu Ihrer Sendung",
+                    "sort_key": int(
+                        dt.datetime(2026, 7, 1, 18, 22, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+                        * 1000
+                    ),
+                }
+            ],
+            now,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["subject"], "BestSecret Sendung")
+        self.assertEqual(result[0]["status"], "shipped")
+
+    def test_amazon_shipped_status_bar_is_not_delivered(self):
+        now = dt.datetime(2026, 7, 2, 18, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+        body = (
+            "Dein Paket wurde versendet! Bestellt Versendet In Zustellung Zugestellt "
+            "Ankunft morgen Bestellnr. 305-2157751-6256325 Lieferung verfolgen "
+            "Fliegengitter Balkontür Magnet"
+        )
+
+        result = delivery_detection.detect_open_deliveries(
+            [
+                {
+                    "from": '"Amazon.de" <versandbestaetigung@amazon.de>',
+                    "subject": "Versendet: „Fliegengitter Balkontür...“",
+                    "snippet": "Versendet: „Fliegengitter Balkontür...“",
+                    "body": body,
+                    "sort_key": int(
+                        dt.datetime(2026, 7, 2, 14, 32, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+                        * 1000
+                    ),
+                }
+            ],
+            now,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["status"], "shipped")
+        self.assertIn("Amazon #305-2157751-6256325", result[0]["subject"])
 
     def test_public_detector_api_accepts_normalized_messages(self):
         messages = [
