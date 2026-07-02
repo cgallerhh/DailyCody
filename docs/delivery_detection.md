@@ -73,11 +73,13 @@ Eine Mail zählt nur als Lieferung, wenn sie nach Body-Auswertung in einen Statu
 - `out_for_delivery`: kommt heute, in Zustellung
 - `delivered`: zugestellt, geliefert, angekommen, liegt nebenan, abgegeben
 
-Reine Info-Mails, Umfragen, Retourenstatus, HVV-Tickets, Behördenpostfach-Meldungen und eigene Cody-/Self-Mails sind explizit ausgeschlossen.
+Reine Info-Mails, Umfragen, Retourenstatus, HVV-Tickets, Behördenpostfach-Meldungen und eigene Cody-/Self-Mails sind explizit ausgeschlossen. Schwache Statuswörter wie `versendet` reichen ohne bekannten Händler-, Carrier-, Bestell- oder Tracking-Kontext nicht aus.
 
 ## Gruppierung
 
 Wenn eine Sendungsnummer vorhanden ist, ist sie der stärkste Schlüssel. Dadurch werden GoLighter-Versandmail und DHL-Wellster-Zustellmail zusammengeführt. Danach folgen Bestellnummern, Produktnamen und erst zuletzt normalisierte Betreffzeilen.
+
+Carrier-Betreffs wie `Ihre Adidas AG Sendung kommt heute` und spätere Delivered-Updates mit demselben Händler-/Sendungsnamen werden gemeinsam gruppiert, auch wenn keine Trackingnummer im Betreff steht.
 
 Delivered-Mails schließen ältere offene Status derselben Gruppe. Veraltete offene Mails werden anhand von ETA und Alter ausgeblendet.
 
