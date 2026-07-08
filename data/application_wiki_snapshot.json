@@ -1,43 +1,25 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-07-01",
+  "dashboard_updated": "2026-07-08",
   "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv / Termin bestätigt",
+      "priority": "Aktiv / Kennenlernen gefuehrt / Rückmeldung offen",
       "company": "puntus",
-      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; erstes Kennenlernen mit Daniel-Strehl und Franziska-Roth ist für 07.07.2026 um 09:30-10:30 Uhr bestätigt",
-      "next_action": "Vorbereitung auf Daniel-Strehl und Franziska-Roth: 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Rolle von Franziska Roth und GKV als Proof Point für regulierte IT-Maerkte"
+      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Kennenlernen mit Daniel-Strehl und Franziska-Roth am 07.07.2026 gefuehrt und positiv bewertet",
+      "next_action": "Follow-up senden oder Versand dokumentieren; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten"
     },
     {
-      "priority": "Aktiv / wartet auf Gegenseite",
+      "priority": "De-priorisiert / nur bei Signal reaktivieren",
       "company": "hcVISION",
-      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich und persoenlich stark; Follow-up-Mail am 23.06.2026 um 23:34 Uhr versandt; Jörg/Volker prüfen Rolle, Risiko und Angebot",
-      "next_action": "Auf nächste Bewegung von Jörg/Volker warten; keine weitere aktive Nachfrage"
+      "status": "Düsseldorf-Gespraech am 23.06.2026 fachlich stark; Follow-up-Mail am 23.06.2026 um 23:34 Uhr versandt; bis 08.07.2026 keine belastbare Rückmeldung, Kandidatenperspektive jetzt kritisch wegen fehlender Verbindlichkeit",
+      "next_action": "Keine weitere aktive Nachfrage; nur bei proaktiver, konkreter und verbindlicher Rückmeldung mit klarem Rollen-/Angebotsmodell erneut prüfen"
     },
     {
-      "priority": "Aktiv / Follow-up faellig",
-      "company": "IQVIA",
-      "status": "Initiativbewerbung am 10.06.2026 um 18:02 Uhr versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage; Zielrolle R1531935 und DAVASO-/COMLINE-Bezug validieren"
-    },
-    {
-      "priority": "Aktiv / Follow-up faellig",
-      "company": "act-digital",
-      "status": "Initiativbewerbung am 10.06.2026 um 18:37 Uhr an `digital@actdigital.eu` versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage; konkrete Einheit und act-digital-/ALTER-SOLUTIONS-Bezug klaeren"
-    },
-    {
-      "priority": "Aktiv / Follow-up faellig",
-      "company": "HMM-Deutschland",
-      "status": "Initiativbewerbung am 10.06.2026 um 19:16 Uhr an `info@hmmdeutschland.de` versandt; Eingang offen",
-      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche; fachliche Zielperson klaeren"
-    },
-    {
-      "priority": "Aktiv / Follow-up faellig",
-      "company": "Cloudflight",
-      "status": "Initiativbewerbung am 10.06.2026 um 19:43 Uhr an `jobs@cloudflight.io` versandt; Eingang und Zielperson offen",
-      "next_action": "Erste kurze Nachfrage oder Kontaktrecherche; fachliche Zielperson für Health / Public Sector / GKV klaeren"
+      "priority": "Aktiv / Folgetermin bestätigt",
+      "company": "Exxeta",
+      "status": "Erstcall mit Suzanne Schwarz am 06.07.2026 erfolgt; CV an Suzanne gesendet; zweites Gespräch mit Wolfgang/Suzanne geführt; Ralf-Herrmann-Gespräch am 14.07.2026 um 16:30 vereinbart",
+      "next_action": "Ralf-Termin vorbereiten: Rolle, Reporting, Zielgröße/Funnel, Exxeta-Portfolio, Delivery-Zugang, Umsatzanrechnung, BITMARCK-Rahmenvertragsbewirtschaftung, ERW-Aktivierung, Startdatum und Vergütung klären"
     }
   ],
   "action_overrides": [
@@ -60,7 +42,7 @@
     {
       "topic": "Greenlight-Consulting",
       "action": "do_not_follow_up",
-      "reason": "Geprüft und wegen d.velop-Nahe vorerst zurückgestellt; keine Parallelansprache zur aktiven dvelop-Bewerbung",
+      "reason": "Geprüft und wegen d.velop-Nahe zurückgestellt; keine aktive Ansprache ohne neuen ausdruecklichen Anlass",
       "aliases": [
         "Greenlight-Consulting"
       ]
@@ -79,22 +61,6 @@
       "reason": "Nutzerentscheidung: rausnehmen, kein Interesse an einer Bewerbung",
       "aliases": [
         "IPSWAYS"
-      ]
-    },
-    {
-      "topic": "BITMARCK",
-      "action": "do_not_follow_up",
-      "reason": "Sensibler Wartekanal; keine parallele Eskalation",
-      "aliases": [
-        "BITMARCK"
-      ]
-    },
-    {
-      "topic": "Arvato Systems",
-      "action": "do_not_follow_up",
-      "reason": "Kein aktiver Bedarf über den bekannten Kontakt",
-      "aliases": [
-        "Arvato Systems"
       ]
     },
     {
@@ -172,7 +138,7 @@
     {
       "topic": "hcVISION",
       "action": "wait_only",
-      "reason": "Auf nächste Bewegung von Jörg/Volker warten; keine weitere aktive Nachfrage",
+      "reason": "Keine weitere aktive Nachfrage; nur bei proaktiver, konkreter und verbindlicher Rückmeldung mit klarem Rollen-/Angebotsmodell erneut prüfen",
       "aliases": [
         "Joerg Schreiber",
         "Jörg Schreiber",

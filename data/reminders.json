@@ -1,68 +1,5 @@
 [
     {
-        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
-        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-26T00:00:00",
-        "creation_date": "2026-06-07T20:14:00",
-        "modification_date": "2026-06-28T13:05:11",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "adesso"
-        ],
-        "alarms": []
-    },
-    {
-        "id": "9443AE6C-F401-49F2-9446-0B091863A4EE",
-        "name": "Agniesza: 40\u20ac da?",
-        "list_name": "_INBOX",
-        "due_date": "2026-06-30T00:00:00",
-        "creation_date": "2026-06-30T19:16:15",
-        "modification_date": "2026-06-30T19:16:15",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
-        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
-        "list_name": "_INBOX",
-        "due_date": "2026-07-04T18:00:00",
-        "remind_me_date": "2026-07-04T18:00:00",
-        "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-06-29T21:37:52",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week on sunday, saturday",
-                "frequency": "weekly",
-                "interval": 1,
-                "days_of_week": [
-                    "sunday",
-                    "saturday"
-                ]
-            }
-        ],
-        "alarms": [
-            {
-                "absolute_date": "2026-07-04T18:00:00",
-                "description": "Sat Jul 04, 2026 at 6:00 PM"
-            }
-        ]
-    },
-    {
         "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
         "name": "Mutti anrufen",
         "list_name": "_INBOX",
@@ -85,6 +22,69 @@
             }
         ],
         "alarms": []
+    },
+    {
+        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
+        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
+        "list_name": "_INBOX",
+        "due_date": "2026-07-08T00:00:00",
+        "creation_date": "2026-06-07T20:14:00",
+        "modification_date": "2026-07-07T19:14:37",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "adesso"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "696A6ED9-F24C-4602-B5CE-1A326FD5FE3F",
+        "name": "adesso Restgeld da?",
+        "list_name": "_INBOX",
+        "due_date": "2026-07-08T00:00:00",
+        "creation_date": "2026-07-07T19:14:09",
+        "modification_date": "2026-07-07T19:14:20",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-07-11T18:00:00",
+        "remind_me_date": "2026-07-11T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-07-05T19:48:45",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week on sunday, saturday",
+                "frequency": "weekly",
+                "interval": 1,
+                "days_of_week": [
+                    "sunday",
+                    "saturday"
+                ]
+            }
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-07-11T18:00:00",
+                "description": "Sat Jul 11, 2026 at 6:00 PM"
+            }
+        ]
     },
     {
         "id": "25255056-0AAF-4F7B-9E92-664194B33F23",
@@ -117,6 +117,18 @@
         "list_name": "_INBOX",
         "creation_date": "2026-06-07T20:07:24",
         "modification_date": "2026-06-07T20:07:24",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "A0CF2DFB-220D-4440-8002-5E12A1F17BEE",
+        "name": "schach Verein k\u00fcndigen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-04T22:48:20",
+        "modification_date": "2026-07-04T22:48:20",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
