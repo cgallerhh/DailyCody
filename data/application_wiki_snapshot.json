@@ -1,13 +1,13 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-07-09",
+  "dashboard_updated": "2026-07-10",
   "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv / Kennenlernen gefuehrt / Rückmeldung offen",
+      "priority": "Aktiv / Follow-up erledigt / Rückmeldung offen",
       "company": "puntus",
-      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Kennenlernen mit Daniel-Strehl und Franziska-Roth am 07.07.2026 gefuehrt und positiv bewertet",
-      "next_action": "Follow-up senden oder Versand dokumentieren; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten"
+      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Kennenlernen mit Daniel-Strehl und Franziska-Roth am 07.07.2026 gefuehrt und positiv bewertet; Follow-up erledigt; puntus-Entscheiderpruefung und Steinlach-Handover an Christian-Ludwig laufen",
+      "next_action": "Keine weitere aktive Nachfrage; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten"
     },
     {
       "priority": "De-priorisiert / nur bei Signal reaktivieren",
@@ -133,6 +133,14 @@
       "reason": "AOK-/OSCARE-Fit aktuell zu schwach",
       "aliases": [
         "GKV Informatik"
+      ]
+    },
+    {
+      "topic": "puntus",
+      "action": "wait_only",
+      "reason": "Keine weitere aktive Nachfrage; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten",
+      "aliases": [
+        "puntus"
       ]
     },
     {
