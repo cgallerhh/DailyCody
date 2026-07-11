@@ -59,7 +59,7 @@
         "due_date": "2026-07-11T18:00:00",
         "remind_me_date": "2026-07-11T18:00:00",
         "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-07-05T19:48:45",
+        "modification_date": "2026-07-11T17:18:22",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -70,13 +70,9 @@
         "recurring": true,
         "recurrence_rules": [
             {
-                "description": "every week on sunday, saturday",
+                "description": "every week",
                 "frequency": "weekly",
-                "interval": 1,
-                "days_of_week": [
-                    "sunday",
-                    "saturday"
-                ]
+                "interval": 1
             }
         ],
         "alarms": [
@@ -148,6 +144,19 @@
         "priority_label": "none",
         "flagged": false,
         "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "43564C3B-D509-4C3B-AD06-54A5D4F866F2",
+        "name": "Fotos link Hochzeit Bilder laden",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-11T17:15:42",
+        "modification_date": "2026-07-11T17:15:59",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://fotoshare.co/i/3nzeccj",
         "alarms": []
     }
 ]
