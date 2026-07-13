@@ -170,5 +170,17 @@
         "flagged": false,
         "completed": false,
         "alarms": []
+    },
+    {
+        "id": "E8E06096-8AB1-4D8E-9B8B-E03005AFB18B",
+        "name": "zusatzverdichering bay k\u00fcndigwn",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-13T10:15:02",
+        "modification_date": "2026-07-13T10:15:02",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
     }
 ]
