@@ -1,13 +1,13 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-07-10",
+  "dashboard_updated": "2026-07-17",
   "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv / Follow-up erledigt / Rückmeldung offen",
+      "priority": "Geschlossen / Lernfall",
       "company": "puntus",
-      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Kennenlernen mit Daniel-Strehl und Franziska-Roth am 07.07.2026 gefuehrt und positiv bewertet; Follow-up erledigt; puntus-Entscheiderpruefung und Steinlach-Handover an Christian-Ludwig laufen",
-      "next_action": "Keine weitere aktive Nachfrage; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten"
+      "status": "Senior-Sales-Manager-FSI-Rolle über Milovan-Dzakic / Steinlach; Prozess nach Kennenlernen wegen OTE-/Netzwerk-Fit geschlossen",
+      "next_action": "Keine Nachverfolgung; Learning für Exxeta/Folgegespraeche nutzen: Referenzrahmen statt Gehalts-KO, Nutzen zuerst über Zielmodell, Ramp-up, Lieferfaehigkeit und Marktmechanik plausibilisieren"
     },
     {
       "priority": "De-priorisiert / nur bei Signal reaktivieren",
@@ -16,10 +16,10 @@
       "next_action": "Keine weitere aktive Nachfrage; nur bei proaktiver, konkreter und verbindlicher Rückmeldung mit klarem Rollen-/Angebotsmodell erneut prüfen"
     },
     {
-      "priority": "Aktiv / Folgetermin bestätigt",
+      "priority": "Aktiv / Businessplan-Kalibrierung",
       "company": "Exxeta",
-      "status": "Erstcall mit Suzanne Schwarz am 06.07.2026 erfolgt; CV an Suzanne gesendet; zweites Gespräch mit Wolfgang/Suzanne geführt; Ralph-Herrmann-Gespräch am 14.07.2026 um 17:00 Uhr vereinbart",
-      "next_action": "Ralph-Termin vorbereiten: Rolle, Reporting, Zielgröße/Funnel, Exxeta-Portfolio, Delivery-Zugang, Umsatzanrechnung, BITMARCK-Rahmenvertragsbewirtschaftung, ERW-Aktivierung, Startdatum und Vergütung klären"
+      "status": "Ralph-Gespräch am 14.07.2026 geführt; Wolfgang-Sparring am 17.07.2026 geführt; Businessplan 2026-2028 mit Umsatz-/Delivery-Logik ist nächster Kern.",
+      "next_action": "Montag mit Wolfgang Annahmen kalibrieren; danach Ralph-Plan verdichten und offene Punkte zu Umsatzanrechnung, Account-Priorität, Delivery-Kapazität, Startdatum und Vergütung konsolidieren."
     }
   ],
   "action_overrides": [
@@ -61,6 +61,14 @@
       "reason": "Nutzerentscheidung: rausnehmen, kein Interesse an einer Bewerbung",
       "aliases": [
         "IPSWAYS"
+      ]
+    },
+    {
+      "topic": "puntus",
+      "action": "do_not_follow_up",
+      "reason": "Prozess wegen OTE-/Netzwerk-Fit geschlossen; nur als Lernfall für Nutzen-, Netzwerk- und Verguetungsrahmung verwenden",
+      "aliases": [
+        "puntus"
       ]
     },
     {
@@ -133,14 +141,6 @@
       "reason": "AOK-/OSCARE-Fit aktuell zu schwach",
       "aliases": [
         "GKV Informatik"
-      ]
-    },
-    {
-      "topic": "puntus",
-      "action": "wait_only",
-      "reason": "Keine weitere aktive Nachfrage; Rückmeldung beziehungsweise naechsten Prozessschritt abwarten; 90-Tage-Ansatz, Zielkundenlogik, BDR-/Pre-Sales-Zusammenspiel, Value Propositions, FSI-Definition, Gehalt und GKV-Prioritaet für Folgegespraech bereithalten",
-      "aliases": [
-        "puntus"
       ]
     },
     {

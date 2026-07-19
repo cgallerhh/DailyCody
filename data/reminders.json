@@ -29,26 +29,13 @@
         "alarms": []
     },
     {
-        "id": "278A1B0A-3AAB-477A-ABB5-1BFE56FF4920",
-        "name": "vinted hemd zu hermes bringen",
-        "list_name": "_INBOX",
-        "due_date": "2026-07-14T00:00:00",
-        "creation_date": "2026-07-13T08:22:05",
-        "modification_date": "2026-07-13T08:22:05",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
-        "due_date": "2026-07-18T18:00:00",
-        "remind_me_date": "2026-07-18T18:00:00",
+        "due_date": "2026-07-25T18:00:00",
+        "remind_me_date": "2026-07-25T18:00:00",
         "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-07-13T08:22:08",
+        "modification_date": "2026-07-19T23:48:12",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -66,8 +53,8 @@
         ],
         "alarms": [
             {
-                "absolute_date": "2026-07-18T18:00:00",
-                "description": "Sat Jul 18, 2026 at 6:00 PM"
+                "absolute_date": "2026-07-25T18:00:00",
+                "description": "Sat Jul 25, 2026 at 6:00 PM"
             }
         ]
     },
@@ -75,9 +62,9 @@
         "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
         "name": "Mutti anrufen",
         "list_name": "_INBOX",
-        "due_date": "2026-07-19T00:00:00",
+        "due_date": "2026-07-26T00:00:00",
         "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-07-13T08:22:10",
+        "modification_date": "2026-07-19T23:48:13",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -106,21 +93,6 @@
         "flagged": false,
         "completed": false,
         "url": "https://github.com/loriss84/open-plaude",
-        "alarms": []
-    },
-    {
-        "id": "67B6212B-4010-4179-B0AA-BB3BFDC2995F",
-        "name": "15 euro Agnieszka - Oatly und Filter 8.7",
-        "list_name": "Irgendwann-Vielleicht",
-        "creation_date": "2026-07-09T07:07:09",
-        "modification_date": "2026-07-09T07:07:09",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
         "alarms": []
     },
     {
@@ -177,6 +149,30 @@
         "list_name": "_INBOX",
         "creation_date": "2026-07-13T10:15:02",
         "modification_date": "2026-07-13T10:15:02",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "00FD0E2B-BEC0-40C5-BE0E-0CDE73C8DA12",
+        "name": "neue Folie auf Handy ziehen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-17T17:55:54",
+        "modification_date": "2026-07-17T17:56:05",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
+    },
+    {
+        "id": "CC565992-B88F-4E16-B019-0D41B70F6B8D",
+        "name": "auto waschen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-17T17:56:02",
+        "modification_date": "2026-07-17T17:56:02",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
