@@ -178,5 +178,17 @@
         "flagged": false,
         "completed": false,
         "alarms": []
+    },
+    {
+        "id": "9ABB0BC8-C383-4C90-8CC1-8D29E5916EB0",
+        "name": "einkauf 25.7 40\u20ac Agnieszka ausgelegt",
+        "list_name": "_INBOX",
+        "creation_date": "2026-07-25T12:27:10",
+        "modification_date": "2026-07-25T12:27:10",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": []
     }
 ]
