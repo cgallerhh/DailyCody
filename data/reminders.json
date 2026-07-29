@@ -16,19 +16,6 @@
         "alarms": []
     },
     {
-        "id": "696A6ED9-F24C-4602-B5CE-1A326FD5FE3F",
-        "name": "adesso Restgeld da?",
-        "list_name": "_INBOX",
-        "due_date": "2026-07-08T00:00:00",
-        "creation_date": "2026-07-07T19:14:09",
-        "modification_date": "2026-07-07T19:14:20",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
@@ -144,35 +131,11 @@
         "alarms": []
     },
     {
-        "id": "E8E06096-8AB1-4D8E-9B8B-E03005AFB18B",
-        "name": "zusatzverdichering bay k\u00fcndigwn",
-        "list_name": "_INBOX",
-        "creation_date": "2026-07-13T10:15:02",
-        "modification_date": "2026-07-13T10:15:02",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
         "id": "00FD0E2B-BEC0-40C5-BE0E-0CDE73C8DA12",
         "name": "neue Folie auf Handy ziehen",
         "list_name": "_INBOX",
         "creation_date": "2026-07-17T17:55:54",
         "modification_date": "2026-07-17T17:56:05",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "CC565992-B88F-4E16-B019-0D41B70F6B8D",
-        "name": "auto waschen",
-        "list_name": "_INBOX",
-        "creation_date": "2026-07-17T17:56:02",
-        "modification_date": "2026-07-17T17:56:02",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
