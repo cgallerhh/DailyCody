@@ -1,21 +1,5 @@
 [
     {
-        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
-        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
-        "list_name": "_INBOX",
-        "due_date": "2026-07-08T00:00:00",
-        "creation_date": "2026-06-07T20:14:00",
-        "modification_date": "2026-07-07T19:14:37",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "adesso"
-        ],
-        "alarms": []
-    },
-    {
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
@@ -46,12 +30,28 @@
         ]
     },
     {
+        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
+        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-07T00:00:00",
+        "creation_date": "2026-06-07T20:14:00",
+        "modification_date": "2026-08-03T12:01:36",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "adesso"
+        ],
+        "alarms": []
+    },
+    {
         "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
         "name": "Mutti anrufen",
         "list_name": "_INBOX",
-        "due_date": "2026-08-02T00:00:00",
+        "due_date": "2026-08-09T00:00:00",
         "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-07-26T19:55:40",
+        "modification_date": "2026-08-03T12:00:56",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -159,7 +159,7 @@
         "name": "Nonna Ritas Parmigiana: Melanzani mit Sonnenbrand - Essen & Trinken - derStandard.de \u203a Lifestyle",
         "list_name": "_INBOX",
         "creation_date": "2026-08-03T00:08:43",
-        "modification_date": "2026-08-03T00:08:43",
+        "modification_date": "2026-08-03T12:00:54",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -169,11 +169,41 @@
     },
     {
         "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
-        "name": "Erstattung 250 Exxeat da?",
+        "name": "Erstattung 250\u20ac Exxeta da?",
         "body": "Versandt am 31.7.2026",
         "list_name": "_INBOX",
         "creation_date": "2026-08-03T11:56:22",
-        "modification_date": "2026-08-03T11:56:56",
+        "modification_date": "2026-08-03T12:00:20",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "6903FB75-F559-4E2C-9CD8-AFF5DDD6F6BD",
+        "name": "Arbeitsamt: Stand KV nachfassen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-08-03T12:00:28",
+        "modification_date": "2026-08-03T12:00:28",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "B7384480-BBDD-4339-9E05-7857320F030B",
+        "name": "Arbeitsamt: Stand Sperrfrist nachfassen",
+        "list_name": "_INBOX",
+        "creation_date": "2026-08-03T12:00:44",
+        "modification_date": "2026-08-03T12:00:44",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
