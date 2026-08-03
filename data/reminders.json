@@ -153,5 +153,18 @@
         "flagged": false,
         "completed": false,
         "alarms": []
+    },
+    {
+        "id": "E3222AC6-D8EA-42EA-B8B0-AF9FC3CFDA38",
+        "name": "Nonna Ritas Parmigiana: Melanzani mit Sonnenbrand - Essen & Trinken - derStandard.de \u203a Lifestyle",
+        "list_name": "_INBOX",
+        "creation_date": "2026-08-03T00:08:43",
+        "modification_date": "2026-08-03T00:08:43",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://www.derstandard.de/story/3000000333513/nonna-ritas-parmigiana-melanzani-mit-sonnenbrand",
+        "alarms": []
     }
 ]
