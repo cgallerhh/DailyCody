@@ -1,6 +1,6 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-07-31",
+  "dashboard_updated": "2026-08-03",
   "waiting_for": [],
   "items": [
     {
@@ -16,13 +16,21 @@
       "next_action": "Keine weitere aktive Nachfrage; nur bei proaktiver, konkreter und verbindlicher Rückmeldung mit klarem Rollen-/Angebotsmodell erneut prüfen"
     },
     {
-      "priority": "Aktiv / 4. Gespraech gefuehrt",
+      "priority": "Geschlossen / Lernfall",
       "company": "Exxeta",
-      "status": "Ralph-Gespraech, Wolfgang-Sparring, Checkpoint und Karlsruhe-Transkript sind konsolidiert; jetzt zaehlt nicht mehr reine Vorbereitung, sondern ein sauber gefuehrter Nachgang mit offenem Folgepfad.",
-      "next_action": "Auf belastbare Rückmeldung, Folgegespraech oder konkrete Hausaufgabe warten; bis dahin die diskutierte Key-Account-/Umsatzlogik als aktuellen Stand halten."
+      "status": "Absage am 29.07.2026; Exxeta hat sich für einen anderen Kandidaten entschieden.",
+      "next_action": "Keine Nachverfolgung; Learning für Folgegespraeche nutzen: Datenbasis für Umsatzprognosen einfordern, Fuehrungsfit frueh prüfen, keine Scheinpraezision liefern."
     }
   ],
   "action_overrides": [
+    {
+      "topic": "Exxeta",
+      "action": "do_not_follow_up",
+      "reason": "Prozess seit Absage vom 29.07.2026 geschlossen; nur bei proaktiver, substanziell neuer Initiative mit anderer Fuehrungslinie neu bewerten",
+      "aliases": [
+        "Exxeta"
+      ]
+    },
     {
       "topic": "Solvistas",
       "action": "do_not_follow_up",
