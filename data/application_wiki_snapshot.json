@@ -1,8 +1,32 @@
 {
   "source": "/Users/cgaller/Library/Mobile Documents/com~apple~CloudDocs/OBSIDIAN/Vaults/LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md",
-  "dashboard_updated": "2026-08-03",
+  "dashboard_updated": "2026-08-04",
   "waiting_for": [],
   "items": [
+    {
+      "priority": "Aktiv / waiting",
+      "company": "DeepL",
+      "status": "Bewerbung am 04.08.2026 versandt; Eingang um 18:29 Uhr bestätigt",
+      "next_action": "Warten; interne Wiedervorlage 11.08.2026"
+    },
+    {
+      "priority": "Aktiv / waiting",
+      "company": "SAP",
+      "status": "Bewerbung am 04.08.2026 versandt; Eingang um 18:55 Uhr bestätigt; Stellen-ID 453855",
+      "next_action": "Warten; interne Wiedervorlage 11.08.2026"
+    },
+    {
+      "priority": "Aktiv / waiting",
+      "company": "Acture",
+      "status": "Bewerbung am 03.08.2026 versandt; Eingang bestätigt",
+      "next_action": "Warten; interne Wiedervorlage 10.08.2026"
+    },
+    {
+      "priority": "Unterlagen fertig / Versand offen",
+      "company": "[[ZOTZ-KLIMAS",
+      "status": "ZOTZ\\",
+      "next_action": "KLIMAS]]"
+    },
     {
       "priority": "Geschlossen / Lernfall",
       "company": "puntus",
