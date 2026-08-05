@@ -4,10 +4,10 @@
   "waiting_for": [],
   "items": [
     {
-      "priority": "Aktiv / waiting",
+      "priority": "Aktiv / interview scheduled",
       "company": "DeepL",
-      "status": "Bewerbung am 04.08.2026 versandt; Eingang um 18:29 Uhr bestätigt",
-      "next_action": "Warten; interne Wiedervorlage 11.08.2026"
+      "status": "Erstes Kennenlernen am 07.08.2026 um 10:30 Uhr bestätigt",
+      "next_action": "Gespräch vorbereiten und Ergebnis dokumentieren"
     },
     {
       "priority": "Aktiv / waiting",
@@ -16,10 +16,16 @@
       "next_action": "Warten; interne Wiedervorlage 11.08.2026"
     },
     {
-      "priority": "Aktiv / waiting",
+      "priority": "Aktiv / interview scheduled",
       "company": "Acture",
-      "status": "Bewerbung am 03.08.2026 versandt; Eingang bestätigt",
-      "next_action": "Warten; interne Wiedervorlage 10.08.2026"
+      "status": "Kennenlernen am 12.08.2026 von 13:00 bis 14:00 Uhr bestätigt",
+      "next_action": "Gespräch vorbereiten und Ergebnis dokumentieren"
+    },
+    {
+      "priority": "Aktiv / waiting",
+      "company": "FREENOW",
+      "status": "Bewerbung am 05.08.2026 gegen 13:00 Uhr versandt; Eingang noch nicht belegt",
+      "next_action": "Eingang beziehungsweise Rückmeldung abwarten; interne Wiedervorlage 12.08.2026"
     },
     {
       "priority": "Unterlagen fertig / Versand offen",
