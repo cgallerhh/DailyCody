@@ -1,35 +1,5 @@
 [
     {
-        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
-        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-01T18:00:00",
-        "remind_me_date": "2026-08-01T18:00:00",
-        "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-08-02T10:06:18",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
-        ],
-        "alarms": [
-            {
-                "absolute_date": "2026-08-01T18:00:00",
-                "description": "Sat Aug 01, 2026 at 6:00 PM"
-            }
-        ]
-    },
-    {
         "id": "48A83A7A-F648-47AE-B952-B5113CD31C52",
         "name": "PKV k\u00fcndigen - erstattung JULI und AUGUST = 1700\u20ac",
         "list_name": "_INBOX",
@@ -40,22 +10,6 @@
         "priority_label": "none",
         "flagged": false,
         "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "1C0279BE-94F1-44C9-8364-935FB9D21D17",
-        "name": "Letzte Gehaltsabrechnung da anfordert 26.6",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-07T00:00:00",
-        "creation_date": "2026-06-07T20:14:00",
-        "modification_date": "2026-08-03T12:01:36",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "adesso"
-        ],
         "alarms": []
     },
     {
@@ -81,6 +35,36 @@
             }
         ],
         "alarms": []
+    },
+    {
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-15T18:00:00",
+        "remind_me_date": "2026-08-15T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-08-08T20:36:49",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-08-15T18:00:00",
+                "description": "Sat Aug 15, 2026 at 6:00 PM"
+            }
+        ]
     },
     {
         "id": "25255056-0AAF-4F7B-9E92-664194B33F23",
