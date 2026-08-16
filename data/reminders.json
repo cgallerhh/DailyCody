@@ -69,10 +69,10 @@
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
-        "due_date": "2026-08-15T18:00:00",
-        "remind_me_date": "2026-08-15T18:00:00",
+        "due_date": "2026-08-22T18:00:00",
+        "remind_me_date": "2026-08-22T18:00:00",
         "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-08-08T20:36:49",
+        "modification_date": "2026-08-16T19:10:45",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
@@ -90,8 +90,8 @@
         ],
         "alarms": [
             {
-                "absolute_date": "2026-08-15T18:00:00",
-                "description": "Sat Aug 15, 2026 at 6:00 PM"
+                "absolute_date": "2026-08-22T18:00:00",
+                "description": "Sat Aug 22, 2026 at 6:00 PM"
             }
         ]
     },
@@ -99,9 +99,9 @@
         "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
         "name": "Mutti anrufen",
         "list_name": "_INBOX",
-        "due_date": "2026-08-16T00:00:00",
+        "due_date": "2026-08-23T00:00:00",
         "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-08-10T10:02:47",
+        "modification_date": "2026-08-16T19:10:47",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
