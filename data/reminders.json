@@ -1,38 +1,67 @@
 [
     {
-        "id": "48A83A7A-F648-47AE-B952-B5113CD31C52",
-        "name": "PKV k\u00fcndigen - erstattung JULI und AUGUST = 1700\u20ac",
+        "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
+        "name": "Erstattung 250\u20ac Exxeta da?",
+        "body": "Versandt am 31.7.2026",
         "list_name": "_INBOX",
-        "due_date": "2026-08-06T00:00:00",
-        "creation_date": "2026-08-05T15:45:34",
-        "modification_date": "2026-08-05T15:46:40",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
-        "name": "Mutti anrufen",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-09T00:00:00",
-        "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-08-03T12:00:56",
+        "due_date": "2026-08-11T00:00:00",
+        "creation_date": "2026-08-03T11:56:22",
+        "modification_date": "2026-08-10T10:01:06",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
         "completed": false,
         "tags": [
-            "Familie"
+            "warten"
         ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
+        "alarms": []
+    },
+    {
+        "id": "E908AB26-9D49-4AF0-94BD-22B44D1909BC",
+        "name": "Erstattung Fahrtkosten Arbeitsamt 500\u20ac da?",
+        "body": "Versandt am 31.7.2026",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-11T00:00:00",
+        "creation_date": "2026-08-03T11:56:34",
+        "modification_date": "2026-08-10T10:01:16",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "48A83A7A-F648-47AE-B952-B5113CD31C52",
+        "name": "PKV - Erstattung JULI und AUGUST = 1700\u20ac",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-14T00:00:00",
+        "creation_date": "2026-08-05T15:45:34",
+        "modification_date": "2026-08-10T10:01:57",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
+        ],
+        "alarms": []
+    },
+    {
+        "id": "1EB0967B-2A3F-44C7-AEDB-8B33B7DAEB01",
+        "name": "Erstattung Bayerische da? Juli, August = 260\u20ac",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-14T00:00:00",
+        "creation_date": "2026-08-05T15:46:07",
+        "modification_date": "2026-08-10T10:02:36",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
         ],
         "alarms": []
     },
@@ -65,6 +94,30 @@
                 "description": "Sat Aug 15, 2026 at 6:00 PM"
             }
         ]
+    },
+    {
+        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
+        "name": "Mutti anrufen",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-16T00:00:00",
+        "creation_date": "2026-06-07T20:09:27",
+        "modification_date": "2026-08-10T10:02:47",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
+        ],
+        "alarms": []
     },
     {
         "id": "25255056-0AAF-4F7B-9E92-664194B33F23",
@@ -162,80 +215,6 @@
         "flagged": false,
         "completed": false,
         "url": "https://www.derstandard.de/story/3000000333513/nonna-ritas-parmigiana-melanzani-mit-sonnenbrand",
-        "alarms": []
-    },
-    {
-        "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
-        "name": "Erstattung 250\u20ac Exxeta da?",
-        "body": "Versandt am 31.7.2026",
-        "list_name": "_INBOX",
-        "creation_date": "2026-08-03T11:56:22",
-        "modification_date": "2026-08-03T12:00:20",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
-        "id": "6903FB75-F559-4E2C-9CD8-AFF5DDD6F6BD",
-        "name": "Arbeitsamt: Stand KV nachfassen",
-        "list_name": "_INBOX",
-        "creation_date": "2026-08-03T12:00:28",
-        "modification_date": "2026-08-03T12:00:28",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
-        "id": "B7384480-BBDD-4339-9E05-7857320F030B",
-        "name": "Arbeitsamt: Stand Sperrfrist nachfassen",
-        "list_name": "_INBOX",
-        "creation_date": "2026-08-03T12:00:44",
-        "modification_date": "2026-08-03T12:00:44",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
-        "id": "E908AB26-9D49-4AF0-94BD-22B44D1909BC",
-        "name": "Erstattung Fahrtkosten Arbeitsamt 500\u20ac da?",
-        "body": "Versandt am 31.7.2026",
-        "list_name": "_INBOX",
-        "creation_date": "2026-08-03T11:56:34",
-        "modification_date": "2026-08-03T11:56:51",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
-        "id": "1EB0967B-2A3F-44C7-AEDB-8B33B7DAEB01",
-        "name": "Erstattung Bayerische da? Juli, August = 260\u20ac",
-        "list_name": "_INBOX",
-        "creation_date": "2026-08-05T15:46:07",
-        "modification_date": "2026-08-05T15:46:07",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
         "alarms": []
     }
 ]
