@@ -3,18 +3,20 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-cd "$(dirname "$0")/.."
+repo_dir="${DAILY_CODY_REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$repo_dir"
+export_script="${DAILY_CODY_EXPORT_SCRIPT:-$repo_dir/scripts/export_apple_reminders.sh}"
 
 hour="$(date +%H)"
 minute="$(date +%M)"
 now_minutes=$((10#$hour * 60 + 10#$minute))
 window_start=$((23 * 60 + 59))
 window_end=$((6 * 60 + 59))
-catchup_max_age_hours="${REMINDERS_CATCHUP_MAX_AGE_HOURS:-24}"
+catchup_max_age_hours="${REMINDERS_CATCHUP_MAX_AGE_HOURS:-1}"
 
 if (( now_minutes >= window_start || now_minutes <= window_end )); then
   echo "Starting Apple Reminders export (scheduled window): $(date '+%Y-%m-%d %H:%M:%S %z')"
-  scripts/export_apple_reminders.sh
+  "$export_script"
 elif pending_reason="$(python3 - <<'PY'
 import subprocess
 
@@ -42,7 +44,31 @@ raise SystemExit(1)
 PY
 )"; then
   echo "Starting Apple Reminders export (pending remote sync: $pending_reason): $(date '+%Y-%m-%d %H:%M:%S %z')"
-  scripts/export_apple_reminders.sh
+  "$export_script"
+elif publish_retry_reason="$(python3 - <<'PY'
+import json
+from pathlib import Path
+
+status_path = Path("data/reminders_export_status.json")
+try:
+    data = json.loads(status_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+
+last_error = str(data.get("last_publish_error") or "").strip()
+last_attempt = str(data.get("last_publish_attempt_at") or "").strip()
+if last_error:
+    if last_attempt:
+        print(f"last publish failed at {last_attempt}: {last_error}")
+    else:
+        print(f"last publish failed: {last_error}")
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+)"; then
+  echo "Starting Apple Reminders export (publish retry: $publish_retry_reason): $(date '+%Y-%m-%d %H:%M:%S %z')"
+  "$export_script"
 elif catchup_reason="$(python3 - "$catchup_max_age_hours" <<'PY'
 import datetime as dt
 import json
@@ -79,7 +105,7 @@ raise SystemExit(1)
 PY
 )"; then
   echo "Starting Apple Reminders export (catch-up: $catchup_reason): $(date '+%Y-%m-%d %H:%M:%S %z')"
-  scripts/export_apple_reminders.sh
+  "$export_script"
 else
   echo "Outside Apple Reminders export window; export still fresh: $(date '+%Y-%m-%d %H:%M:%S %z')"
 fi
