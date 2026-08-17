@@ -7,6 +7,7 @@ import base64
 import datetime as dt
 import email.message
 import html
+import io
 import json
 import os
 import re
@@ -17,6 +18,8 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,7 +30,8 @@ import delivery_detection
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
-OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
+DWD_MOSMIX_BASE_URL = "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations"
+DWD_MOSMIX_DEFAULT_STATION = "C720"
 DWD_WARNINGS_API = "https://www.dwd.de/DWD/warnungen/warnapp/json/warnings.json"
 OPENAI_API = "https://api.openai.com/v1/chat/completions"
 ARD_PROGRAM_API = "https://programm-api.ard.de/program/api/program"
@@ -193,7 +197,7 @@ def load_config() -> Config:
         calendar_names=calendar_names,
         weather_latitude=getenv("WEATHER_LATITUDE", "53.4439"),
         weather_longitude=getenv("WEATHER_LONGITUDE", "9.9857"),
-        weather_label=getenv("WEATHER_LABEL", "21077 Hamburg"),
+        weather_label=getenv("WEATHER_LABEL", "21077 Hamburg-Harburg"),
         google_client_id=getenv("GOOGLE_CLIENT_ID"),
         google_client_secret=getenv("GOOGLE_CLIENT_SECRET"),
         google_refresh_token=getenv("GOOGLE_REFRESH_TOKEN"),
@@ -257,6 +261,17 @@ def request_text(url: str, *, headers: dict[str, str] | None = None) -> str:
         return response.read().decode(charset, errors="replace")
 
 
+def request_bytes(url: str, *, headers: dict[str, str] | None = None) -> bytes:
+    request_headers = {
+        "Accept": "application/vnd.google-earth.kmz,application/zip,*/*;q=0.8",
+        "User-Agent": "Daily-Cody/1.0",
+        **(headers or {}),
+    }
+    request = urllib.request.Request(url, headers=request_headers, method="GET")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read()
+
+
 def refresh_google_token(config: Config) -> str:
     body = urllib.parse.urlencode(
         {
@@ -298,85 +313,268 @@ def refresh_google_token(config: Config) -> str:
 
 
 def get_weather(config: Config) -> dict[str, Any]:
-    params = urllib.parse.urlencode(
-        {
-            "latitude": config.weather_latitude,
-            "longitude": config.weather_longitude,
-            "timezone": config.timezone,
-            "current": "temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_gusts_10m",
-            "hourly": "temperature_2m,precipitation_probability,precipitation,rain,wind_gusts_10m",
-            "daily": (
-                "weather_code,temperature_2m_max,temperature_2m_min,"
-                "precipitation_probability_max,precipitation_sum,wind_gusts_10m_max"
-            ),
-            "forecast_days": "4",
-        }
+    station = os.getenv("DWD_MOSMIX_STATION", DWD_MOSMIX_DEFAULT_STATION).strip().upper()
+    url = (
+        f"{DWD_MOSMIX_BASE_URL}/{station}/kml/"
+        f"MOSMIX_L_LATEST_{station}.kmz"
     )
-    data = request_json(f"{OPEN_METEO_API}?{params}")
-    hourly = data.get("hourly", {})
-    daily = data.get("daily", {})
-    times = hourly.get("time", [])
-    temps = hourly.get("temperature_2m", [])
-    rain_probs = hourly.get("precipitation_probability", [])
-    afternoon_probs = [
-        rain_probs[index]
-        for index, timestamp in enumerate(times)
-        if "12:00" <= timestamp[-5:] <= "18:00" and index < len(rain_probs)
-    ]
-    max_afternoon_rain = max(afternoon_probs) if afternoon_probs else None
-    current = data.get("current", {})
-    current_temp = current.get("temperature_2m")
-    highs = daily.get("temperature_2m_max", [])
-    lows = daily.get("temperature_2m_min", [])
-    today_wind_gust = first_list_value(daily.get("wind_gusts_10m_max", []))
-    high = highs[0] if highs else max(temps[:24]) if temps else None
-    low = lows[0] if lows else min(temps[:24]) if temps else None
-    place = weather_place(config.weather_label)
-    warnings = list_weather_warnings(config, dt.datetime.now(ZoneInfo(config.timezone)))
+    data = parse_dwd_mosmix_kmz(request_bytes(url), config.timezone)
+    hourly = data["hourly"]
+    now = dt.datetime.now(ZoneInfo(config.timezone))
+    warnings = list_weather_warnings(config, now)
     compact_warnings = compact_weather_warnings(warnings)
-    next_days = build_weather_daily_items(daily, config.timezone)
-    summary = build_weather_summary(
-        place,
-        current_temp,
-        current.get("apparent_temperature"),
-        low,
-        high,
-        max_afternoon_rain,
-        today_wind_gust,
+    periods = build_weather_periods(hourly, now.date())
+    today_indexes = [
+        index
+        for index, timestamp in enumerate(hourly.get("time", []))
+        if str(timestamp).startswith(now.date().isoformat())
+    ]
+    today_temperatures = numeric_list_values(hourly.get("temperature_2m", []), today_indexes)
+    current_temp = first_list_value(hourly.get("temperature_2m", []))
+    high = max(today_temperatures) if today_temperatures else None
+    low = min(today_temperatures) if today_temperatures else None
+    max_afternoon_rain = next(
+        (
+            period.get("rain_probability_pct")
+            for period in periods
+            if period.get("label") == "Nachmittags"
+        ),
+        None,
+    )
+    summary = build_neutral_weather_summary(
+        config.weather_label,
+        periods,
         compact_warnings,
     )
     return {
         "label": config.weather_label,
-        "place": place,
+        "place": weather_place(config.weather_label),
+        "source": "DWD Open Data MOSMIX_L",
+        "source_url": url,
+        "station_id": data["station_id"],
+        "station_name": data["station_name"],
+        "issued_at": data["issued_at"],
         "current_temp_c": current_temp,
-        "apparent_temp_c": current.get("apparent_temperature"),
+        "apparent_temp_c": None,
         "high_c": high,
         "low_c": low,
         "afternoon_rain_probability_pct": max_afternoon_rain,
-        "current_precipitation_mm": current.get("precipitation"),
-        "current_rain_mm": current.get("rain"),
-        "current_weather_code": current.get("weather_code"),
-        "current_condition": describe_weather_code(current.get("weather_code")),
-        "current_wind_gust_kmh": current.get("wind_gusts_10m"),
-        "today_wind_gust_kmh": today_wind_gust,
+        "current_precipitation_mm": first_list_value(hourly.get("precipitation", [])),
+        "current_rain_mm": first_list_value(hourly.get("precipitation", [])),
+        "current_weather_code": None,
+        "current_condition": "",
+        "current_wind_gust_kmh": first_list_value(hourly.get("wind_gusts_10m", [])),
+        "today_wind_gust_kmh": None,
+        "periods": periods,
         "today": {
-            "condition": next_days[0]["condition"] if next_days else "",
+            "condition": "",
             "current_temp_c": current_temp,
-            "apparent_temp_c": current.get("apparent_temperature"),
+            "apparent_temp_c": None,
             "low_c": low,
             "high_c": high,
             "afternoon_rain_probability_pct": max_afternoon_rain,
-            "precipitation_sum_mm": first_list_value(daily.get("precipitation_sum", [])),
-            "wind_gust_kmh": today_wind_gust,
+            "precipitation_sum_mm": None,
+            "wind_gust_kmh": None,
         },
-        "next_days": next_days,
+        "next_days": [],
         "warnings": compact_warnings,
         "summary": summary,
     }
 
 
+def parse_dwd_mosmix_kmz(payload: bytes, timezone: str) -> dict[str, Any]:
+    dwd_namespace = "https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd"
+    kml_namespace = "http://www.opengis.net/kml/2.2"
+    namespaces = {"dwd": dwd_namespace, "kml": kml_namespace}
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            kml_name = next(name for name in archive.namelist() if name.lower().endswith(".kml"))
+            root = ET.fromstring(archive.read(kml_name))
+    except (zipfile.BadZipFile, KeyError, StopIteration, ET.ParseError) as exc:
+        raise ValueError(f"DWD MOSMIX KMZ ist ungültig: {exc}") from exc
+
+    zone = ZoneInfo(timezone)
+    raw_times = [node.text or "" for node in root.findall(".//dwd:TimeStep", namespaces)]
+    times = []
+    for raw_time in raw_times:
+        parsed = dt.datetime.fromisoformat(raw_time.strip().replace("Z", "+00:00"))
+        times.append(parsed.astimezone(zone).replace(tzinfo=None).isoformat(timespec="minutes"))
+
+    placemark = root.find(".//kml:Placemark", namespaces)
+    if placemark is None or not times:
+        raise ValueError("DWD MOSMIX KMZ enthält keine Station oder Zeitreihe.")
+    station_id = placemark.findtext("kml:name", default="", namespaces=namespaces).strip()
+    station_name = placemark.findtext("kml:description", default="", namespaces=namespaces).strip()
+    series = {}
+    attribute_name = f"{{{dwd_namespace}}}elementName"
+    for forecast in placemark.findall(".//dwd:Forecast", namespaces):
+        element_name = forecast.attrib.get(attribute_name, "")
+        value_text = forecast.findtext("dwd:value", default="", namespaces=namespaces)
+        series[element_name] = parse_dwd_mosmix_values(value_text, len(times))
+
+    required = ("TTT", "R101", "FF")
+    missing = [element for element in required if element not in series]
+    if missing:
+        raise ValueError(f"DWD MOSMIX KMZ enthält nicht alle benötigten Werte: {', '.join(missing)}")
+    issued_at = root.findtext(".//dwd:IssueTime", default="", namespaces=namespaces).strip()
+    return {
+        "station_id": station_id,
+        "station_name": station_name,
+        "issued_at": issued_at,
+        "hourly": {
+            "time": times,
+            "temperature_2m": convert_dwd_series(series["TTT"], lambda value: value - 273.15),
+            "precipitation_probability": series["R101"],
+            "wind_speed_10m": convert_dwd_series(series["FF"], lambda value: value * 3.6),
+            "precipitation": series.get("RR1c", [None] * len(times)),
+            "wind_gusts_10m": convert_dwd_series(
+                series.get("FX1", [None] * len(times)), lambda value: value * 3.6
+            ),
+        },
+    }
+
+
+def parse_dwd_mosmix_values(value_text: str, expected_length: int) -> list[float | None]:
+    values = []
+    for token in value_text.split():
+        if token == "-":
+            values.append(None)
+            continue
+        try:
+            values.append(float(token))
+        except ValueError:
+            values.append(None)
+    if len(values) < expected_length:
+        values.extend([None] * (expected_length - len(values)))
+    return values[:expected_length]
+
+
+def convert_dwd_series(
+    values: list[float | None], converter: Any
+) -> list[float | None]:
+    return [converter(value) if value is not None else None for value in values]
+
+
 def weather_place(label: str) -> str:
-    return "Hamburg" if "hamburg" in label.lower() else label
+    return "Hamburg-Harburg" if "hamburg" in label.lower() else label
+
+
+def build_weather_periods(hourly: dict[str, Any], forecast_date: dt.date) -> list[dict[str, Any]]:
+    """Aggregate the requested neutral dayparts from hourly forecast values."""
+    definitions = (
+        ("Vormittags", 6, 11),
+        ("Mittags", 12, 14),
+        ("Nachmittags", 15, 18),
+    )
+    times = hourly.get("time", [])
+    temperatures = hourly.get("temperature_2m", [])
+    rain_probabilities = hourly.get("precipitation_probability", [])
+    wind_speeds = hourly.get("wind_speed_10m", [])
+    date_prefix = forecast_date.isoformat()
+    periods = []
+    for label, start_hour, end_hour in definitions:
+        indexes = []
+        for index, timestamp in enumerate(times):
+            text = str(timestamp)
+            if not text.startswith(date_prefix):
+                continue
+            try:
+                hour = int(text[11:13])
+            except (TypeError, ValueError):
+                continue
+            if start_hour <= hour <= end_hour:
+                indexes.append(index)
+        period_temperatures = numeric_list_values(temperatures, indexes)
+        period_rain = numeric_list_values(rain_probabilities, indexes)
+        period_wind = numeric_list_values(wind_speeds, indexes)
+        periods.append(
+            {
+                "label": label,
+                "temperature_min_c": min(period_temperatures) if period_temperatures else None,
+                "temperature_max_c": max(period_temperatures) if period_temperatures else None,
+                "rain_probability_pct": max(period_rain) if period_rain else None,
+                "wind_speed_kmh": max(period_wind) if period_wind else None,
+            }
+        )
+    return periods
+
+
+def numeric_list_values(values: Any, indexes: list[int]) -> list[float]:
+    if not isinstance(values, list):
+        return []
+    output = []
+    for index in indexes:
+        if index >= len(values):
+            continue
+        value = number_or_none(values[index])
+        if value is not None:
+            output.append(value)
+    return output
+
+
+def number_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_neutral_weather_summary(
+    label: str,
+    periods: list[dict[str, Any]],
+    warnings: list[dict[str, Any]] | None = None,
+) -> str:
+    parts = []
+    for index, period in enumerate(periods):
+        period_label = str(period.get("label") or "").strip()
+        if index > 0:
+            period_label = period_label.lower()
+        temperature = format_weather_temperature_range(
+            period.get("temperature_min_c"), period.get("temperature_max_c")
+        )
+        rain = format_weather_number(period.get("rain_probability_pct"), "%")
+        wind = format_weather_number(period.get("wind_speed_kmh"), "km/h")
+        parts.append(
+            f"{period_label}: {temperature}, Regenwahrscheinlichkeit {rain}, Wind bis {wind}"
+        )
+    summary = f"{label} — " + "; ".join(parts) + "."
+    warning_sentence = build_weather_warning_sentence(warnings or [])
+    if warning_sentence:
+        summary += f" {warning_sentence}"
+    return summary
+
+
+def build_weather_warning_sentence(warnings: list[dict[str, Any]]) -> str:
+    if not warnings:
+        return ""
+    warning = warnings[0]
+    event = warning.get("event") or "Wetterwarnung"
+    start = warning.get("start_time")
+    end = warning.get("end_time")
+    if start and end:
+        return f"Zusätzlich gilt eine Wetterwarnung wegen {event} von {start} bis {end}."
+    return f"Zusätzlich gilt eine Wetterwarnung wegen {event}."
+
+
+def format_weather_temperature_range(low: Any, high: Any) -> str:
+    low_value = number_or_none(low)
+    high_value = number_or_none(high)
+    if low_value is None and high_value is None:
+        return "k. A."
+    if low_value is None:
+        low_value = high_value
+    if high_value is None:
+        high_value = low_value
+    low_rounded = round(low_value)
+    high_rounded = round(high_value)
+    if low_rounded == high_rounded:
+        return f"{low_rounded} °C"
+    return f"{low_rounded}–{high_rounded} °C"
+
+
+def format_weather_number(value: Any, unit: str) -> str:
+    number = number_or_none(value)
+    return f"{round(number)} {unit}" if number is not None else "k. A."
 
 
 def build_weather_daily_items(daily: dict[str, Any], timezone: str) -> list[dict[str, Any]]:
@@ -1981,7 +2179,9 @@ def build_briefing(
         max_attempts = max(1, config.openai_max_attempts)
         for attempt in range(1, max_attempts + 1):
             try:
-                return finalize_briefing(build_ai_briefing(config, context), world_cup_games, delivery_mail)
+                return finalize_briefing(
+                    build_ai_briefing(config, context), world_cup_games, delivery_mail, weather["summary"]
+                )
             except urllib.error.HTTPError as exc:
                 if exc.code not in {400, 401, 403, 429} and exc.code < 500:
                     raise
@@ -2000,7 +2200,9 @@ def build_briefing(
                     f"OpenAI briefing failed with HTTP {exc.code}; using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
+                return finalize_briefing(
+                    build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+                )
             except (TimeoutError, urllib.error.URLError, OSError) as exc:
                 if attempt < max_attempts:
                     print(f"OpenAI briefing unavailable ({exc}); retrying.", file=sys.stderr)
@@ -2016,14 +2218,17 @@ def build_briefing(
                     "using current-data template briefing.",
                     file=sys.stderr,
                 )
-                return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
-    return finalize_briefing(build_template_briefing(context), world_cup_games, delivery_mail)
+                return finalize_briefing(
+                    build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+                )
+    return finalize_briefing(
+        build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+    )
 
 
 def build_ai_context(context: dict[str, Any]) -> dict[str, Any]:
     ai_context = dict(context)
     weather = dict(ai_context.get("weather") or {})
-    weather.pop("summary", None)
     ai_context["weather"] = weather
     return ai_context
 
@@ -2033,7 +2238,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Du bist Cody, Christians persönliche Morgenmail. Du bist die erste Mail seines Tages: "
         "wie jemand aus der Familie, der am Küchentisch kurz sortiert, was heute anliegt. "
         "Schreib warm, ruhig, vertraut und klar. Ein bisschen trockener Humor ist okay, aber nur wenn er natürlich wirkt. "
-        "Keine sterile Assistenten-Sprache, keine Wetter-App-Sprache, keine Management-Floskeln, keine bemühten Running Gags. "
+        "Keine sterile Assistenten-Sprache, keine Management-Floskeln, keine bemühten Running Gags. "
         "Schreibe ein kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster, aber persönlicher und lesbarer. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziges kursives Zitat mit Autor, dann H2-Abschnitte "
         "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
@@ -2054,10 +2259,9 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
-        "Packe Wetter unter Today als eine persönliche Cody-Zeile, höchstens zwei kurze Wetter-Bullets wenn zusätzlich eine Warnung wichtig ist. "
-        "Formuliere Wetter aus weather.today, weather.next_days und weather.warnings selbst: natürlich, intelligent, ohne Rohdaten-Litanei. "
-        "Schreibe nicht im Muster 'Hamburg: gerade X, später Y bis Z' und nicht im Wetter-App-Stil 'Am Nachmittag N % Regenwahrscheinlichkeit'. "
-        "Nenne nur Zahlen, die für die Entscheidung des Tages wirklich helfen, zum Beispiel Hitze, Regenfenster, Warnung oder starke Böen; runde Temperaturen auf ganze Grad. "
+        "Packe Wetter unter Today als ersten Bullet und übernimm weather.summary exakt und unverändert. "
+        "Das Wetter bleibt eine neutrale Messwertübersicht für Hamburg-Harburg mit Vormittag, Mittag und Nachmittag, "
+        "jeweils Temperatur, Regenwahrscheinlichkeit und Wind. Keine Beschreibung mit Sonne, Wolken, Regenlage oder Schauer ergänzen. "
         "Bei Wetterwarnungen: klar sagen, was relevant ist und was Christian praktisch tun sollte, aber ohne Alarmismus und ohne Helden-/Mittagssonnen-Floskeln. "
         "Keine Witze über Hamburg, kein 'Hamburg lacht zuletzt', keine Wiederholungsphrase. "
         "Wenn Pia oder Pia-Lotta auftaucht: Das ist Christians Tochter. Schreib warm und schlicht, nicht wie ein Kontakt-Ping. "
@@ -2108,10 +2312,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
             {
                 "role": "user",
                 "content": (
-                    "Schreibe die komplette Mail neu. Die Wetterpassage klingt noch wie eine "
-                    "vorformulierte Wetter-App-Zeile. Keine Konstruktion wie 'Hamburg: gerade...', "
-                    "keine 'Regenwahrscheinlichkeit'-Formulierung, keine Helden-/Mittagssonnen-Floskel, "
-                    "keine 'nasse Kanten'. Formuliere nur eine natürliche, hilfreiche Einschätzung."
+                    "Schreibe die komplette Mail neu und übernimm weather.summary als ersten Bullet "
+                    "unter Today exakt und unverändert. Keine Wetterbeschreibung ergänzen."
                 ),
             },
         ]
@@ -2124,7 +2326,8 @@ def has_weather_style_problem(briefing: str) -> bool:
         "nasse kanten",
         "nicht den helden",
         "helden in der mittagssonne",
-        "regenwahrscheinlichkeit",
+        "mix aus sonne",
+        "uberwiegend sonnig",
     )
     if any(phrase in normalized for phrase in banned_phrases):
         return True
@@ -2191,10 +2394,36 @@ def finalize_briefing(
     briefing: str,
     world_cup_games: list[dict[str, str]],
     deliveries: list[dict[str, Any]],
+    weather_summary: str,
 ) -> str:
+    briefing = replace_weather_bullet(briefing, weather_summary)
     briefing = ensure_world_cup_lines(briefing, world_cup_games)
     briefing = replace_delivery_section(briefing, deliveries)
     return normalize_trackinglink_labels(briefing)
+
+
+def replace_weather_bullet(briefing: str, weather_summary: str) -> str:
+    lines = briefing.splitlines()
+    today_index = next((idx for idx, line in enumerate(lines) if line.strip() == "## Today"), None)
+    if today_index is None:
+        return briefing.rstrip() + f"\n\n## Today\n- {weather_summary}"
+    section_end = next(
+        (idx for idx in range(today_index + 1, len(lines)) if is_markdown_heading(lines[idx])),
+        len(lines),
+    )
+    bullet_index = next(
+        (
+            idx
+            for idx in range(today_index + 1, section_end)
+            if lines[idx].lstrip().startswith("- ")
+        ),
+        None,
+    )
+    if bullet_index is None:
+        lines.insert(today_index + 1, f"- {weather_summary}")
+    else:
+        lines[bullet_index] = f"- {weather_summary}"
+    return "\n".join(lines)
 
 
 def replace_delivery_section(briefing: str, deliveries: list[dict[str, Any]]) -> str:

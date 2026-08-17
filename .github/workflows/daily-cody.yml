@@ -37,7 +37,8 @@ jobs:
           SENDER_EMAIL: "Cody Chief of Staff <christian.galler+cody@gmail.com>"
           RECIPIENT_EMAIL: christian.galler@gmail.com
           TIMEZONE: Europe/Berlin
-          WEATHER_LABEL: "21077 Hamburg"
+          WEATHER_LABEL: "21077 Hamburg-Harburg"
+          DWD_MOSMIX_STATION: "C720"
           WEATHER_LATITUDE: "53.4439"
           WEATHER_LONGITUDE: "9.9857"
           CALENDAR_NAMES: "privat,Geburtstage,A&C,MixedCup2026"
