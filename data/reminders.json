@@ -1,22 +1,5 @@
 [
     {
-        "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
-        "name": "Erstattung 250\u20ac Exxeta da?",
-        "body": "Versandt am 31.7.2026",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-11T00:00:00",
-        "creation_date": "2026-08-03T11:56:22",
-        "modification_date": "2026-08-10T10:01:06",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
         "id": "E908AB26-9D49-4AF0-94BD-22B44D1909BC",
         "name": "Erstattung Fahrtkosten Arbeitsamt 500\u20ac da?",
         "body": "Versandt am 31.7.2026",
@@ -116,6 +99,23 @@
                 "frequency": "weekly",
                 "interval": 1
             }
+        ],
+        "alarms": []
+    },
+    {
+        "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
+        "name": "Erstattung 250\u20ac Exxeta da?",
+        "body": "Versandt am 31.7.2026, erinnert 18.7.2026",
+        "list_name": "_INBOX",
+        "due_date": "2026-08-24T00:00:00",
+        "creation_date": "2026-08-03T11:56:22",
+        "modification_date": "2026-08-18T11:39:53",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
         ],
         "alarms": []
     },
