@@ -103,23 +103,6 @@
         "alarms": []
     },
     {
-        "id": "D62E36CF-C553-4580-BDB8-2B72C6AF0B6C",
-        "name": "Erstattung 250\u20ac Exxeta da?",
-        "body": "Versandt am 31.7.2026, erinnert 18.7.2026",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-24T00:00:00",
-        "creation_date": "2026-08-03T11:56:22",
-        "modification_date": "2026-08-18T11:39:53",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
         "id": "66BC008B-EF1E-4039-9CE7-1FC5FED519C2",
         "name": "32.50\u20ac Aga Piniendekor 28.8",
         "list_name": "Irgendwann-Vielleicht",
@@ -143,6 +126,21 @@
         "flagged": false,
         "completed": false,
         "url": "https://github.com/loriss84/open-plaude",
+        "alarms": []
+    },
+    {
+        "id": "901C3FFC-C069-40DA-91A3-3D09301AE1B6",
+        "name": "Erstattung Flug nach Z\u00fcrich bei Arbeitsamt einreichen",
+        "list_name": "Irgendwann-Vielleicht",
+        "creation_date": "2026-09-03T10:21:46",
+        "modification_date": "2026-09-03T10:21:46",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "warten"
+        ],
         "alarms": []
     },
     {
