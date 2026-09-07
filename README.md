@@ -1,12 +1,11 @@
 # Daily Cody
 
-Daily Cody is a GitHub-hosted morning briefing for Christian Galler. It sends an email from `Cody Chief of Staff <christian.galler+cody@gmail.com>` to `christian.galler@gmail.com` around 06:00 `Europe/Berlin`.
+Daily Cody is a GitHub-hosted morning briefing. It sends an email from `Cody Chief of Staff <christian.galler+cody@gmail.com>` to `xx@gmail.com` around 06:00 `Europe/Berlin`.
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
-- neutral DWD Open Data MOSMIX weather measurements for `21077 Hamburg-Harburg`, split into morning, midday, and afternoon with temperature, rain probability, and wind
-- Google Calendar events from `privat`, `Geburtstage`, `A&C`, and `MixedCup2026`
-- today's FIFA World Cup matches, including kickoff time and the ARD/ZDF Free-TV sender when found
+- neutral DWD Open Data MOSMIX weather measurements for `21077 Hamburg-Harburg`, split into morning, midday, and afternoon with temperature, rain probability, and wind in layman terms
+- Google Calendar events from `privat`, `Geburtstage`, `A&C`
 - Apple Reminders from a local Mac export
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's Gmail messages that look like they still need a reply, with a short suggested response
