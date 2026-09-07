@@ -244,9 +244,43 @@ def request_json(
     if token:
         request_headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-        payload = response.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            payload = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        if url.startswith(GMAIL_API):
+            raise RuntimeError(
+                f"Gmail API {gmail_request_label(url)} failed with HTTP {exc.code} "
+                f"(reason={gmail_error_reason(exc)})"
+            ) from exc
+        raise
     return json.loads(payload) if payload else {}
+
+
+def gmail_request_label(url: str) -> str:
+    path = urllib.parse.urlparse(url).path
+    if path.endswith("/send"):
+        return "messages.send"
+    if "/messages/" in path:
+        return "messages.get"
+    if path.endswith("/messages"):
+        return "messages.list"
+    if "/threads/" in path:
+        return "threads.get"
+    return "request"
+
+
+def gmail_error_reason(exc: urllib.error.HTTPError) -> str:
+    try:
+        error = json.loads(exc.read().decode("utf-8")).get("error", {})
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return "unknown"
+    errors = error.get("errors", [])
+    if isinstance(errors, list) and errors:
+        reason = errors[0].get("reason")
+        if reason:
+            return str(reason)
+    return str(error.get("status") or "unknown")
 
 
 def request_text(url: str, *, headers: dict[str, str] | None = None) -> str:
