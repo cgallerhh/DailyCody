@@ -19,12 +19,19 @@ on:
         description: "Allow sending again even if today's briefing was already sent"
         required: false
         default: "false"
+      dry_run:
+        description: "Build from live data without sending or printing the briefing"
+        required: false
+        default: "false"
 
 jobs:
   send-briefing:
     if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[daily-cody-smoke]') }}
+    concurrency:
+      group: daily-cody-send
+      cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -58,4 +65,5 @@ jobs:
           REFRESH_STALE_REMINDERS: ${{ vars.REFRESH_STALE_REMINDERS || 'false' }}
           FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: python src/daily_cody.py

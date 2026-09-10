@@ -176,7 +176,7 @@ def delivery_search_queries() -> list[str]:
         "newer_than:14d in:anywhere -in:trash -in:spam -from:me -category:promotions -category:social",
         "newer_than:30d in:anywhere -in:trash -in:spam category:updates",
     ]
-    return simple_queries + structured_queries + broad_safety_net
+    return list(dict.fromkeys(simple_queries + structured_queries + broad_safety_net))
 
 
 def is_own_delivery_sender(sender: str, sender_email: str, recipient_email: str) -> bool:

@@ -173,6 +173,7 @@ class DeliveryFilteringTest(unittest.TestCase):
         queries = delivery_detection.delivery_search_queries()
         query_text = " ".join(queries).lower()
 
+        self.assertEqual(len(queries), len(set(queries)))
         for marker in ("amazon", "bestsecret", "golighter", "wellster", "dhl", "hermes"):
             self.assertIn(marker, query_text)
         for query in queries:

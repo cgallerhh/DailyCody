@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import datetime as dt
 import email.message
 import html
@@ -14,6 +15,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -42,6 +44,18 @@ REMINDERS_EXPORT_STATUS_PATH = ROOT_DIR / "data" / "reminders_export_status.json
 MORNING_QUOTES_PATH = ROOT_DIR / "data" / "morning_quotes.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
+GMAIL_QUOTA_WINDOW_SECONDS = 60.0
+# Gmail's default limit is 6,000 units per user/project/minute. Keep 25% headroom
+# for retries and any other client using the same account and Cloud project.
+GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 4_500
+GMAIL_RATE_LIMIT_RETRY_DELAYS_SECONDS = (2, 4, 8, 16, 32)
+GMAIL_RATE_LIMIT_REASONS = {
+    "rateLimitExceeded",
+    "userRateLimitExceeded",
+    "RESOURCE_EXHAUSTED",
+}
+_gmail_quota_events: list[tuple[float, int]] = []
+_gmail_get_cache: dict[str, dict[str, Any]] = {}
 WORLD_CUP_TEAM_ALIASES = {
     "australia": "australien",
     "australien": "australien",
@@ -236,6 +250,11 @@ def request_json(
     headers: dict[str, str] | None = None,
     timeout_seconds: int = 30,
 ) -> dict[str, Any]:
+    is_gmail_request = url.startswith(GMAIL_API)
+    cacheable_gmail_get = is_gmail_request and method == "GET" and body is None
+    if cacheable_gmail_get and url in _gmail_get_cache:
+        return copy.deepcopy(_gmail_get_cache[url])
+
     data = None
     request_headers = {"Accept": "application/json", **(headers or {})}
     if body is not None:
@@ -244,17 +263,85 @@ def request_json(
     if token:
         request_headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            payload = response.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        if url.startswith(GMAIL_API):
+    request_label = gmail_request_label(url) if is_gmail_request else ""
+    retry_index = 0
+    while True:
+        if is_gmail_request:
+            reserve_gmail_quota(gmail_request_quota_units(url), request_label)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                payload = response.read().decode("utf-8")
+            break
+        except urllib.error.HTTPError as exc:
+            if not is_gmail_request:
+                raise
+            reason = gmail_error_reason(exc)
+            if gmail_error_is_retryable(exc.code, reason) and retry_index < len(
+                GMAIL_RATE_LIMIT_RETRY_DELAYS_SECONDS
+            ):
+                delay = GMAIL_RATE_LIMIT_RETRY_DELAYS_SECONDS[retry_index]
+                retry_index += 1
+                print(
+                    f"Gmail API {request_label} rate limited (reason={reason}); "
+                    f"retrying in {delay}s.",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+                continue
             raise RuntimeError(
-                f"Gmail API {gmail_request_label(url)} failed with HTTP {exc.code} "
-                f"(reason={gmail_error_reason(exc)})"
+                f"Gmail API {request_label} failed with HTTP {exc.code} "
+                f"(reason={reason})"
             ) from exc
-        raise
-    return json.loads(payload) if payload else {}
+
+    result = json.loads(payload) if payload else {}
+    if cacheable_gmail_get:
+        _gmail_get_cache[url] = copy.deepcopy(result)
+    return result
+
+
+def reset_gmail_request_state() -> None:
+    """Reset process-local Gmail quota accounting and response caching."""
+    _gmail_quota_events.clear()
+    _gmail_get_cache.clear()
+
+
+def gmail_request_quota_units(url: str) -> int:
+    path = urllib.parse.urlparse(url).path
+    if path.endswith("/send"):
+        return 100
+    if "/threads/" in path:
+        return 40
+    if "/messages/" in path:
+        return 20
+    if path.endswith("/messages"):
+        return 5
+    return 20
+
+
+def reserve_gmail_quota(units: int, request_label: str) -> None:
+    """Keep one process below Gmail's per-user, per-project rolling rate limit."""
+    while True:
+        now = time.monotonic()
+        cutoff = now - GMAIL_QUOTA_WINDOW_SECONDS
+        while _gmail_quota_events and _gmail_quota_events[0][0] <= cutoff:
+            _gmail_quota_events.pop(0)
+        used_units = sum(event_units for _, event_units in _gmail_quota_events)
+        if used_units + units <= GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW:
+            _gmail_quota_events.append((now, units))
+            return
+        wait_seconds = max(
+            0.1,
+            _gmail_quota_events[0][0] + GMAIL_QUOTA_WINDOW_SECONDS - now + 0.25,
+        )
+        print(
+            f"Gmail quota guard waiting {wait_seconds:.1f}s before {request_label}.",
+            file=sys.stderr,
+        )
+        time.sleep(wait_seconds)
+
+
+def gmail_error_is_retryable(status_code: int, reason: str) -> bool:
+    return status_code == 429 or reason in GMAIL_RATE_LIMIT_REASONS
 
 
 def gmail_request_label(url: str) -> str:
@@ -274,6 +361,8 @@ def gmail_error_reason(exc: urllib.error.HTTPError) -> str:
     try:
         error = json.loads(exc.read().decode("utf-8")).get("error", {})
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return "unknown"
+    if not isinstance(error, dict):
         return "unknown"
     errors = error.get("errors", [])
     if isinstance(errors, list) and errors:
@@ -3019,7 +3108,7 @@ def main() -> int:
     )
 
     if config.dry_run:
-        print(briefing)
+        print(f"Dry run successful: {subject} generated; no email sent.")
         return 0
 
     send_email(config, token, subject, briefing)

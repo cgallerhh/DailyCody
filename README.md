@@ -17,7 +17,9 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 The briefing lives in GitHub Actions, not on a Mac. A precise external scheduler such as cron-job.org should trigger it at 06:00 `Europe/Berlin` via GitHub's workflow dispatch API. The GitHub schedule remains as a backup and runs every 5 minutes during the UTC morning range that covers Germany's CET and CEST offsets. The script sends once between 06:00 and 08:59 local time in `Europe/Berlin`, so delayed backup schedules can still catch up without drifting into late morning. It skips duplicates if today's briefing was already sent.
 
-You can also run it manually from the GitHub Actions tab with `force_send=true`. Leave `allow_duplicate=false` unless you intentionally want a second briefing on the same day.
+You can also run it manually from the GitHub Actions tab. Use `force_send=true`, `allow_duplicate=true`, and `dry_run=true` for a live-data validation that builds the briefing without sending or printing its contents. Leave `allow_duplicate=false` and `dry_run=false` for a real manual send.
+
+Gmail reads are cached within each process and paced against a conservative rolling quota budget. Transient Gmail rate-limit responses are retried with exponential backoff. A persistent Gmail error still stops the run before any email is sent.
 
 ## Precise 06:00 Scheduler
 
@@ -39,7 +41,8 @@ Create a fine-grained GitHub token for `cgallerhh/DailyCody` with **Actions: Rea
   "ref": "main",
   "inputs": {
     "force_send": "true",
-    "allow_duplicate": "false"
+    "allow_duplicate": "false",
+    "dry_run": "false"
   }
 }
 ```
