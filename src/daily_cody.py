@@ -45,9 +45,10 @@ MORNING_QUOTES_PATH = ROOT_DIR / "data" / "morning_quotes.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
 GMAIL_QUOTA_WINDOW_SECONDS = 60.0
-# Gmail's default limit is 6,000 units per user/project/minute. Use only half
-# so short-term burst enforcement and other clients still have ample headroom.
-GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 3_000
+# Production dry-runs still reached Google's effective per-user limit at
+# 3,000 units/minute. Stay well below that empirically observed ceiling so
+# Daily Cody does not depend on backoff succeeding during the morning run.
+GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 1_000
 GMAIL_QUOTA_SAFE_UNITS_PER_SECOND = (
     GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW / GMAIL_QUOTA_WINDOW_SECONDS
 )
