@@ -66,4 +66,17 @@ jobs:
           FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-        run: python src/daily_cody.py
+        shell: bash
+        run: |
+          set -o errexit -o nounset -o pipefail
+          max_attempts=2
+          for attempt in $(seq 1 "$max_attempts"); do
+            if python src/daily_cody.py; then
+              exit 0
+            fi
+            if (( attempt == max_attempts )); then
+              exit 1
+            fi
+            echo "Daily Cody attempt ${attempt} failed; retrying once in 60s." >&2
+            sleep 60
+          done

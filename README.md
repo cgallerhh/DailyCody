@@ -19,7 +19,7 @@ The briefing lives in GitHub Actions, not on a Mac. A precise external scheduler
 
 You can also run it manually from the GitHub Actions tab. Use `force_send=true`, `allow_duplicate=true`, and `dry_run=true` for a live-data validation that builds the briefing without sending or printing its contents. Leave `allow_duplicate=false` and `dry_run=false` for a real manual send.
 
-Gmail reads are cached within each process and paced against a conservative rolling quota budget. Transient Gmail rate-limit responses are retried with exponential backoff. A persistent Gmail error still stops the run before any email is sent.
+Gmail reads are cached within each process and paced against a conservative rolling quota budget. Transient Gmail rate-limit responses are retried with exponential backoff. If the complete process still fails, the workflow makes one fresh attempt after 60 seconds. A persistent data error still leaves the workflow failed and stops it before any incomplete email is sent.
 
 ## Precise 06:00 Scheduler
 
