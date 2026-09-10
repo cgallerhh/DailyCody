@@ -48,6 +48,9 @@ GMAIL_QUOTA_WINDOW_SECONDS = 60.0
 # Gmail's default limit is 6,000 units per user/project/minute. Keep 25% headroom
 # for retries and any other client using the same account and Cloud project.
 GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 4_500
+GMAIL_QUOTA_SAFE_UNITS_PER_SECOND = (
+    GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW / GMAIL_QUOTA_WINDOW_SECONDS
+)
 GMAIL_RATE_LIMIT_RETRY_DELAYS_SECONDS = (2, 4, 8, 16, 32)
 GMAIL_RATE_LIMIT_REASONS = {
     "rateLimitExceeded",
@@ -56,6 +59,7 @@ GMAIL_RATE_LIMIT_REASONS = {
 }
 _gmail_quota_events: list[tuple[float, int]] = []
 _gmail_get_cache: dict[str, dict[str, Any]] = {}
+_gmail_next_request_at = 0.0
 WORLD_CUP_TEAM_ALIASES = {
     "australia": "australien",
     "australien": "australien",
@@ -301,8 +305,10 @@ def request_json(
 
 def reset_gmail_request_state() -> None:
     """Reset process-local Gmail quota accounting and response caching."""
+    global _gmail_next_request_at
     _gmail_quota_events.clear()
     _gmail_get_cache.clear()
+    _gmail_next_request_at = 0.0
 
 
 def gmail_request_quota_units(url: str) -> int:
@@ -320,14 +326,20 @@ def gmail_request_quota_units(url: str) -> int:
 
 def reserve_gmail_quota(units: int, request_label: str) -> None:
     """Keep one process below Gmail's per-user, per-project rolling rate limit."""
+    global _gmail_next_request_at
     while True:
         now = time.monotonic()
+        pacing_wait = _gmail_next_request_at - now
+        if pacing_wait > 0:
+            time.sleep(pacing_wait)
+            continue
         cutoff = now - GMAIL_QUOTA_WINDOW_SECONDS
         while _gmail_quota_events and _gmail_quota_events[0][0] <= cutoff:
             _gmail_quota_events.pop(0)
         used_units = sum(event_units for _, event_units in _gmail_quota_events)
         if used_units + units <= GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW:
             _gmail_quota_events.append((now, units))
+            _gmail_next_request_at = now + units / GMAIL_QUOTA_SAFE_UNITS_PER_SECOND
             return
         wait_seconds = max(
             0.1,
@@ -362,6 +374,8 @@ def gmail_error_reason(exc: urllib.error.HTTPError) -> str:
         error = json.loads(exc.read().decode("utf-8")).get("error", {})
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return "unknown"
+    finally:
+        exc.close()
     if not isinstance(error, dict):
         return "unknown"
     errors = error.get("errors", [])

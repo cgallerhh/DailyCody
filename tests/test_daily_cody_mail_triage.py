@@ -64,7 +64,9 @@ class MailTriageTest(unittest.TestCase):
 
         with mock.patch(
             "daily_cody.urllib.request.urlopen", side_effect=[http_error, success]
-        ) as urlopen, mock.patch("daily_cody.time.sleep") as sleep, mock.patch.object(
+        ) as urlopen, mock.patch("daily_cody.reserve_gmail_quota"), mock.patch(
+            "daily_cody.time.sleep"
+        ) as sleep, mock.patch.object(
             daily_cody.sys, "stderr", new=io.StringIO()
         ):
             result = daily_cody.request_json(url, token="redacted-test-token")
@@ -98,7 +100,9 @@ class MailTriageTest(unittest.TestCase):
         ]
         with mock.patch(
             "daily_cody.urllib.request.urlopen", side_effect=errors
-        ) as urlopen, mock.patch("daily_cody.time.sleep") as sleep, mock.patch.object(
+        ) as urlopen, mock.patch("daily_cody.reserve_gmail_quota"), mock.patch(
+            "daily_cody.time.sleep"
+        ) as sleep, mock.patch.object(
             daily_cody.sys, "stderr", new=io.StringIO()
         ):
             with self.assertRaises(RuntimeError) as raised:
@@ -162,6 +166,18 @@ class MailTriageTest(unittest.TestCase):
 
         sleep.assert_called_once_with(50.25)
         self.assertEqual(daily_cody._gmail_quota_events, [(60.3, 20)])
+
+    def test_gmail_quota_guard_smooths_request_bursts(self):
+        interval = 20 / daily_cody.GMAIL_QUOTA_SAFE_UNITS_PER_SECOND
+
+        with mock.patch(
+            "daily_cody.time.monotonic", side_effect=[0.0, 0.1, interval + 0.01]
+        ), mock.patch("daily_cody.time.sleep") as sleep:
+            daily_cody.reserve_gmail_quota(20, "messages.get")
+            daily_cody.reserve_gmail_quota(20, "messages.get")
+
+        sleep.assert_called_once()
+        self.assertAlmostEqual(sleep.call_args.args[0], interval - 0.1)
 
     def test_adesso_payroll_reply_is_actionable(self):
         subject = "RE: Gehaltsabrechnungen Christian Galler-114293"
