@@ -45,9 +45,9 @@ MORNING_QUOTES_PATH = ROOT_DIR / "data" / "morning_quotes.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
 GMAIL_QUOTA_WINDOW_SECONDS = 60.0
-# Gmail's default limit is 6,000 units per user/project/minute. Keep 25% headroom
-# for retries and any other client using the same account and Cloud project.
-GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 4_500
+# Gmail's default limit is 6,000 units per user/project/minute. Use only half
+# so short-term burst enforcement and other clients still have ample headroom.
+GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW = 3_000
 GMAIL_QUOTA_SAFE_UNITS_PER_SECOND = (
     GMAIL_QUOTA_SAFE_UNITS_PER_WINDOW / GMAIL_QUOTA_WINDOW_SECONDS
 )
