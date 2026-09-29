@@ -103,6 +103,12 @@ class BriefingPolicyTest(unittest.TestCase):
             self.assertEqual(params["includeSpamTrash"], ["true"])
             self.assertIn("-in:spam", params["q"][0])
 
+    def test_completion_search_does_not_download_generated_briefings(self):
+        with patch.object(daily_cody, "search_gmail_refs", return_value=[]) as search, patch.object(daily_cody, "request_json") as fetch:
+            self.assertEqual(daily_cody.list_completed_delivery_mail_topics("token", "Owner <owner+cody@example.org>", "owner@example.org"), [])
+        self.assertIn('-subject:"The Daily Cody"', search.call_args.args[1])
+        fetch.assert_not_called()
+
     def test_bestsecret_html_is_used_when_plain_part_is_only_a_footer(self):
         html = '<head><style>' + "css " * 4000 + '</style></head><div style="display:none">' + "padding " * 1000 + '</div><p>Wir bereiten Ihre Bestellung vor.</p><p>Bestellnummer: 1234567890</p>'
         payload = {"parts": [mime_message("", "Footer und App-Download", 0)["payload"], {"mimeType": "text/html", "body": {"data": base64.urlsafe_b64encode(html.encode()).decode()}}]}

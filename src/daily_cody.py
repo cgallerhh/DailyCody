@@ -2055,14 +2055,13 @@ def list_completed_delivery_mail_topics(token: str, sender_email: str, recipient
     cody_query_terms = " OR ".join(f'"{address}"' for address in sorted(cody_addresses))
     cody_filter = f"(cody OR {cody_query_terms})" if cody_query_terms else "cody"
     query_text = (
-        "newer_than:180d in:anywhere "
+        'newer_than:180d in:anywhere -subject:"The Daily Cody" '
         f"{cody_filter} "
         "(lieferung OR paket OR bestellung OR sendung OR angekommen OR erhalten OR erledigt OR zugestellt OR geliefert)"
     )
-    query = urllib.parse.urlencode({"q": query_text, "maxResults": "100"})
-    messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
+    messages = search_gmail_refs(token, query_text)
     topics: list[str] = []
-    for item in messages[:100]:
+    for item in messages:
         message = request_json(
             f"{GMAIL_API}/messages/{item['id']}?format=full",
             token=token,
