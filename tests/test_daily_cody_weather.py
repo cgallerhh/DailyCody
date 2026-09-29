@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -17,6 +18,28 @@ import daily_cody  # noqa: E402
 
 
 class WeatherSummaryTest(unittest.TestCase):
+    def test_evening_weather_uses_tomorrow_and_labels_its_date(self):
+        now = dt.datetime(2026, 9, 29, 21, tzinfo=ZoneInfo("Europe/Berlin"))
+        hourly = {
+            "time": ["2026-09-29T22:00", "2026-09-30T09:00"],
+            "temperature_2m": [12, 16],
+            "precipitation_probability": [80, 10],
+            "wind_speed_10m": [20, 7],
+        }
+        data = {"hourly": hourly, "station_id": "C720", "station_name": "Hamburg", "issued_at": "now"}
+        config = SimpleNamespace(timezone="Europe/Berlin", weather_label="Hamburg-Harburg")
+        with patch.object(daily_cody.dt, "datetime", wraps=dt.datetime) as clock, \
+             patch.object(daily_cody, "request_bytes", return_value=b"kmz"), \
+             patch.object(daily_cody, "parse_dwd_mosmix_kmz", return_value=data), \
+             patch.object(daily_cody, "list_weather_warnings", return_value=[]):
+            clock.now.return_value = now
+            weather = daily_cody.get_weather(config)
+
+        self.assertEqual(weather["forecast_date"], "2026-09-30")
+        self.assertEqual(weather["high_c"], 16)
+        self.assertIn("30.09.2026", weather["summary"])
+        self.assertIn("30.09.2026", daily_cody.render_weather_card(weather))
+
     def test_dwd_mosmix_kmz_parser_converts_units_and_utc_to_berlin_time(self):
         xml = b'''<?xml version="1.0" encoding="UTF-8"?>
         <kml:kml xmlns:kml="http://www.opengis.net/kml/2.2"

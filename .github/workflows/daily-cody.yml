@@ -23,6 +23,10 @@ on:
         description: "Build from live data without sending or printing the briefing"
         required: false
         default: "false"
+      test_email:
+        description: "Mark this email as a test for review"
+        required: false
+        default: "false"
 
 jobs:
   send-briefing:
@@ -55,6 +59,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FOLLOW_UP_SNAPSHOT_JSON: ${{ secrets.FOLLOW_UP_SNAPSHOT_JSON }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
           OPENAI_TIMEOUT_SECONDS: ${{ vars.OPENAI_TIMEOUT_SECONDS || '120' }}
           OPENAI_MAX_ATTEMPTS: ${{ vars.OPENAI_MAX_ATTEMPTS || '2' }}
@@ -66,6 +71,7 @@ jobs:
           FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          TEST_EMAIL: ${{ github.event.inputs.test_email || 'false' }}
         shell: bash
         run: |
           set -o errexit -o nounset -o pipefail

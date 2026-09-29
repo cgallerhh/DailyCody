@@ -28,6 +28,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import delivery_detection
+import follow_up_snapshot
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -462,13 +463,14 @@ def get_weather(config: Config) -> dict[str, Any]:
     data = parse_dwd_mosmix_kmz(request_bytes(url), config.timezone)
     hourly = data["hourly"]
     now = dt.datetime.now(ZoneInfo(config.timezone))
+    forecast_date = now.date() + dt.timedelta(days=1 if now.hour >= 19 else 0)
     warnings = list_weather_warnings(config, now)
     compact_warnings = compact_weather_warnings(warnings)
-    periods = build_weather_periods(hourly, now.date())
+    periods = build_weather_periods(hourly, forecast_date)
     today_indexes = [
         index
         for index, timestamp in enumerate(hourly.get("time", []))
-        if str(timestamp).startswith(now.date().isoformat())
+        if str(timestamp).startswith(forecast_date.isoformat())
     ]
     today_temperatures = numeric_list_values(hourly.get("temperature_2m", []), today_indexes)
     current_temp = first_list_value(hourly.get("temperature_2m", []))
@@ -483,12 +485,13 @@ def get_weather(config: Config) -> dict[str, Any]:
         None,
     )
     summary = build_neutral_weather_summary(
-        config.weather_label,
+        f"{config.weather_label} ({forecast_date:%d.%m.%Y})",
         periods,
         compact_warnings,
     )
     return {
         "label": config.weather_label,
+        "forecast_date": forecast_date.isoformat(),
         "place": weather_place(config.weather_label),
         "source": "DWD Open Data MOSMIX_L",
         "source_url": url,
@@ -2241,6 +2244,12 @@ def build_briefing(
     waiting_for_items = merge_waiting_for_items(
         waiting_for_mail + format_waiting_reminders(waiting_reminders) + application_waiting
     )
+    follow_up_path = os.getenv("FOLLOW_UP_SNAPSHOT_PATH")
+    follow_up, follow_up_warning = follow_up_snapshot.read_snapshot(
+        now,
+        encoded=os.getenv("FOLLOW_UP_SNAPSHOT_JSON"),
+        path=Path(follow_up_path) if follow_up_path else None,
+    )
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
@@ -2258,6 +2267,8 @@ def build_briefing(
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
+        "follow_up": follow_up or {"warning": follow_up_warning},
+        "follow_up_lines": follow_up_snapshot.format_items(follow_up, follow_up_warning, now),
         "application_wiki": compact_application_wiki_context(application_wiki),
     }
     if config.openai_api_key:
@@ -2327,7 +2338,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Schreibe ein kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster, aber persönlicher und lesbarer. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziges kursives Zitat mit Autor, dann H2-Abschnitte "
         "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
-        "'Waiting for...', 'Deliveries' und 'Approaching'. "
+        "'Follow-up', 'Waiting for...', 'Deliveries' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss exakt das im Kontext gelieferte morning_quote sein. "
         "Keine Aufgaben, Termine, Wetterdaten oder Erinnerungen in diese Zeile schreiben. "
         "Das Zitat ist keine Affirmation und kein Coaching-Spruch; ändere daran nichts und erfinde keinen Ersatz. "
@@ -2339,6 +2350,8 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
         "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
         "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
+        "Unter Follow-up die geprueften Punkte aus follow_up_lines verwenden, inklusive Pruefzeit und Datenhinweis. "
+        "Diese Punkte stammen aus dem separaten Follow-Up-Monitor; keine weiteren Erkenntnisse erfinden. "
         "Formuliere To-dos knapp, freundlich und konkret; lieber natürlich als pointiert. "
         "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
@@ -2439,6 +2452,8 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     if context["reminders"]:
         lines.extend(["", "## Reminders"])
         lines.extend(format_reminder_items(context["reminders"]))
+    if context.get("follow_up_lines"):
+        lines.extend(["", "## Follow-up", *context["follow_up_lines"]])
     lines.extend(["", "## Waiting for..."])
     lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
@@ -2489,7 +2504,7 @@ def finalize_briefing(
         "Today's to-dos",
         {"today s to dos", "today to dos"},
         todo_lines or ["- Nichts Dringendes offen — schöner kleiner Bonus für heute."],
-        {"waiting for", "deliveries", "approaching"},
+        {"follow up", "waiting for", "deliveries", "approaching"},
     )
     briefing = replace_list_section(
         briefing,
@@ -2498,6 +2513,14 @@ def finalize_briefing(
         format_waiting_for_items(context["waiting_for"]),
         {"deliveries", "approaching"},
     )
+    if context.get("follow_up_lines"):
+        briefing = replace_list_section(
+            briefing,
+            "Follow-up",
+            {"follow up", "follow ups"},
+            context["follow_up_lines"],
+            {"waiting for", "deliveries", "approaching"},
+        )
     return normalize_trackinglink_labels(briefing)
 
 
@@ -2931,6 +2954,12 @@ def render_weather_card(weather: dict[str, Any]) -> str:
         return ""
 
     label = html.escape(str(weather.get("label") or "Wetter"))
+    if weather.get("forecast_date"):
+        try:
+            forecast_date = dt.date.fromisoformat(weather["forecast_date"])
+            label += f" · {forecast_date:%d.%m.%Y}"
+        except (TypeError, ValueError):
+            pass
     columns = []
     for period in periods:
         if not isinstance(period, dict):
@@ -3165,7 +3194,8 @@ def main() -> int:
         return 0
 
     token = refresh_google_token(config)
-    subject = f"The Daily Cody — {now:%Y-%m-%d}"
+    test_marker = "TEST — " if os.getenv("TEST_EMAIL", "false").lower() == "true" else ""
+    subject = f"The Daily Cody — {test_marker}{now:%Y-%m-%d}"
     if already_sent_today(config, token, subject):
         print(f"Already sent: {subject}")
         return 0

@@ -12,10 +12,13 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
 - a short, practical German briefing in Cody's voice
 - a morning quote from `data/morning_quotes.json`
+- source-backed findings from the separate 05:00 weekday follow-up monitor
 
 The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. The plain-text part keeps the exact neutral weather summary. Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
 
 The weather, delivery, today's to-dos, and waiting-for sections are finalized from collected source data after the optional AI wording step. This prevents an incomplete generated paragraph from dropping due reminders, actionable mail, or waiting items.
+
+The follow-up monitor hands off private results through the Actions secret `FOLLOW_UP_SNAPSHOT_JSON`. Cody validates coverage and timestamps, removes expired items, and renders a separate `Follow-up` section with the check time and source links. A missed weekday check produces an explicit warning. Personal findings are never committed to this public repository. See [the monitor contract and operating procedure](docs/follow-up-monitor.md).
 
 ## How It Runs
 
