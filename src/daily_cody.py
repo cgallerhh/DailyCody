@@ -41,6 +41,9 @@ ZDF_LIVE_TV_URL = "https://www.zdf.de/live-tv"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DELIVERY_STATUS_PATH = ROOT_DIR / "data" / "delivery_status.json"
 REMINDERS_EXPORT_STATUS_PATH = ROOT_DIR / "data" / "reminders_export_status.json"
+LOCAL_REMINDERS_EXPORT_PATH = (
+    Path.home() / "Library" / "Application Support" / "DailyCody" / "repo" / "data" / "reminders.json"
+)
 MORNING_QUOTES_PATH = ROOT_DIR / "data" / "morning_quotes.json"
 APPLICATION_WIKI_SNAPSHOT_PATH = ROOT_DIR / "data" / "application_wiki_snapshot.json"
 RESOLVED_TOPICS_PATH = ROOT_DIR / "data" / "resolved_topics.json"
@@ -1401,15 +1404,18 @@ def normalize_search_text(value: str) -> str:
 
 def read_exported_reminders(config: Config, now: dt.datetime) -> tuple[list[dict[str, str]], str | None]:
     path = resolve_reminders_export_path(config)
-    if should_refresh_reminders_export(config, now, path):
+    status_path = path.with_name("reminders_export_status.json")
+    if should_refresh_reminders_export(config, now, path, status_path):
         refresh_error = refresh_reminders_export(config)
         if refresh_error:
             print(refresh_error, file=sys.stderr)
+        path = resolve_reminders_export_path(config)
+        status_path = path.with_name("reminders_export_status.json")
     if not path.exists():
         message = f"Apple Reminders export missing at {path}; Apple Reminders skipped for this briefing."
         print(message, file=sys.stderr)
         return [], message if config.require_fresh_reminders else None
-    freshness_warning = get_reminders_export_freshness_warning(config, now)
+    freshness_warning = get_reminders_export_freshness_warning(config, now, status_path)
     if freshness_warning:
         if config.require_fresh_reminders and config.fail_on_stale_reminders:
             raise RuntimeError(f"{freshness_warning} No briefing sent with stale Reminders data.")
@@ -1437,15 +1443,27 @@ def read_exported_reminders(config: Config, now: dt.datetime) -> tuple[list[dict
 
 def resolve_reminders_export_path(config: Config) -> Path:
     path = Path(config.reminders_export_path)
-    return path if path.is_absolute() else ROOT_DIR / path
+    if path.is_absolute():
+        return path
+    repo_path = ROOT_DIR / path
+    if path != Path("data/reminders.json") or repo_path == LOCAL_REMINDERS_EXPORT_PATH:
+        return repo_path
+    local_path = LOCAL_REMINDERS_EXPORT_PATH
+    if not local_path.is_file():
+        return repo_path
+    local_exported = read_reminders_export_timestamp(local_path.with_name("reminders_export_status.json"))
+    repo_exported = read_reminders_export_timestamp(repo_path.with_name("reminders_export_status.json"))
+    return local_path if local_exported and (not repo_exported or local_exported > repo_exported) else repo_path
 
 
-def should_refresh_reminders_export(config: Config, now: dt.datetime, path: Path) -> bool:
+def should_refresh_reminders_export(
+    config: Config, now: dt.datetime, path: Path, status_path: Path | None = None
+) -> bool:
     if not config.refresh_stale_reminders:
         return False
     if not path.exists():
         return True
-    return get_reminders_export_freshness_warning(config, now) is not None
+    return get_reminders_export_freshness_warning(config, now, status_path) is not None
 
 
 def refresh_reminders_export(config: Config) -> str | None:
@@ -1486,8 +1504,10 @@ def resolve_repo_command(command: str) -> str:
     return str(ROOT_DIR / command)
 
 
-def get_reminders_export_freshness_warning(config: Config, now: dt.datetime) -> str | None:
-    freshness = read_reminders_export_freshness(now)
+def get_reminders_export_freshness_warning(
+    config: Config, now: dt.datetime, status_path: Path | None = None
+) -> str | None:
+    freshness = read_reminders_export_freshness(now, status_path)
     max_age = dt.timedelta(hours=max(1, config.reminders_max_age_hours))
     if freshness is not None and freshness <= max_age:
         return None
@@ -1501,13 +1521,12 @@ def get_reminders_export_freshness_warning(config: Config, now: dt.datetime) -> 
     return message
 
 
-def read_reminders_export_freshness(now: dt.datetime) -> dt.timedelta | None:
-    if not REMINDERS_EXPORT_STATUS_PATH.exists():
-        return None
+def read_reminders_export_timestamp(status_path: Path) -> dt.datetime | None:
     try:
-        data = json.loads(REMINDERS_EXPORT_STATUS_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"Apple Reminders export status unavailable: {exc}", file=sys.stderr)
+        data = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
         return None
     exported_at = str(data.get("exported_at") or "").strip()
     if not exported_at:
@@ -1518,7 +1537,14 @@ def read_reminders_export_freshness(now: dt.datetime) -> dt.timedelta | None:
         return None
     if exported.tzinfo is None:
         exported = exported.replace(tzinfo=dt.UTC)
-    return now.astimezone(dt.UTC) - exported.astimezone(dt.UTC)
+    return exported.astimezone(dt.UTC)
+
+
+def read_reminders_export_freshness(
+    now: dt.datetime, status_path: Path | None = None
+) -> dt.timedelta | None:
+    exported = read_reminders_export_timestamp(status_path or REMINDERS_EXPORT_STATUS_PATH)
+    return now.astimezone(dt.UTC) - exported if exported else None
 
 
 def read_application_wiki_snapshot(config: Config) -> dict[str, Any]:

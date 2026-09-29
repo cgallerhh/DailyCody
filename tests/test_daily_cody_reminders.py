@@ -105,6 +105,38 @@ class AppleRemindersTest(unittest.TestCase):
         today, _, _ = daily_cody.split_reminders_for_briefing([reminder], now)
         self.assertEqual(len(today), 1)
 
+    def test_local_run_uses_newer_agent_snapshot_and_its_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_dir = Path(tmp) / "workspace"
+            agent_path = Path(tmp) / "agent" / "data" / "reminders.json"
+            repo_path = repo_dir / "data" / "reminders.json"
+            for path, title, exported_at in (
+                (repo_path, "Veraltet", "2026-06-27T06:00:00Z"),
+                (agent_path, "Aktuell", "2026-07-01T05:30:00Z"),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    json.dumps([{"name": title, "due_date": "2026-07-01T09:00:00", "completed": False}]),
+                    encoding="utf-8",
+                )
+                path.with_name("reminders_export_status.json").write_text(
+                    json.dumps({"exported_at": exported_at}), encoding="utf-8"
+                )
+            old_root = daily_cody.ROOT_DIR
+            old_agent_path = daily_cody.LOCAL_REMINDERS_EXPORT_PATH
+            daily_cody.ROOT_DIR = repo_dir
+            daily_cody.LOCAL_REMINDERS_EXPORT_PATH = agent_path
+            try:
+                reminders, warning = daily_cody.read_exported_reminders(
+                    reminder_config(Path("data/reminders.json")), NOW
+                )
+            finally:
+                daily_cody.ROOT_DIR = old_root
+                daily_cody.LOCAL_REMINDERS_EXPORT_PATH = old_agent_path
+
+        self.assertIsNone(warning)
+        self.assertEqual([item["title"] for item in reminders], ["Aktuell"])
+
     def test_read_exported_reminders_refreshes_stale_local_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
