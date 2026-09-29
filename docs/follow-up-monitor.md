@@ -13,6 +13,9 @@ mit Mail-/Kalender-Authentifizierung, persistentem Zustand und Fehlerueberwachun
 DailyCody ist ein oeffentliches Repository. Persoenliche Monitor-Ergebnisse
 werden ausschliesslich als Actions-Secret `FOLLOW_UP_SNAPSHOT_JSON` uebergeben.
 Sie duerfen nicht als Datei oder Log im Repository landen.
+Die Einrichtung erfordert ausdrueckliche Zustimmung zu dieser Speicherung;
+Workflows mit Secret-Zugriff koennen den Inhalt lesen. Ohne eingerichtete
+Uebergabe zeigt Cody einen Hinweis statt vermeintlich leerer Ergebnisse.
 
 Der Monitor schreibt einen Kandidaten in seinen eigenen Arbeitsordner und
 ruft `scripts/publish_follow_up_snapshot.py` auf. Das Skript prueft Format,
