@@ -29,6 +29,8 @@ from zoneinfo import ZoneInfo
 
 import delivery_detection
 import follow_up_snapshot
+import mail_policy
+import mail_text
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -1743,24 +1745,82 @@ def format_short_reminder_date(value: dt.date) -> str:
 
 
 def list_recent_mail(token: str) -> list[dict[str, str]]:
-    query = urllib.parse.urlencode({"q": "newer_than:2d -category:promotions -from:me", "maxResults": "25"})
-    messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
+    messages = search_gmail_refs(token, "newer_than:2d -in:spam -in:trash -category:promotions -category:social -from:me -from:noreply -from:no-reply -from:newsletter")
     output = []
-    for item in messages[:25]:
-        message = request_json(
-            f"{GMAIL_API}/messages/{item['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
-            token=token,
-        )
-        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
-        output.append(
-            {
-                "from": headers.get("from", ""),
-                "subject": headers.get("subject", "(ohne Betreff)"),
-                "date": headers.get("date", ""),
-                "snippet": message.get("snippet", ""),
-            }
-        )
+    own = mail_policy.addresses(request_json(f"{GMAIL_API}/profile", token=token).get("emailAddress", ""))
+    seen = set()
+    for item in messages:
+        message = normalized_gmail_message(token, item["id"])
+        if not mail_policy.personal_message(message) or message["thread_id"] in seen:
+            continue
+        seen.add(message["thread_id"])
+        state = conversation_state(token, message["thread_id"], own, message["sort_key"])
+        message.update(state)
+        if state["closed"]:
+            continue
+        output.append(message)
     return output
+
+
+def search_gmail_refs(token: str, query_text: str, maximum: int = 200) -> list[dict[str, Any]]:
+    output = []
+    seen = set()
+    page_tokens = set()
+    page_token = ""
+    while True:
+        params = {"q": query_text, "maxResults": "100"}
+        if page_token:
+            params["pageToken"] = page_token
+        payload = request_json(f"{GMAIL_API}/messages?{urllib.parse.urlencode(params)}", token=token)
+        for item in payload.get("messages", []):
+            if item["id"] not in seen:
+                seen.add(item["id"])
+                output.append(item)
+                if len(output) > maximum:
+                    raise RuntimeError("Mailquelle unvollstaendig: Sicherheitslimit erreicht; kein Briefing versendet.")
+        page_token = payload.get("nextPageToken", "")
+        if not page_token:
+            return output
+        if page_token in page_tokens:
+            raise RuntimeError("Mailquelle unvollstaendig: wiederholtes Pagination-Token.")
+        page_tokens.add(page_token)
+
+
+def normalized_gmail_message(token: str, message_id: str) -> dict[str, Any]:
+    message = request_json(f"{GMAIL_API}/messages/{message_id}?format=full", token=token)
+    headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+    body = mail_policy.authored_text(extract_message_text(message.get("payload", {})))
+    return {
+        "from": headers.get("from", ""), "to": headers.get("to", ""),
+        "subject": headers.get("subject", "(ohne Betreff)"), "date": headers.get("date", ""),
+        "headers": headers, "labels": message.get("labelIds", []),
+        "body": body, "snippet": mail_policy.excerpt(body or message.get("snippet", "")),
+        "thread_id": message.get("threadId", ""), "message_id": message_id,
+        "sort_key": int(message.get("internalDate", "0")),
+        "source_url": f"https://mail.google.com/mail/u/0/#all/{message_id}",
+    }
+
+
+def conversation_state(token: str, thread_id: str, own: set[str], incoming_at: int = 0) -> dict[str, Any]:
+    if not thread_id:
+        return {"answered": False, "closed": False, "latest_own_at": 0, "latest_external_at": 0}
+    thread = request_json(f"{GMAIL_API}/threads/{thread_id}?format=full", token=token)
+    own_messages = []
+    external_times = []
+    for message in thread.get("messages", []):
+        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        when = int(message.get("internalDate", "0"))
+        if mail_policy.addresses(headers.get("from", "")) & own:
+            own_messages.append((when, mail_policy.authored_text(extract_message_text(message.get("payload", {})))))
+        elif mail_policy.personal_message({"from": headers.get("from", ""), "headers": headers, "labelIds": message.get("labelIds", [])}):
+            external_times.append(when)
+    latest_own_at, latest_own_text = max(own_messages, default=(0, ""), key=lambda x: x[0])
+    return {
+        "answered": latest_own_at > incoming_at,
+        "closed": mail_policy.closed_reply(latest_own_text),
+        "latest_own_at": latest_own_at,
+        "latest_external_at": max(external_times, default=0),
+    }
 
 
 def list_delivery_mail(
@@ -1778,7 +1838,7 @@ def list_delivery_mail(
         sender = headers.get("from", "")
         if delivery_detection.is_own_delivery_sender(sender, sender_email, recipient_email):
             continue
-        text = extract_message_text(message.get("payload", {}))
+        text = extract_message_text(message.get("payload", {}), prefer_html=True)
         snippet = message.get("snippet", "")
         delivery_messages.append(
             {
@@ -1789,6 +1849,8 @@ def list_delivery_mail(
                 "body": text,
                 "thread_id": message.get("threadId", ""),
                 "sort_key": int(message.get("internalDate", "0")),
+                "message_id": item["id"],
+                "labels": message.get("labelIds", []),
             }
         )
     return delivery_detection.detect_open_deliveries(
@@ -1812,12 +1874,32 @@ def search_delivery_message_refs(token: str) -> list[dict[str, Any]]:
                 continue
             seen.add(message_id)
             messages.append(item)
-            if len(messages) >= delivery_detection.DELIVERY_SEARCH_TOTAL_LIMIT:
-                return messages
+            if len(messages) > delivery_detection.DELIVERY_SEARCH_TOTAL_LIMIT:
+                raise RuntimeError("Lieferquellen sind unvollstaendig: zu viele Treffer; kein vermeintlich leeres Briefing versendet.")
+        page_token = payload.get("nextPageToken")
+        page_tokens = set()
+        while page_token:
+            if page_token in page_tokens:
+                raise RuntimeError("Lieferquelle unvollstaendig: wiederholtes Pagination-Token.")
+            page_tokens.add(page_token)
+            next_query = urllib.parse.urlencode({"q": query_text, "maxResults": str(delivery_detection.DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY), "pageToken": page_token})
+            payload = request_json(f"{GMAIL_API}/messages?{next_query}", token=token)
+            for item in payload.get("messages", []):
+                if item["id"] not in seen:
+                    seen.add(item["id"])
+                    messages.append(item)
+                    if len(messages) > delivery_detection.DELIVERY_SEARCH_TOTAL_LIMIT:
+                        raise RuntimeError("Lieferquellen sind unvollstaendig: zu viele Treffer; kein Briefing versendet.")
+            page_token = payload.get("nextPageToken")
     return messages
 
 
-def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str]]:
+def list_yesterday_open_mail(token: str, now: dt.datetime, recent_mail: list[dict[str, Any]] | None = None) -> list[dict[str, str]]:
+    if recent_mail is not None:
+        yesterday = now.date() - dt.timedelta(days=1)
+        return [item for item in recent_mail if not item.get("answered") and not item.get("closed")
+                and mail_policy.requests_response(item["subject"], item.get("body", item.get("snippet", "")))
+                and dt.datetime.fromtimestamp(item["sort_key"] / 1000, tz=now.tzinfo).date() == yesterday][:8]
     yesterday = now.date() - dt.timedelta(days=1)
     today = now.date()
     query_text = (
@@ -1835,7 +1917,12 @@ def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str
         headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
         snippet = message.get("snippet", "")
         subject = headers.get("subject", "(ohne Betreff)")
-        if not looks_actionable(subject, snippet):
+        normalized = normalized_gmail_message(token, item["id"])
+        if not mail_policy.personal_message(normalized) or not mail_policy.requests_response(subject, normalized["body"]):
+            continue
+        own = mail_policy.addresses(request_json(f"{GMAIL_API}/profile", token=token).get("emailAddress", ""))
+        state = conversation_state(token, normalized["thread_id"], own, normalized["sort_key"])
+        if state["answered"] or state["closed"]:
             continue
         output.append(
             {
@@ -1852,23 +1939,22 @@ def list_yesterday_open_mail(token: str, now: dt.datetime) -> list[dict[str, str
 
 
 def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, timezone: str) -> list[dict[str, str]]:
-    query = urllib.parse.urlencode({"q": "in:sent newer_than:7d -in:trash", "maxResults": "50"})
-    messages = request_json(f"{GMAIL_API}/messages?{query}", token=token).get("messages", [])
+    messages = search_gmail_refs(token, 'in:sent newer_than:7d -in:trash -subject:"The Daily Cody"')
     output = []
     seen_threads = set()
-    for item in messages[:40]:
-        message = request_json(
-            f"{GMAIL_API}/messages/{item['id']}?format=metadata&metadataHeaders=Subject&metadataHeaders=To&metadataHeaders=Date",
-            token=token,
-        )
-        thread_id = message.get("threadId", "")
+    for item in messages:
+        message = normalized_gmail_message(token, item["id"])
+        thread_id = message["thread_id"]
         if thread_id in seen_threads:
             continue
-        headers = {h["name"].lower(): h["value"] for h in message.get("payload", {}).get("headers", [])}
+        seen_threads.add(thread_id)
+        headers = message["headers"]
         subject = headers.get("subject", "(ohne Betreff)")
-        snippet = message.get("snippet", "")
+        snippet = message["body"]
         to_header = headers.get("to", "")
         if is_own_daily_cody_mail(subject, to_header, recipient_email):
+            continue
+        if mail_policy.excluded_person(to_header) or not mail_policy.personal_message({"from": to_header}):
             continue
         if delivery_detection.is_suppressed_topic(
             subject,
@@ -1880,10 +1966,11 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
             continue
         if looks_like_commerce_status(subject, snippet):
             continue
-        sent_at_ms = int(message.get("internalDate", "0"))
-        if thread_has_later_external_reply(token, thread_id, sent_at_ms, sender_email):
+        sent_at_ms = message["sort_key"]
+        own = delivery_detection.delivery_completion_addresses(sender_email, recipient_email)
+        state = conversation_state(token, thread_id, own, sent_at_ms)
+        if state["closed"] or state["latest_own_at"] > sent_at_ms or state["latest_external_at"] > sent_at_ms:
             continue
-        seen_threads.add(thread_id)
         sent_at = dt.datetime.fromtimestamp(sent_at_ms / 1000, tz=ZoneInfo(timezone))
         output.append(
             {
@@ -1893,7 +1980,8 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
                 "date": headers.get("date", ""),
                 "sent_local": sent_at.strftime("%d.%m. %H:%M"),
                 "message_id": item["id"],
-                "snippet": snippet,
+                "snippet": mail_policy.excerpt(snippet, 220),
+                "source_url": message["source_url"],
             }
         )
         if len(output) >= 8:
@@ -1920,8 +2008,8 @@ def thread_has_later_external_reply(token: str, thread_id: str, sent_at_ms: int,
     return False
 
 
-def extract_message_text(payload: dict[str, Any]) -> str:
-    chunks: list[str] = []
+def extract_message_text(payload: dict[str, Any], *, prefer_html: bool = False) -> str:
+    chunks: dict[str, list[str]] = {"text/plain": [], "text/html": []}
 
     def walk(part: dict[str, Any]) -> None:
         mime_type = part.get("mimeType", "")
@@ -1934,16 +2022,14 @@ def extract_message_text(payload: dict[str, Any]) -> str:
             except ValueError:
                 decoded = ""
             if mime_type == "text/html":
-                decoded = preserve_html_links(decoded)
-                decoded = re.sub(r"<br\s*/?>", "\n", decoded, flags=re.I)
-                decoded = re.sub(r"</p\s*>", "\n", decoded, flags=re.I)
-                decoded = re.sub(r"<[^>]+>", " ", decoded)
-            chunks.append(html.unescape(decoded))
+                decoded = mail_text.visible_html(decoded)
+            chunks[mime_type].append(html.unescape(decoded))
         for child in part.get("parts", []) or []:
             walk(child)
 
     walk(payload)
-    return " ".join(" ".join(chunks).split())
+    order = ("text/html", "text/plain") if prefer_html else ("text/plain", "text/html")
+    return next(("\n".join(chunks[mime]) for mime in order if any(part.strip() for part in chunks[mime])), "")
 
 
 def preserve_html_links(value: str) -> str:
@@ -2142,29 +2228,7 @@ def looks_actionable(subject: str, snippet: str) -> bool:
 
 
 def looks_waiting_for_reply(subject: str, snippet: str) -> bool:
-    text = f"{subject} {snippet}".lower()
-    markers = (
-        "?",
-        "wann",
-        "was soll",
-        "soll ich",
-        "wo soll",
-        "wie soll",
-        "kann ich",
-        "kannst du",
-        "bring",
-        "mitbringen",
-        "kommen",
-        "passt",
-        "feedback",
-        "rückmeldung",
-        "rueckmeldung",
-        "antwort",
-        "bitte gib",
-        "bitte sag",
-        "kurze info",
-    )
-    return any(marker in text for marker in markers)
+    return mail_policy.requests_response(subject, snippet)
 
 
 def looks_like_waiting_reminder(reminder: dict[str, str]) -> bool:
@@ -2227,6 +2291,9 @@ def build_briefing(
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
 ) -> str:
+    recent_mail = [m for m in recent_mail if mail_policy.personal_message(m) and not m.get("closed")]
+    open_mail = [m for m in open_mail if mail_policy.personal_message(m) and not m.get("answered")]
+    waiting_for_mail = [m for m in waiting_for_mail if not mail_policy.excluded_person(m.get("to", "")) and not mail_policy.closed_reply(m.get("snippet", ""))]
     today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
     action_overrides = (
         application_wiki.get("action_overrides", [])
@@ -2236,6 +2303,7 @@ def build_briefing(
     today_reminders = filter_items_by_action_overrides(today_reminders, action_overrides)
     upcoming_reminders = filter_items_by_action_overrides(upcoming_reminders, action_overrides)
     waiting_reminders = filter_items_by_action_overrides(waiting_reminders, action_overrides)
+    recent_mail = filter_items_by_action_overrides(recent_mail, action_overrides)
     open_mail = filter_items_by_action_overrides(open_mail, action_overrides)
     waiting_for_mail = filter_items_by_action_overrides(waiting_for_mail, action_overrides)
     application_waiting = filter_items_by_action_overrides(
@@ -2250,6 +2318,14 @@ def build_briefing(
         encoded=os.getenv("FOLLOW_UP_SNAPSHOT_JSON"),
         path=Path(follow_up_path) if follow_up_path else None,
     )
+    follow_up_lines = follow_up_snapshot.format_items(follow_up, follow_up_warning, now)
+    if follow_up:
+        follow_up["items"] = filter_items_by_action_overrides(follow_up["items"], action_overrides)
+        follow_up_lines = follow_up_snapshot.format_items(follow_up, None, now)
+    if follow_up is None:
+        live_lines = format_live_follow_up(recent_mail, now)
+        if live_lines:
+            follow_up_lines = ["- Quelle: Gmail live; die separate Monitor-Uebergabe ist noch nicht verfuegbar.", *live_lines]
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
@@ -2268,10 +2344,10 @@ def build_briefing(
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
         "follow_up": follow_up or {"warning": follow_up_warning},
-        "follow_up_lines": follow_up_snapshot.format_items(follow_up, follow_up_warning, now),
+        "follow_up_lines": follow_up_lines,
         "application_wiki": compact_application_wiki_context(application_wiki),
     }
-    if config.openai_api_key:
+    if config.openai_api_key and os.getenv("CODY_GENERATION_MODE", "source").lower() == "ai":
         max_attempts = max(1, config.openai_max_attempts)
         for attempt in range(1, max_attempts + 1):
             try:
@@ -2333,7 +2409,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
     system = (
         "Du bist Cody, Christians persönliche Morgenmail. Du bist die erste Mail seines Tages: "
         "wie jemand aus der Familie, der am Küchentisch kurz sortiert, was heute anliegt. "
-        "Schreib warm, ruhig, vertraut und klar. Ein bisschen trockener Humor ist okay, aber nur wenn er natürlich wirkt. "
+        "Schreib sachlich, knapp und klar. Kein Humor, keine Metaphern, keine erfundenen Tagesbewertungen oder Aufmunterungen. "
         "Keine sterile Assistenten-Sprache, keine Management-Floskeln, keine bemühten Running Gags. "
         "Schreibe ein kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster, aber persönlicher und lesbarer. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziges kursives Zitat mit Autor, dann H2-Abschnitte "
@@ -2448,7 +2524,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(["", "## Today's to-dos"])
     todo_lines = format_today_todo_reminders(context["today_todos"])
     todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
-    lines.extend(todo_lines or ["- Nichts Dringendes offen — schöner kleiner Bonus für heute."])
+    lines.extend(todo_lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."])
     if context["reminders"]:
         lines.extend(["", "## Reminders"])
         lines.extend(format_reminder_items(context["reminders"]))
@@ -2494,8 +2570,12 @@ def finalize_briefing(
     briefing: str,
     context: dict[str, Any],
 ) -> str:
-    briefing = replace_weather_bullet(briefing, context["weather"]["summary"])
-    briefing = ensure_world_cup_lines(briefing, context["world_cup_games"])
+    today_lines = [f"- {context['weather']['summary']}", *format_data_warning_items(context.get("data_warnings", []))]
+    today_lines.extend(format_items(context.get("today_events", []), "Keine Termine fuer heute im Kalender."))
+    today_lines.extend(format_world_cup_game_items(context["world_cup_games"]))
+    briefing = replace_list_section(briefing, "Today", {"today"}, today_lines, {"today s to dos", "follow up", "waiting for", "deliveries", "approaching"})
+    if "upcoming_events" in context:
+        briefing = replace_list_section(briefing, "Approaching", {"approaching"}, format_items(context["upcoming_events"], "Keine nahen Termine gefunden."), set())
     briefing = replace_delivery_section(briefing, context["deliveries"])
     todo_lines = format_today_todo_reminders(context["today_todos"])
     todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
@@ -2503,7 +2583,7 @@ def finalize_briefing(
         briefing,
         "Today's to-dos",
         {"today s to dos", "today to dos"},
-        todo_lines or ["- Nichts Dringendes offen — schöner kleiner Bonus für heute."],
+        todo_lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."],
         {"follow up", "waiting for", "deliveries", "approaching"},
     )
     briefing = replace_list_section(
@@ -2522,6 +2602,29 @@ def finalize_briefing(
             {"waiting for", "deliveries", "approaching"},
         )
     return normalize_trackinglink_labels(briefing)
+
+
+def format_live_follow_up(items: list[dict[str, Any]], now: dt.datetime) -> list[str]:
+    lines = []
+    seen = set()
+    for item in items:
+        if item.get("closed") or not mail_policy.personal_message(item):
+            continue
+        body = item.get("body") or item.get("snippet", "")
+        if not mail_policy.meaningful_update(item.get("subject", ""), body):
+            continue
+        topic = re.sub(r"^(?:(?:re|aw|fwd|wg):\s*)+", "", item["subject"], flags=re.I)
+        key = (normalize_search_text(topic), tuple(sorted(mail_policy.addresses(item.get("from", "")))))
+        if key in seen:
+            continue
+        seen.add(key)
+        stamp = dt.datetime.fromtimestamp(item.get("sort_key", int(now.timestamp() * 1000)) / 1000, tz=now.tzinfo)
+        status = "Antwort bereits gesendet" if item.get("answered") else "Rueckmeldung pruefen"
+        source = f" [Mail]({item['source_url']})" if item.get("source_url") else ""
+        lines.append(f"- **{item['subject']}** ({stamp:%d.%m. %H:%M}; {status}): {mail_policy.excerpt(body)}{source}")
+        if len(lines) == 5:
+            break
+    return lines
 
 
 def replace_list_section(
@@ -2726,6 +2829,8 @@ def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
     lines = []
     for item in open_items[:8]:
         link = f" — [Trackinglink]({item['tracking_links'][0]})" if item.get("tracking_links") else ""
+        if not link and item.get("source_url"):
+            link = f" — [Bestellmail]({item['source_url']})"
         lines.append(f"- {item['subject']} — {item['snippet']}{link}")
     return lines
 
@@ -2756,7 +2861,7 @@ def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return []
     lines = []
-    for item in items[:10]:
+    for item in items:
         due = f"{item['due']}: " if item.get("due") else ""
         list_name = f" ({item['list']})" if item.get("list") else ""
         notes = f" — {item['notes']}" if item.get("notes") else ""
@@ -2856,7 +2961,7 @@ def merge_waiting_for_items(items: list[dict[str, str]]) -> list[dict[str, str]]
 
 def format_today_todo_reminders(items: list[dict[str, str]]) -> list[str]:
     lines = []
-    for item in items[:8]:
+    for item in items:
         notes = f" — {item['notes']}" if item.get("notes") else ""
         lines.append(f"- {item['title']}{notes}")
     return lines
@@ -2866,10 +2971,9 @@ def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return []
     lines = []
-    for item in items[:6]:
-        lines.append(
-            f"- Offen prüfen: {item['subject']} — {item['from']}. Antwortidee: {item['suggested_reply']}"
-        )
+    for item in items:
+        link = f" [Mail]({item['source_url']})" if item.get("source_url") else ""
+        lines.append(f"- Antwort offen: {item['subject']} — {item['from']}.{link}")
     return lines
 
 
@@ -3207,7 +3311,7 @@ def main() -> int:
     application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token, config.sender, config.recipient, now)
-    open_mail = list_yesterday_open_mail(token, now)
+    open_mail = list_yesterday_open_mail(token, now, recent_mail)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
         config,

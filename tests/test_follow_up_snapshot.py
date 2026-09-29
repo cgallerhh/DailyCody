@@ -37,7 +37,7 @@ class FollowUpSnapshotTest(unittest.TestCase):
                 "action": "Antwort pruefen.",
                 "observed_at": "2026-09-28T10:00:00+02:00",
                 "expires_at": "2026-10-02T18:00:00+02:00",
-                "sources": [{"kind": "gmail", "id": "message-1", "url": "https://mail.google.com/mail/u/0/#all/message-1"}],
+                "sources": [{"kind": "gmail", "id": "message-1", "from": "Person <person@example.org>", "url": "https://mail.google.com/mail/u/0/#all/message-1"}],
             }],
         }
 

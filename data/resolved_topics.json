@@ -1,6 +1,11 @@
 {
   "completed": [
     {
+      "topic": "MeinAuto Fahrzeuganfrage",
+      "aliases": ["MeinAuto", "meinauto.de"],
+      "note": "Vom Nutzer als beendet bestaetigt: Entscheidung fuer ein anderes Fahrzeug; keine weitere Nachverfolgung."
+    },
+    {
       "topic": "Euromaster Reifen-Auslagerung",
       "aliases": [
         "Euromaster",

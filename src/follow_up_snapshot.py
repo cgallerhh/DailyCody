@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+import mail_policy
 
 
 SOURCE_KINDS = {"gmail", "google_calendar", "outlook_mail", "outlook_calendar"}
@@ -70,6 +71,8 @@ def validate_snapshot(payload: Any, now: dt.datetime) -> dict[str, Any]:
                 raise ValueError("Follow-up-Quelle ist ungueltig")
             if not isinstance(source.get("id"), str) or not source["id"].strip():
                 raise ValueError("Quellen-ID fehlt")
+            if source["kind"] in {"gmail", "outlook_mail"} and not mail_policy.personal_message({"from": source.get("from", ""), "headers": source.get("headers", {})}):
+                raise ValueError("Follow-up-Mailquelle ist keine erlaubte persoenliche Nachricht")
             url = urlparse(str(source.get("url") or ""))
             if (
                 url.scheme != "https" or url.hostname not in SOURCE_HOSTS[source["kind"]]

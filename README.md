@@ -8,17 +8,27 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`
 - Apple Reminders from a local Mac export
 - order and delivery emails across merchants, including tracking links when they appear in the email
-- yesterday's Gmail messages that look like they still need a reply, with a short suggested response
+- yesterday's personal Gmail messages with an actual unanswered request and a source link
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
-- a short, practical German briefing in Cody's voice
+- a short, factual German briefing without invented commentary
 - a morning quote from `data/morning_quotes.json`
 - source-backed findings from the separate 05:00 weekday follow-up monitor
 
 The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. The plain-text part keeps the exact neutral weather summary. Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
 
-The weather, delivery, today's to-dos, and waiting-for sections are finalized from collected source data after the optional AI wording step. This prevents an incomplete generated paragraph from dropping due reminders, actionable mail, or waiting items.
+Source mode is the default (`CODY_GENERATION_MODE=source`). Weather, deliveries,
+all due reminders, follow-up and waiting items are rendered deterministically
+from source data. Personal-mail sections exclude newsletters, advertising and
+messages from Eveline; completed MeinAuto topics are suppressed. Merchant
+confirmations remain eligible for deliveries, including confirmations in Trash.
+See [the tested briefing rules](docs/briefing-rules.md).
 
-After explicit consent, the follow-up monitor hands off private results through the Actions secret `FOLLOW_UP_SNAPSHOT_JSON`. Cody validates coverage and timestamps, removes expired items, and renders a separate `Follow-up` section with the check time and source links. A missed weekday check produces an explicit warning. Personal findings are never committed to this public repository. See [the monitor contract and operating procedure](docs/follow-up-monitor.md).
+After explicit consent, the follow-up monitor can hand off private results through
+the Actions secret `FOLLOW_UP_SNAPSHOT_JSON`. Cody validates coverage, timestamps
+and human mail sources. Until that bridge is configured, recent substantive Gmail
+replies populate `Follow-up`, explicitly labelled as live Gmail rather than a
+successful full monitor check. Personal findings are never committed to this
+public repository. See [the monitor contract](docs/follow-up-monitor.md).
 
 ## How It Runs
 
@@ -68,15 +78,18 @@ Create these secrets in `Settings -> Secrets and variables -> Actions`:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
 
-Optional, but recommended for the Daily-Dover-style voice:
+Optional, only for explicit AI mode:
 
 - `OPENAI_API_KEY`
 
-`OPENAI_API_KEY` is optional. Without it, Cody sends a structured template briefing. With it, Cody writes the more human Daily-Dover-style version.
+`OPENAI_API_KEY` alone no longer enables AI wording. Only the explicit
+`CODY_GENERATION_MODE=ai` mode uses it; factual sections remain source-bound.
 
 By default Cody uses `gpt-5.5`. You can override it with the repository variable `OPENAI_MODEL`.
 
-When `OPENAI_API_KEY` is set, Cody treats the OpenAI-written briefing as required. It waits up to `OPENAI_TIMEOUT_SECONDS` per attempt, retries up to `OPENAI_MAX_ATTEMPTS`, and fails without sending if OpenAI still does not answer. This lets the next scheduled GitHub run try again instead of consuming the daily duplicate guard with a less polished template email.
+In explicit AI mode, Cody waits up to `OPENAI_TIMEOUT_SECONDS` per attempt,
+retries up to `OPENAI_MAX_ATTEMPTS`, and fails without sending if AI still does
+not answer. Normal source mode does not make an OpenAI request.
 
 Set the repository variable `ALLOW_TEMPLATE_FALLBACK=true` only if you explicitly prefer a structured current-data email over no email when OpenAI is unavailable.
 

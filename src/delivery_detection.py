@@ -12,6 +12,7 @@ import html
 import re
 import unicodedata
 from typing import Any
+import mail_policy
 
 
 DELIVERY_LOOKBACK_DAYS = 60
@@ -55,6 +56,8 @@ def delivery_candidate_from_message(
     text = str(message.get("body") or message.get("text") or "")
     if is_delivery_noise(subject, snippet, text):
         return None
+    if not is_transactional_delivery_source(sender, subject, snippet, text):
+        return None
     if not looks_like_delivery(subject, snippet, text):
         return None
     status = classify_delivery_status(subject, snippet, text)
@@ -63,7 +66,8 @@ def delivery_candidate_from_message(
     display_title = delivery_display_title(subject, sender, text)
     if is_suppressed_topic(subject, snippet, text, display_title, completed_topics=completed_topics):
         return None
-    links = extract_tracking_links(text)
+    links = extract_tracking_links(text) if status != "ordered" else []
+    eta_reference = delivery_eta_reference_datetime(message, now)
     return {
         "from": sender,
         "subject": display_title,
@@ -72,11 +76,15 @@ def delivery_candidate_from_message(
         "status": status,
         "status_rank": delivery_status_rank(status),
         "topic_key": normalize_delivery_key(subject, sender, text),
+        "order_key": delivery_order_key(subject, sender, text),
+        "tracking_number": extract_delivery_tracking_number(subject, text),
         "thread_id": str(message.get("thread_id") or message.get("threadId") or ""),
         "sort_key": message_sort_key(message),
-        "eta_end_date": extract_delivery_eta_end_date(now, subject, snippet, text),
+        "eta_end_date": extract_delivery_eta_end_date(eta_reference, subject, snippet, text),
         "tracking_links": links[:3],
         "details": strip_long(clean_mail_excerpt(text), 900),
+        "message_id": str(message.get("message_id") or message.get("id") or ""),
+        "source_url": f"https://mail.google.com/mail/u/0/#all/{message['message_id']}" if message.get("message_id") else "",
     }
 
 
@@ -99,6 +107,15 @@ def message_sort_key(message: dict[str, Any]) -> int:
     return 0
 
 
+def delivery_eta_reference_datetime(message: dict[str, Any], now: dt.datetime) -> dt.datetime:
+    sort_key = message_sort_key(message)
+    if sort_key > 0:
+        return dt.datetime.fromtimestamp(sort_key / 1000, tz=now.tzinfo)
+    raw_date = str(message.get("date") or message.get("email_ts") or message.get("timestamp") or "")
+    parsed = parse_message_datetime(raw_date) if raw_date else None
+    return parsed.astimezone(now.tzinfo) if parsed and now.tzinfo else parsed or now
+
+
 def parse_message_datetime(value: str) -> dt.datetime | None:
     try:
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -107,12 +124,9 @@ def parse_message_datetime(value: str) -> dt.datetime | None:
 
 
 def delivery_search_queries() -> list[str]:
-    base = f"newer_than:{DELIVERY_LOOKBACK_DAYS}d in:anywhere -in:trash -in:spam"
-    status_terms = (
-        "{bestellung bestellt bestellnummer versendet versandt verschickt versandbereit lieferung zustellung "
-        "zugestellt geliefert sendung paket tracking sendungsstatus sendungsnummer \"kommt heute\" "
-        "\"in zustellung\" \"auf dem weg\" \"ist unterwegs\" \"liegt nebenan\" shipped delivered dispatched arriving}"
-    )
+    # A deleted confirmation does not cancel an order. Only transactional
+    # sources may include Trash; personal-mail intake still excludes it.
+    base = f"newer_than:{DELIVERY_LOOKBACK_DAYS}d in:anywhere -in:spam"
     simple_queries = [
         # Run exact merchant/carrier lookups first. They are cheap and prevent
         # broad status queries from filling the total cap before DHL/Amazon/etc.
@@ -131,52 +145,35 @@ def delivery_search_queries() -> list[str]:
         f"{base} -category:promotions sendungsnummer",
         f"{base} -category:promotions bestsecret",
     ]
-    structured_queries = [
-        f"{base} -category:promotions {status_terms}",
-        (
-            f"{base} {{label:Amazon from:amazon.de from:amazon.com amazon}} "
-            "{bestellung bestellt bestellnr bestellnummer versendet versandt geliefert zugestellt lieferung "
-            "zustellung tracking paket shipped delivered arriving}"
-        ),
-        (
-            f"{base} {{from:service.bestsecret.com from:partner-program@bestsecret.com bestsecret BESTSECRET}} "
-            "{bestellung bestellnummer versandbereit versendet versand sendung lieferung zustellung tracking paket "
-            "dhl hermes}"
-        ),
-        (
-            f"{base} {{from:golighter.de from:wellstermedical.com golighter GoLighter wellster Wellster}} "
-            "{medikament apotheke rezept bestellnummer sendung sendungsnummer lieferstatus dhl lieferung "
-            "versandvorbereitung \"auf dem weg\" \"kommt heute\" \"liegt nebenan\"}"
-        ),
-        (
-            f"{base} {{from:dhl.de from:myhermes.de from:hermesworld.com from:dpd.de from:ups.com "
-            "from:gls-germany.com DHL Hermes DPD UPS GLS} "
-            "{sendung paket zustellung zugestellt geliefert unterwegs \"kommt heute\" \"liegt nebenan\" "
-            "sendungsstatus sendungsnummer}"
-        ),
-        # Fallback queries deliberately avoid grouped Gmail syntax. GitHub
-        # Actions talks to the raw Gmail API; these keep merchant/carrier
-        # coverage even if a complex query is interpreted differently.
-        f"{base} -category:promotions from:dhl.de",
-        f"{base} -category:promotions from:myhermes.de",
-        f"{base} -category:promotions from:hermesworld.com",
-        f"{base} -category:promotions from:dpd.de",
-        f"{base} -category:promotions from:ups.com",
-        f"{base} -category:promotions from:gls-germany.com",
-        f"{base} -category:promotions from:amazon.de",
-        f"{base} -category:promotions from:amazon.com",
-        f"{base} -category:promotions from:service.bestsecret.com",
-        f"{base} -category:promotions from:partner-program@bestsecret.com",
-        f"{base} -category:promotions bestsecret",
-        f"{base} -category:promotions from:golighter.de",
-        f"{base} -category:promotions from:wellstermedical.com",
-        f"{base} -category:promotions sendungsnummer",
-    ]
     broad_safety_net = [
-        "newer_than:14d in:anywhere -in:trash -in:spam -from:me -category:promotions -category:social",
-        "newer_than:30d in:anywhere -in:trash -in:spam category:updates",
+        "newer_than:14d -in:trash -in:spam -category:promotions -category:social subject:bestellbestätigung",
+        "newer_than:14d -in:trash -in:spam -category:promotions -category:social subject:versandbestätigung",
     ]
-    return list(dict.fromkeys(simple_queries + structured_queries + broad_safety_net))
+    # Broad body-word searches pulled private conversations and subscription
+    # messages into the delivery pipeline. Keep exact senders and subject facts.
+    precise = [q for q in simple_queries if any(marker in q for marker in ("from:", "sendungsnummer"))]
+    precise.append(f'{base} from:service.bestsecret.com subject:"Vielen Dank für Ihre Bestellung"')
+    precise.extend(broad_safety_net)
+    return list(dict.fromkeys(precise))
+
+
+def is_transactional_delivery_source(sender: str, subject: str, snippet: str, text: str) -> bool:
+    if mail_policy.excluded_person(sender):
+        return False
+    sender_text = sender.lower()
+    if any(marker in sender_text for marker in ("newsletter", "fashionnews", "marketing@")):
+        return False
+    domains = [address.split("@", 1)[1] for address in mail_policy.addresses(sender)]
+    trusted = ("amazon.de", "amazon.com", "bestsecret.com", "bestsecret.de", "dhl.de", "golighter.de", "wellstermedical.com", "myhermes.de", "hermesworld.com", "dpd.de", "ups.com", "gls-germany.com")
+    if any(domain == root or domain.endswith("." + root) for domain in domains for root in trusted):
+        return True
+    current = normalize_status_text(f"{subject} {mail_policy.authored_text(snippet)} {mail_policy.authored_text(text)[:2000]}")
+    if any(marker in current for marker in ("abo-service", "abonnement", "abovertrag", "newsletter", "leasing", "meinauto")):
+        return False
+    tracking = extract_delivery_tracking_number(subject, text)
+    confirmed_order = any(marker in current for marker in ("bestellbestatigung", "order confirmation", "vielen dank fur ihre bestellung", "vielen dank fur deine bestellung"))
+    physical = any(marker in current for marker in ("versand", "paket", "lieferadresse", "lieferung", "sendungsnummer"))
+    return bool(tracking or (confirmed_order and physical))
 
 
 def is_own_delivery_sender(sender: str, sender_email: str, recipient_email: str) -> bool:
@@ -531,9 +528,19 @@ def delivery_status_rank(status: str) -> int:
 
 
 def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime) -> list[dict[str, Any]]:
+    # A shipment with the same explicit order ID supersedes the confirmation.
+    # Keep separate tracking IDs separate: one delivered parcel is not all parcels.
+    tracked_orders: dict[str, int] = {}
+    for item in items:
+        if item.get("order_key") and item.get("tracking_number"):
+            key = item["order_key"]
+            tracked_orders[key] = max(tracked_orders.get(key, 0), item.get("sort_key", 0))
     grouped: dict[str, list[dict[str, Any]]] = {}
     for item in items:
-        key = item.get("topic_key", "")
+        if (not item.get("tracking_number") and item.get("order_key") in tracked_orders
+                and item.get("sort_key", 0) <= tracked_orders[item["order_key"]]):
+            continue
+        key = (item.get("order_key") if not item.get("tracking_number") else "") or item.get("topic_key", "")
         if not key:
             continue
         grouped.setdefault(key, []).append(item)
@@ -550,24 +557,25 @@ def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime)
             for item in group
             if item.get("status") != "delivered"
             and item.get("sort_key", 0) > latest_delivered
-            and not is_stale_delivery_item(item, now)
         ]
         if active_items:
-            current.append(
-                max(
+            chosen = dict(max(
                     active_items,
                     key=lambda item: (item.get("status_rank", 0), item.get("sort_key", 0)),
-                )
-            )
+                ))
+            if is_stale_delivery_item(chosen, now):
+                chosen["status"] = "unconfirmed"
+                chosen["snippet"] = "Zustellung nicht bestaetigt; letzten Sendungsstatus pruefen"
+            current.append(chosen)
 
     current.sort(key=lambda item: item.get("sort_key", 0), reverse=True)
     return [
         {
             key: value
             for key, value in item.items()
-            if key not in {"topic_key", "thread_id", "sort_key", "status_rank"}
+            if key not in {"topic_key", "order_key", "tracking_number", "thread_id", "sort_key", "status_rank"}
         }
-        for item in current[:8]
+        for item in current
     ]
 
 
@@ -638,7 +646,19 @@ def extract_delivery_eta_end_date(now: dt.datetime, *values: str) -> str:
     numeric_date = extract_numeric_delivery_date(now, raw_text)
     if numeric_date:
         return numeric_date.isoformat()
+    relative_date = extract_relative_delivery_date(now, raw_text)
+    if relative_date:
+        return relative_date.isoformat()
     return ""
+
+
+def extract_relative_delivery_date(reference: dt.datetime, raw_text: str) -> dt.date | None:
+    haystack = normalize_status_text(raw_text)
+    if any(marker in haystack for marker in ("ankunft morgen", "zustellung morgen", "lieferung morgen")):
+        return reference.date() + dt.timedelta(days=1)
+    if any(marker in haystack for marker in ("kommt heute", "ankunft heute", "zustellung heute", "wird heute zugestellt")):
+        return reference.date()
+    return None
 
 
 def extract_numeric_delivery_date(now: dt.datetime, raw_text: str) -> dt.date | None:
@@ -990,11 +1010,22 @@ def normalize_delivery_key(subject: str, sender: str, text: str = "") -> str:
     return f"{sender_domain}:{cleaned[:80]}"
 
 
+def delivery_order_key(subject: str, sender: str, text: str) -> str:
+    number = extract_delivery_order_number(subject, text)
+    if not number:
+        return ""
+    merchant = delivery_merchant_name(subject, sender, text)
+    addresses = sorted(mail_policy.addresses(sender))
+    domain = addresses[0].split("@", 1)[1] if addresses else sender
+    return f"{normalize_search_text(merchant or domain)}:order:{number}"
+
+
 def extract_delivery_order_number(subject: str, text: str) -> str:
-    haystack = f"{subject} {text[:2500]}"
+    haystack = f"{subject} {text[:30000]}"
     patterns = (
         r"\b(O-\d{4}-\d{6,})\b",
         r"\b(\d{3}-\d{7}-\d{7})\b",
+        r"\border_details\.htm\?code=(\d{4,})",
         r"#\s*(\d{4,})",
         r"\bbestell(?:ung|nummer)?\D{0,20}(\d{4,})",
         r"\border\D{0,20}(\d{4,})",
@@ -1007,7 +1038,7 @@ def extract_delivery_order_number(subject: str, text: str) -> str:
 
 
 def extract_delivery_tracking_number(subject: str, text: str) -> str:
-    haystack = f"{subject} {text[:3500]}"
+    haystack = f"{subject} {text[:30000]}"
     patterns = (
         r"\bsendungs(?:nummer|nr\.?)\D{0,40}([A-Z]?\d[A-Z0-9]{9,34})",
         r"\bpiececode=([A-Z]?\d[A-Z0-9]{9,34})",

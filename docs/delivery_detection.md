@@ -56,13 +56,20 @@ Eingabeformat:
 
 Daily Cody sucht mehrstufig:
 
-- allgemeine Liefer- und Statusbegriffe der letzten 60 Tage
+- genaue transaktionale Haendler- und Carrier-Absender der letzten 60 Tage
 - Amazon-spezifische Mails von `amazon.de`/`amazon.com`
 - BestSecret-spezifische Mails, inklusive Service- und Carrier-Partner-Absender
 - GoLighter/Wellster-spezifische Mails, inklusive Rezept-, Versand- und DHL-Meldungen
 - Carrier-Mails von DHL, Hermes, DPD, UPS und GLS
 
-Die Suchläufe werden dedupliziert, danach wird jede Mail vollständig gelesen und erst dann klassifiziert.
+Die Suchläufe werden ueber alle Ergebnisseiten gelesen und dedupliziert, danach
+wird jede Mail vollstaendig gelesen und erst dann klassifiziert. Transaktionale
+Mails bekannter Haendler werden auch im Papierkorb gesucht: Loeschen ist keine
+Stornierung. Endgueltig geloeschte Mails koennen nicht ausgewertet werden.
+Bei BestSecret hat der sichtbare HTML-Inhalt Vorrang vor einer reinen
+Text-Fusszeile. Allgemeine private Gespraeche mit dem Wort "bestellt" sind
+keine Lieferquelle. Abonnements, digitale Inhalte und Fahrzeugangebote sind
+ausgeschlossen. Siehe auch [die Briefing-Regeln](briefing-rules.md).
 
 ## Klassifikation
 
@@ -72,6 +79,7 @@ Eine Mail zählt nur als Lieferung, wenn sie nach Body-Auswertung in einen Statu
 - `shipped`: Versandbereit, unterwegs, Sendungsnummer oder Tracking vorhanden
 - `out_for_delivery`: kommt heute, in Zustellung
 - `delivered`: zugestellt, geliefert, angekommen, liegt nebenan, abgegeben
+- `unconfirmed`: Zustellung nicht bestaetigt; Liefertermin oder Status veraltet
 
 Reine Info-Mails, Umfragen, Retourenstatus, HVV-Tickets, Behördenpostfach-Meldungen und eigene Cody-/Self-Mails sind explizit ausgeschlossen. Schwache Statuswörter wie `versendet` reichen ohne bekannten Händler-, Carrier-, Bestell- oder Tracking-Kontext nicht aus.
 
@@ -81,7 +89,10 @@ Wenn eine Sendungsnummer vorhanden ist, ist sie der stärkste Schlüssel. Dadurc
 
 Carrier-Betreffs wie `Ihre Adidas AG Sendung kommt heute` und spätere Delivered-Updates mit demselben Händler-/Sendungsnamen werden gemeinsam gruppiert, auch wenn keine Trackingnummer im Betreff steht.
 
-Delivered-Mails schließen ältere offene Status derselben Gruppe. Veraltete offene Mails werden anhand von ETA und Alter ausgeblendet.
+Delivered-Mails schliessen aeltere offene Status derselben konkreten Gruppe.
+Ein verstrichener Liefertermin gilt nicht als Zustellnachweis: Die Sendung
+bleibt als `unconfirmed` sichtbar. Der Status einer Bestellung darf keine
+anderen Bestellungen desselben Haendlers schliessen.
 
 ## Erledigt-Suppression
 

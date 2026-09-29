@@ -64,7 +64,7 @@ class DeliveryFilteringTest(unittest.TestCase):
     def test_shipping_mail_with_past_eta_is_stale(self):
         items = [delivery_item(snippet="versendet, Zustellung 18. Juni-19. Juni", eta_end_date="2026-06-19")]
 
-        self.assertEqual(delivery_detection.summarize_delivery_candidates(items, NOW), [])
+        self.assertEqual(delivery_detection.summarize_delivery_candidates(items, NOW)[0]["status"], "unconfirmed")
         self.assertEqual(
             delivery_detection.extract_delivery_eta_end_date(NOW, "versendet, Zustellung 18. Juni-19. Juni"),
             "2026-06-19",
@@ -369,7 +369,7 @@ class DeliveryFilteringTest(unittest.TestCase):
             )
         ]
 
-        self.assertEqual(delivery_detection.summarize_delivery_candidates(items, now), [])
+        self.assertEqual(delivery_detection.summarize_delivery_candidates(items, now)[0]["status"], "unconfirmed")
 
     def test_numeric_delivery_dates_from_carrier_mail_are_parsed(self):
         dhl_text = "Ihre BESTSECRET Sendung wird Ihnen voraussichtlich am Mittwoch, den 01.07. zugestellt."

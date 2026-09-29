@@ -15,7 +15,10 @@ werden ausschliesslich als Actions-Secret `FOLLOW_UP_SNAPSHOT_JSON` uebergeben.
 Sie duerfen nicht als Datei oder Log im Repository landen.
 Die Einrichtung erfordert ausdrueckliche Zustimmung zu dieser Speicherung;
 Workflows mit Secret-Zugriff koennen den Inhalt lesen. Ohne eingerichtete
-Uebergabe zeigt Cody einen Hinweis statt vermeintlich leerer Ergebnisse.
+Uebergabe nutzt Cody aktuelle persoenliche Gmail-Rueckmeldungen mit sichtbarem
+Quellenhinweis als Ersatz. Das ist kein erfolgreicher Monitorlauf und enthaelt
+keine Outlook- oder Kalender-Vergleichsergebnisse. Ohne relevante Gmail-Punkte
+bleibt der Datenhinweis sichtbar statt einer falschen Entwarnung.
 
 Der Monitor schreibt einen Kandidaten in seinen eigenen Arbeitsordner und
 ruft `scripts/publish_follow_up_snapshot.py` auf. Das Skript prueft Format,
@@ -52,6 +55,7 @@ Die alte Automationsdatei `memory.md` ist nur historische Lesereferenz.
     "expires_at": "2026-10-02T18:00:00+02:00",
     "sources": [{
       "kind": "gmail", "id": "message-1",
+      "from": "Person <person@example.org>",
       "url": "https://mail.google.com/mail/u/0/#all/message-1"
     }]
   }]
@@ -65,12 +69,18 @@ Lauf ohne neue Punkte veroeffentlicht einen aktuellen Snapshot.
 `observed_at` ist der Quellenzeitpunkt, `expires_at` die letzte sinnvolle
 Anzeigezeit, nicht die Behauptung einer Erledigung.
 
-Cody setzt den Abschnitt `Follow-up` nach der KI-Formulierung aus dem
+Cody setzt den Abschnitt `Follow-up` verbindlich aus dem
 geprueften Snapshot ein. Der Pruefzeitpunkt und Quellenlinks bleiben sichtbar.
 Die erwartete Aktualitaet richtet sich nach dem letzten werktags faelligen
 05:00-Lauf: Am Wochenende bleibt Freitag mit sichtbarem Datum nutzbar; am
 Montag braucht Cody einen neuen Lauf. Verpasste Laeufe, unvollstaendige
 Quellen und ungueltige Daten fuehren zu einem deutlichen Hinweis.
+
+Mailquellen brauchen einen menschlichen Absender in `from`; Listen-/Bulk-Header
+werden optional in `headers` mitgegeben. Newsletter, Werbung, Nachrichten von
+Eveline und abgeschlossene Themen gehoeren nicht in den Snapshot. Bereits
+beantwortete Nachrichten sind keine offenen Antwortaufgaben. Nur eine noch
+ausstehende Folgeaktion rechtfertigt die weitere Nachverfolgung.
 
 Fuer lokale Tests kann `FOLLOW_UP_SNAPSHOT_PATH` auf einen privaten Snapshot
 zeigen. Der normale GitHub-Lauf verwendet ausschliesslich das Secret.

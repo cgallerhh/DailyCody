@@ -61,6 +61,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FOLLOW_UP_SNAPSHOT_JSON: ${{ secrets.FOLLOW_UP_SNAPSHOT_JSON }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
+          CODY_GENERATION_MODE: "source"
           OPENAI_TIMEOUT_SECONDS: ${{ vars.OPENAI_TIMEOUT_SECONDS || '120' }}
           OPENAI_MAX_ATTEMPTS: ${{ vars.OPENAI_MAX_ATTEMPTS || '2' }}
           ALLOW_TEMPLATE_FALLBACK: ${{ vars.ALLOW_TEMPLATE_FALLBACK || 'false' }}
