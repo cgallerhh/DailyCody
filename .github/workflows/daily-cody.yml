@@ -61,7 +61,7 @@ jobs:
           ALLOW_TEMPLATE_FALLBACK: ${{ vars.ALLOW_TEMPLATE_FALLBACK || 'false' }}
           REQUIRE_FRESH_REMINDERS: ${{ vars.REQUIRE_FRESH_REMINDERS || 'true' }}
           FAIL_ON_STALE_REMINDERS: ${{ vars.FAIL_ON_STALE_REMINDERS || 'false' }}
-          REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '60' }}
+          REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '24' }}
           REFRESH_STALE_REMINDERS: ${{ vars.REFRESH_STALE_REMINDERS || 'false' }}
           FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}

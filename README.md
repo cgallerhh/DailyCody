@@ -102,13 +102,13 @@ Install the local Reminders command line tool once:
 curl -fsSL https://rem.sidv.dev/install | bash
 ```
 
-The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, but if Homebrew complains about the formula, use the install command above. Run `rem` once and allow macOS access to Reminders when prompted. Then export your open Apple Reminders into the repository:
+The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, but if Homebrew complains about the formula, use the install command above. Run `rem` once and allow macOS access to Reminders when prompted. The export script can be run manually from a checkout outside iCloud Drive:
 
 ```bash
 scripts/export_apple_reminders.sh
 ```
 
-The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next 7 days. Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
+The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next two days (seven days on Fridays). Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
 
 To let the Mac update the export automatically, install the local LaunchAgent:
 
@@ -116,15 +116,17 @@ To let the Mac update the export automatically, install the local LaunchAgent:
 scripts/install_reminders_export_agent.sh
 ```
 
-The agent checks every 30 minutes while the Mac is awake. It exports during the normal `23:59` to `06:59` window, and it also runs a catch-up export outside that window whenever the previous export is older than 24 hours. This lets the Mac repair a missed overnight export as soon as it wakes up. The catch-up age can be changed with `REMINDERS_CATCHUP_MAX_AGE_HOURS`.
+The agent checks every 30 minutes while the Mac is awake. It exports during the normal `23:59` to `06:59` window, and it also runs a catch-up export outside that window whenever the previous export is older than 1 hour. This repairs a missed overnight export as soon as the Mac is available. The catch-up age can be changed with `REMINDERS_CATCHUP_MAX_AGE_HOURS`.
 
-The export script syncs with `origin/main` before committing and retries the push after a rebase if GitHub rejects it. This matters because a local export can be fresh while the GitHub Actions copy is still stale if the push was rejected. Outside the normal export window, the LaunchAgent also wakes the export when local commits are still pending push.
+The installer keeps the runner, a Git checkout, and a stable, locally signed `rem` binary in `~/Library/Application Support/DailyCody`. The LaunchAgent runs from that checkout, keeping its working files and Git index outside iCloud Drive. Reinstalling the agent preserves this checkout and the signed `rem` copy. Set `REMINDERS_REFRESH_CLI=true` only when intentionally replacing the binary; macOS may then request Reminders access again.
 
-The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=60`) but it no longer drops the whole briefing when that export is stale. Instead, Daily Cody skips Apple Reminders for that run, adds a short warning to the briefing, and still sends the rest of the morning mail. Set `FAIL_ON_STALE_REMINDERS=true` only if you want the old fail-closed behavior back. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
+The agent syncs its local checkout with `origin/main` before committing and retries the push after a rebase if GitHub rejects it. If that checkout is dirty, staged, or Git reports index trouble, the script publishes through an isolated temporary clone. The source checkout in Documents is no longer used by the agent and may have a different local snapshot; GitHub `main` is the source for the scheduled briefing. Outside the normal export window, the LaunchAgent also wakes the export when local commits are still pending push.
+
+The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=24`) but it no longer drops the whole briefing when that export is stale. Instead, Daily Cody skips Apple Reminders for that run, adds a short warning to the briefing, and still sends the rest of the morning mail. Set `FAIL_ON_STALE_REMINDERS=true` only if you want the old fail-closed behavior back. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
 
 When Daily Cody runs locally and sees a missing or stale export, it attempts `scripts/export_apple_reminders_if_window.sh` before reading `data/reminders.json`. Control this with `REFRESH_STALE_REMINDERS`, `REMINDERS_REFRESH_COMMAND`, and `REMINDERS_REFRESH_TIMEOUT_SECONDS`.
 
-If Cody says the export is many hours old, check `~/Library/Logs/DailyCody/reminders-export.err.log` first. Repeated `fetch first` / rejected push messages mean the Mac exported correctly but could not publish the updated JSON to GitHub.
+If Cody says the export is many hours old, check `~/Library/Logs/DailyCody/reminders-export.err.log` and `~/Library/Application Support/DailyCody/repo/data/reminders_export_status.json`. Compare that timestamp with `data/reminders_export_status.json` on GitHub `main`; a fresh local export does not prove a successful push. Check `launchctl print gui/$(id -u)/com.dailycody.reminders-export` for the agent's last exit code. `reminders access denied` requires a macOS Privacy grant for the stable `rem` binary; `resource deadlock avoided` in the Documents checkout means the agent was not reinstalled with the local checkout.
 
 ## Delivery Status
 
