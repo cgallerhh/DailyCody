@@ -2265,7 +2265,7 @@ def build_briefing(
         for attempt in range(1, max_attempts + 1):
             try:
                 return finalize_briefing(
-                    build_ai_briefing(config, context), world_cup_games, delivery_mail, weather["summary"]
+                    build_ai_briefing(config, context), context
                 )
             except urllib.error.HTTPError as exc:
                 if exc.code not in {400, 401, 403, 429} and exc.code < 500:
@@ -2286,7 +2286,7 @@ def build_briefing(
                     file=sys.stderr,
                 )
                 return finalize_briefing(
-                    build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+                    build_template_briefing(context), context
                 )
             except (TimeoutError, urllib.error.URLError, OSError) as exc:
                 if attempt < max_attempts:
@@ -2304,10 +2304,10 @@ def build_briefing(
                     file=sys.stderr,
                 )
                 return finalize_briefing(
-                    build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+                    build_template_briefing(context), context
                 )
     return finalize_briefing(
-        build_template_briefing(context), world_cup_games, delivery_mail, weather["summary"]
+        build_template_briefing(context), context
     )
 
 
@@ -2477,14 +2477,61 @@ def ensure_world_cup_lines(briefing: str, world_cup_games: list[dict[str, str]])
 
 def finalize_briefing(
     briefing: str,
-    world_cup_games: list[dict[str, str]],
-    deliveries: list[dict[str, Any]],
-    weather_summary: str,
+    context: dict[str, Any],
 ) -> str:
-    briefing = replace_weather_bullet(briefing, weather_summary)
-    briefing = ensure_world_cup_lines(briefing, world_cup_games)
-    briefing = replace_delivery_section(briefing, deliveries)
+    briefing = replace_weather_bullet(briefing, context["weather"]["summary"])
+    briefing = ensure_world_cup_lines(briefing, context["world_cup_games"])
+    briefing = replace_delivery_section(briefing, context["deliveries"])
+    todo_lines = format_today_todo_reminders(context["today_todos"])
+    todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
+    briefing = replace_list_section(
+        briefing,
+        "Today's to-dos",
+        {"today s to dos", "today to dos"},
+        todo_lines or ["- Nichts Dringendes offen — schöner kleiner Bonus für heute."],
+        {"waiting for", "deliveries", "approaching"},
+    )
+    briefing = replace_list_section(
+        briefing,
+        "Waiting for...",
+        {"waiting for"},
+        format_waiting_for_items(context["waiting_for"]),
+        {"deliveries", "approaching"},
+    )
     return normalize_trackinglink_labels(briefing)
+
+
+def replace_list_section(
+    briefing: str,
+    heading: str,
+    known_titles: set[str],
+    items: list[str],
+    before_titles: set[str],
+) -> str:
+    replacement = [f"## {heading}", *items, ""]
+    lines = briefing.splitlines()
+    start = next(
+        (
+            idx for idx, line in enumerate(lines)
+            if is_markdown_heading(line) and normalize_search_text(line) in known_titles
+        ),
+        None,
+    )
+    if start is None:
+        insert_at = next(
+            (
+                idx for idx, line in enumerate(lines)
+                if is_markdown_heading(line) and normalize_search_text(line) in before_titles
+            ),
+            len(lines),
+        )
+        lines[insert_at:insert_at] = ["", *replacement]
+        return "\n".join(lines)
+    end = start + 1
+    while end < len(lines) and not is_markdown_heading(lines[end]):
+        end += 1
+    lines[start:end] = replacement
+    return "\n".join(lines)
 
 
 def replace_weather_bullet(briefing: str, weather_summary: str) -> str:
