@@ -2859,9 +2859,15 @@ def strip_long(value: str, max_len: int) -> str:
     return clean[: max_len - 1] + "…" if len(clean) > max_len else clean
 
 
-def send_email(config: Config, token: str, subject: str, markdown_body: str) -> None:
+def send_email(
+    config: Config,
+    token: str,
+    subject: str,
+    markdown_body: str,
+    weather: dict[str, Any] | None = None,
+) -> None:
     plain = markdown_body
-    html_body = markdown_to_basic_html(markdown_body)
+    html_body = markdown_to_basic_html(markdown_body, weather)
     message = email.message.EmailMessage()
     message["From"] = config.sender
     message["To"] = config.recipient
@@ -2872,10 +2878,76 @@ def send_email(config: Config, token: str, subject: str, markdown_body: str) -> 
     request_json(f"{GMAIL_API}/messages/send", method="POST", token=token, body={"raw": raw})
 
 
-def markdown_to_basic_html(markdown_body: str) -> str:
+def render_weather_card(weather: dict[str, Any]) -> str:
+    periods = weather.get("periods")
+    if not isinstance(periods, list) or not periods:
+        return ""
+
+    label = html.escape(str(weather.get("label") or "Wetter"))
+    columns = []
+    for period in periods:
+        if not isinstance(period, dict):
+            continue
+        name = html.escape(str(period.get("label") or "Zeitraum"))
+        temperature = html.escape(
+            format_weather_temperature_range(
+                period.get("temperature_min_c"), period.get("temperature_max_c")
+            )
+        )
+        rain = html.escape(format_weather_number(period.get("rain_probability_pct"), "%"))
+        wind = html.escape(format_weather_number(period.get("wind_speed_kmh"), "km/h"))
+        columns.append((name, temperature, rain, wind))
+    if not columns:
+        return ""
+
+    source = html.escape(str(weather.get("source") or "DWD"))
+    warning = build_weather_warning_sentence(weather.get("warnings") or [])
+    warning_html = (
+        '<p style="margin:0;padding:10px 12px;background:#fff3db;'
+        'border-top:1px solid #efdbaf;color:#65450b;font-size:12px;line-height:1.45">'
+        f'{html.escape(warning)}</p>'
+        if warning else ""
+    )
+    return (
+        '<div style="margin:10px 0 14px;border:1px solid #c8dadd;'
+        'border-radius:6px;overflow:hidden;background:#f4f9f9">'
+        '<p style="margin:0;padding:11px 12px;background:#dceef0;color:#173b42;'
+        'font-size:14px;font-weight:700;line-height:1.3">'
+        f'Wetter · {label}</p>'
+        '<table cellpadding="0" cellspacing="0" '
+        'style="width:100%;border-collapse:collapse;table-layout:fixed">'
+        '<thead><tr>'
+        + "".join(
+            f'<th scope="col" style="width:{100 / len(columns):.1f}%;padding:10px 7px 7px;'
+            f'text-align:left;font-size:11px;color:#52646c">{name}</th>'
+            for name, _, _, _ in columns
+        )
+        + '</tr></thead><tbody><tr>'
+        + "".join(
+            '<td style="padding:2px 7px 11px;vertical-align:top;'
+            'border-right:1px solid #dbe4e7">'
+            f'<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#173b42">{temperature}</p>'
+            f'<p style="margin:0 0 5px;font-size:11px;color:#147a9b">Regen {rain}</p>'
+            f'<p style="margin:0;font-size:11px;color:#52646c">Wind {wind}</p>'
+            '</td>'
+            for _, temperature, rain, wind in columns
+        )
+        + '</tr></tbody></table>'
+        + warning_html
+        + '<p style="margin:0;padding:7px 12px;border-top:1px solid #dbe4e7;'
+        f'font-size:10px;color:#68777c">Quelle: {source}</p></div>'
+    )
+
+
+def markdown_to_basic_html(
+    markdown_body: str, weather: dict[str, Any] | None = None
+) -> str:
     html_lines = []
     in_list = False
     first_paragraph = True
+    current_section = ""
+    weather_card = render_weather_card(weather) if weather else ""
+    weather_summary = str(weather.get("summary") or "") if weather else ""
     section_icons = {
         "Today": "📅",
         "Waiting for...": "⏳",
@@ -2894,19 +2966,18 @@ def markdown_to_basic_html(markdown_body: str) -> str:
                 html_lines.append("</ul>")
                 in_list = False
             html_lines.append(
-                "<h1 style=\"margin:0 0 10px 0;padding:0 0 8px 0;"
-                "border-top:1px solid #9aa0a6;border-bottom:1px solid #c7cdd4;"
-                "font-size:18px;line-height:1.25;font-weight:700;color:#202124\">"
-                "<span style=\"display:inline-block;width:23px;margin-right:4px;"
-                "font-size:15px;vertical-align:1px\">📰</span>"
+                "<h1 style=\"margin:0 0 10px 0;padding:13px 0 11px;"
+                "border-top:4px solid #138a80;border-bottom:1px solid #d7e2e3;"
+                "font-size:20px;line-height:1.3;font-weight:700;color:#173b42\">"
                 f"{render_inline_markdown(line[2:])}</h1>"
             )
         elif line.startswith("## "):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            heading = render_inline_markdown(line[3:])
-            icon = section_icons.get(line[3:].strip(), "")
+            current_section = line[3:].strip()
+            heading = render_inline_markdown(current_section)
+            icon = section_icons.get(current_section, "")
             icon_html = (
                 "<span style=\"display:inline-block;width:22px;margin-right:3px;"
                 "font-size:14px;font-weight:400;vertical-align:1px\">"
@@ -2915,26 +2986,34 @@ def markdown_to_basic_html(markdown_body: str) -> str:
                 else ""
             )
             html_lines.append(
-                "<h2 style=\"margin:14px 0 5px 0;font-size:15px;line-height:1.3;"
-                f"font-weight:700;color:#303134\">{icon_html}{heading}</h2>"
+                "<h2 style=\"margin:20px 0 7px;padding-bottom:5px;"
+                "border-bottom:1px solid #d7e2e3;font-size:15px;line-height:1.3;"
+                f"font-weight:700;color:#173b42\">{icon_html}{heading}</h2>"
             )
         elif line.startswith("- "):
+            if current_section == "Today" and weather_card and line[2:].strip() == weather_summary:
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(weather_card)
+                weather_card = ""
+                continue
             if not in_list:
-                html_lines.append("<ul style=\"margin:0 0 10px 25px;padding:0\">")
+                html_lines.append("<ul style=\"margin:0 0 12px 22px;padding:0\">")
                 in_list = True
             html_lines.append(
-                "<li style=\"margin:3px 0;padding-left:1px;font-size:14px;"
-                f"line-height:1.35;color:#2b2f33\">{render_inline_markdown(line[2:])}</li>"
+                "<li style=\"margin:0;padding:7px 0 7px 2px;border-bottom:1px solid #edf1f1;"
+                f"font-size:14px;line-height:1.4;color:#26343a\">{render_inline_markdown(line[2:])}</li>"
             )
         else:
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
             style = (
-                "margin:8px 0 13px 25px;color:#5f6368;font-size:14px;"
+                "margin:8px 0 13px;color:#52646c;font-size:14px;"
                 "line-height:1.35;font-style:italic"
                 if first_paragraph
-                else "margin:0 0 8px 25px;font-size:14px;line-height:1.35;color:#2b2f33"
+                else "margin:0 0 8px;font-size:14px;line-height:1.35;color:#26343a"
             )
             html_lines.append(f"<p style=\"{style}\">{render_inline_markdown(line)}</p>")
             first_paragraph = False
@@ -2945,8 +3024,8 @@ def markdown_to_basic_html(markdown_body: str) -> str:
 <head>
   <meta charset="utf-8">
 </head>
-<body style="margin:0;padding:0;background:#ffffff;color:#2b2f33;font-family:Arial,Helvetica,sans-serif">
-  <div style="max-width:700px;margin:0;padding:18px 20px 22px">
+<body style="margin:0;padding:0;background:#f2f6f5;color:#26343a;font-family:Arial,Helvetica,sans-serif">
+  <div style="max-width:700px;margin:0 auto;padding:18px 12px 22px;background:#ffffff">
     {"\n".join(html_lines)}
   </div>
 </body>
@@ -3073,7 +3152,7 @@ def main() -> int:
         print(f"Dry run successful: {subject} generated; no email sent.")
         return 0
 
-    send_email(config, token, subject, briefing)
+    send_email(config, token, subject, briefing, weather)
     print(f"Sent: {subject} to {config.recipient}")
     return 0
 

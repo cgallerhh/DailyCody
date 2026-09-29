@@ -1,9 +1,14 @@
 import sys
 import unittest
 import datetime as dt
+import base64
+import email
+from email import policy
 import io
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -80,3 +85,74 @@ class WeatherSummaryTest(unittest.TestCase):
 
         self.assertIn(f"## Today\n- {summary}\n- Termin", result)
         self.assertNotIn("scheint die Sonne", result)
+
+    def test_email_weather_card_uses_structured_values_and_preserves_plain_text(self):
+        weather = {
+            "label": "Hamburg-Harburg",
+            "source": "DWD Open Data MOSMIX_L",
+            "summary": "Hamburg-Harburg — Vormittags: 16–21 °C.",
+            "periods": [
+                {
+                    "label": "Vormittags",
+                    "temperature_min_c": 16,
+                    "temperature_max_c": 21,
+                    "rain_probability_pct": 33,
+                    "wind_speed_kmh": 16,
+                },
+                {
+                    "label": "Mittags",
+                    "temperature_min_c": 22,
+                    "temperature_max_c": 24,
+                    "rain_probability_pct": 42,
+                    "wind_speed_kmh": 19,
+                },
+                {
+                    "label": "Nachmittags",
+                    "temperature_min_c": 25,
+                    "temperature_max_c": 28,
+                    "rain_probability_pct": 54,
+                    "wind_speed_kmh": 23,
+                },
+            ],
+            "warnings": [],
+        }
+        markdown = (
+            "# Daily Cody\n\n## Today\n- " + weather["summary"]
+            + "\n- Termin\n\n## Deliveries\n- Paket — [Trackinglink](https://example.com/track)"
+        )
+
+        with patch.object(daily_cody, "request_json") as request:
+            daily_cody.send_email(
+                SimpleNamespace(sender="sender@example.com", recipient="reader@example.com"),
+                "token",
+                "Daily Cody",
+                markdown,
+                weather,
+            )
+
+        raw = request.call_args.kwargs["body"]["raw"]
+        message = email.message_from_bytes(base64.urlsafe_b64decode(raw), policy=policy.default)
+        plain = message.get_body(preferencelist=("plain",)).get_content()
+        html_body = message.get_body(preferencelist=("html",)).get_content()
+        self.assertEqual(plain.strip(), markdown)
+        self.assertIn("Wetter · Hamburg-Harburg", html_body)
+        self.assertIn("16–21 °C", html_body)
+        self.assertIn("Regen 33 %", html_body)
+        self.assertIn("Wind 23 km/h", html_body)
+        self.assertNotIn(weather["summary"], html_body)
+        self.assertIn("https://example.com/track", html_body)
+        self.assertIn("Termin", html_body)
+
+    def test_weather_card_escapes_untrusted_values_and_handles_missing_metrics(self):
+        html_body = daily_cody.render_weather_card(
+            {
+                "label": "<script>alert(1)</script>",
+                "source": "DWD & Partner",
+                "periods": [{"label": "Vormittags", "temperature_min_c": None}],
+            }
+        )
+
+        self.assertIn("&lt;script&gt;", html_body)
+        self.assertNotIn("<script>", html_body)
+        self.assertIn("DWD &amp; Partner", html_body)
+        self.assertIn("k. A.", html_body)
