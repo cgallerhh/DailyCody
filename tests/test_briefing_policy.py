@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
+import urllib.parse
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -92,6 +93,15 @@ class BriefingPolicyTest(unittest.TestCase):
         merchant = [q for q in queries if "from:service.bestsecret.com" in q]
         self.assertTrue(merchant)
         self.assertTrue(all("-in:trash" not in q for q in merchant))
+
+    def test_delivery_api_enables_trash_on_every_page(self):
+        with patch.object(delivery_detection, "delivery_search_queries", return_value=["in:anywhere -in:spam from:service.bestsecret.com"]), patch.object(daily_cody, "request_json", side_effect=[{"messages": [{"id": "a"}], "nextPageToken": "second"}, {"messages": [{"id": "b"}]}]) as request:
+            result = daily_cody.search_delivery_message_refs("token")
+        self.assertEqual(len(result), 2)
+        for call in request.call_args_list:
+            params = urllib.parse.parse_qs(urllib.parse.urlparse(call.args[0]).query)
+            self.assertEqual(params["includeSpamTrash"], ["true"])
+            self.assertIn("-in:spam", params["q"][0])
 
     def test_bestsecret_html_is_used_when_plain_part_is_only_a_footer(self):
         html = '<head><style>' + "css " * 4000 + '</style></head><div style="display:none">' + "padding " * 1000 + '</div><p>Wir bereiten Ihre Bestellung vor.</p><p>Bestellnummer: 1234567890</p>'

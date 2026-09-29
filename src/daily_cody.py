@@ -1865,7 +1865,7 @@ def search_delivery_message_refs(token: str) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for query_text in delivery_detection.delivery_search_queries():
         query = urllib.parse.urlencode(
-            {"q": query_text, "maxResults": str(delivery_detection.DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY)}
+            {"q": query_text, "maxResults": str(delivery_detection.DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY), "includeSpamTrash": "true"}
         )
         payload = request_json(f"{GMAIL_API}/messages?{query}", token=token)
         for item in payload.get("messages", []):
@@ -1882,7 +1882,7 @@ def search_delivery_message_refs(token: str) -> list[dict[str, Any]]:
             if page_token in page_tokens:
                 raise RuntimeError("Lieferquelle unvollstaendig: wiederholtes Pagination-Token.")
             page_tokens.add(page_token)
-            next_query = urllib.parse.urlencode({"q": query_text, "maxResults": str(delivery_detection.DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY), "pageToken": page_token})
+            next_query = urllib.parse.urlencode({"q": query_text, "maxResults": str(delivery_detection.DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY), "pageToken": page_token, "includeSpamTrash": "true"})
             payload = request_json(f"{GMAIL_API}/messages?{next_query}", token=token)
             for item in payload.get("messages", []):
                 if item["id"] not in seen:
