@@ -88,6 +88,23 @@ class AppleRemindersTest(unittest.TestCase):
         self.assertEqual(reminder["list"], "Privat")
         self.assertEqual(reminder["due"], "Mi 1.7")
 
+    def test_incomplete_recurring_reminder_stays_overdue(self):
+        now = dt.datetime(2026, 9, 29, 8, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+        reminder = daily_cody.normalize_exported_reminder(
+            {
+                "name": "Wiederkehrende Aufgabe",
+                "due_date": "2026-09-12T18:00:00",
+                "completed": False,
+                "recurring": True,
+                "recurrence_rules": [{"frequency": "weekly", "interval": 1}],
+            },
+            now,
+        )
+
+        self.assertEqual(reminder["due"], "Sa 12.9")
+        today, _, _ = daily_cody.split_reminders_for_briefing([reminder], now)
+        self.assertEqual(len(today), 1)
+
     def test_read_exported_reminders_refreshes_stale_local_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

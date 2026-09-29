@@ -108,7 +108,7 @@ The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, 
 scripts/export_apple_reminders.sh
 ```
 
-The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next two days (seven days on Fridays). Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
+The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next two days (seven days on Fridays). Open recurring reminders retain the due date exported by Apple, including overdue dates. Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
 
 To let the Mac update the export automatically, install the local LaunchAgent:
 

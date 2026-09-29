@@ -1585,7 +1585,6 @@ def normalize_exported_reminder(
     if not title:
         return None
     due = extract_reminder_due(raw, now)
-    due = roll_recurring_due_forward(raw, due, now)
     notes = first_text(raw, ("notes", "note", "body", "description"))
     list_name = first_text(raw, ("list", "listName", "list_name", "calendar", "calendarName"))
     today = now.date()
@@ -1641,84 +1640,6 @@ def extract_reminder_due(raw: dict[str, Any], now: dt.datetime) -> dt.datetime |
         if alarm_dates:
             return min(alarm_dates)
     return None
-
-
-def roll_recurring_due_forward(
-    raw: dict[str, Any], due: dt.datetime | None, now: dt.datetime
-) -> dt.datetime | None:
-    if not due or due.date() >= now.date() or not is_recurring_reminder(raw):
-        return due
-    rules = raw.get("recurrence_rules")
-    if not isinstance(rules, list):
-        return due
-    for rule in rules:
-        if not isinstance(rule, dict):
-            continue
-        frequency = str(rule.get("frequency", "")).lower()
-        interval = parse_positive_int(rule.get("interval"), default=1)
-        if frequency == "daily":
-            return combine_due_date_time(now.date(), due)
-        if frequency == "weekly":
-            return next_weekly_reminder_due(raw, rule, due, now, interval)
-    return due
-
-
-def is_recurring_reminder(raw: dict[str, Any]) -> bool:
-    value = raw.get("recurring")
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str) and value.lower() in {"true", "yes", "1"}:
-        return True
-    return isinstance(raw.get("recurrence_rules"), list) and bool(raw.get("recurrence_rules"))
-
-
-def parse_positive_int(value: Any, default: int = 1) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return parsed if parsed > 0 else default
-
-
-def next_weekly_reminder_due(
-    raw: dict[str, Any],
-    rule: dict[str, Any],
-    due: dt.datetime,
-    now: dt.datetime,
-    interval: int,
-) -> dt.datetime:
-    weekdays = reminder_rule_weekdays(rule, due)
-    start_date = due.date()
-    today = now.date()
-    for offset in range(0, 370):
-        candidate = today + dt.timedelta(days=offset)
-        if candidate.weekday() not in weekdays:
-            continue
-        weeks_since_start = max(0, (candidate - start_date).days // 7)
-        if weeks_since_start % interval == 0:
-            return combine_due_date_time(candidate, due)
-    return combine_due_date_time(today, due)
-
-
-def reminder_rule_weekdays(rule: dict[str, Any], due: dt.datetime) -> set[int]:
-    raw_days = rule.get("days_of_week")
-    if not isinstance(raw_days, list) or not raw_days:
-        return {due.weekday()}
-    mapping = {
-        "monday": 0,
-        "tuesday": 1,
-        "wednesday": 2,
-        "thursday": 3,
-        "friday": 4,
-        "saturday": 5,
-        "sunday": 6,
-    }
-    weekdays = {mapping[str(day).lower()] for day in raw_days if str(day).lower() in mapping}
-    return weekdays or {due.weekday()}
-
-
-def combine_due_date_time(value: dt.date, original: dt.datetime) -> dt.datetime:
-    return dt.datetime.combine(value, original.timetz()).replace(tzinfo=original.tzinfo)
 
 
 def is_completed_reminder(raw: dict[str, Any]) -> bool:
