@@ -100,6 +100,22 @@ Manuelle Cody-Hinweise dürfen nur spezifische Lieferungen schließen. Generisch
 
 ## Bekannte Händler-Muster
 
+Manuelle Abschluesse koennen als `delivery-sha256:...`-Eintraege in der
+bestehenden `completed`-Liste gespeichert werden. Erzeuge sie mit
+`delivery_completion_fingerprints(message)` oder
+`delivery_completion_fingerprint(kind, value)`; erlaubt sind nur konkrete
+Nachrichten-, Sendungs- und haendlerspezifische Bestellidentitaeten.
+Keine persoenlichen Mailtexte, neuen Bestellnummern oder Trackinglinks im
+oeffentlichen Repository speichern. Die Fingerprints sind Hashwerte,
+keine Verschluesselung und kein Ersatz fuer eine Zugriffskontrolle.
+
+Ein manueller Abschluss ist ein terminales Ereignis fuer die konkrete
+Lieferung. Damit tauchen auch aeltere Status derselben Gruppe nicht erneut
+auf. Ein Abschluss anhand einer einzelnen Mail gilt nur bis zu deren
+Quellzeitpunkt; neue Mails und Bestellungen bleiben erhalten.
+Passwort-, Konto- und Anmeldemitteilungen sind keine Lieferquellen, auch
+wenn ihre Fusszeile Links zu Bestellungen enthaelt.
+
 - Amazon: Status im Betreff, Bestellnummer im Body, Trackinglink `progress-tracker`.
 - BestSecret: generischer Betreff `Vielen Dank für Ihre Bestellung`, Bestellnummer im Body, ETA oft `2-5 Werktage`; spätere Mails `Ihre Bestellung ist versandbereit` oder Carrier-Mails wie `Ihre BESTSECRET Sendung ist unterwegs`.
 - GoLighter/Wellster: Rezeptmail ist nur `ordered`; echte Versandmail enthält Sendungsnummer oder `Sendung verfolgen`; DHL-Wellster-Mails liefern `unterwegs`, `kommt heute` und `liegt nebenan`.

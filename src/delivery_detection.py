@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import email.utils
+import hashlib
 import html
 import re
 import unicodedata
@@ -63,6 +64,8 @@ def delivery_candidate_from_message(
     status = classify_delivery_status(subject, snippet, text)
     if status == "unknown":
         return None
+    if delivery_completion_fingerprints(message).intersection(completed_topics or []):
+        status = "delivered"
     display_title = delivery_display_title(subject, sender, text)
     if is_suppressed_topic(subject, snippet, text, display_title, completed_topics=completed_topics):
         return None
@@ -86,6 +89,24 @@ def delivery_candidate_from_message(
         "message_id": str(message.get("message_id") or message.get("id") or ""),
         "source_url": f"https://mail.google.com/mail/u/0/#all/{message['message_id']}" if message.get("message_id") else "",
     }
+
+
+def delivery_completion_fingerprint(kind: str, value: str) -> str:
+    if kind not in {"message", "tracking", "order"} or not value:
+        raise ValueError("An exact delivery identity is required")
+    digest = hashlib.sha256(f"delivery:v1:{kind}:{value}".encode("utf-8")).hexdigest()
+    return f"delivery-sha256:{kind}:{digest}"
+
+
+def delivery_completion_fingerprints(message: dict[str, Any]) -> set[str]:
+    subject = str(message.get("subject") or "")
+    text = str(message.get("body") or message.get("text") or "")
+    identities = {
+        "message": str(message.get("message_id") or message.get("id") or ""),
+        "tracking": extract_delivery_tracking_number(subject, text),
+        "order": delivery_order_key(subject, message_sender(message), text),
+    }
+    return {delivery_completion_fingerprint(kind, value) for kind, value in identities.items() if value}
 
 
 def message_sender(message: dict[str, Any]) -> str:
@@ -293,6 +314,12 @@ def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
 
 
 def is_delivery_noise(subject: str, snippet: str, text: str) -> bool:
+    account_subject = mail_policy.normalized(subject)
+    if any(marker in account_subject for marker in (
+        "passwort", "password", "kundenkonto", "kontoaktualisierung", "konto aktualisierung",
+        "account update", "account security", "anmeldeversuch", "login attempt",
+    )):
+        return True
     haystack = normalize_status_text(f"{subject} {snippet} {text[:800]}")
     noise_markers = (
         "kurzbefragung",
@@ -822,6 +849,8 @@ def is_suppressed_topic(*values: str, completed_topics: list[str] | None = None)
 
 
 def completed_delivery_topic_matches(entry: str, delivery_text: str, normalized_delivery_text: str) -> bool:
+    if entry.startswith("delivery-sha256:"):
+        return False
     normalized_entry = normalize_status_text(entry)
     if not normalized_entry:
         return False

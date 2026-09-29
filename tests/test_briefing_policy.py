@@ -179,6 +179,38 @@ class BriefingPolicyTest(unittest.TestCase):
         self.assertEqual(result[0]["status"], "unconfirmed")
         self.assertEqual(result[0]["eta_end_date"], (mail_at.date() + dt.timedelta(days=1)).isoformat())
 
+    def test_account_security_mail_is_not_a_package_despite_order_footer(self):
+        message = {"from": "Amazon <konto-aktualisierung@amazon.de>", "subject": "Aenderung deines Amazon.de-Kundenkontos", "body": "Dein Passwort wurde erfolgreich zurueckgesetzt. Schaue unter Mein Konto, um deine Bestellungen anzuzeigen. https://www.amazon.de/", "sort_key": int(NOW.timestamp() * 1000)}
+        self.assertEqual(delivery_detection.detect_open_deliveries([message], NOW), [])
+
+    def test_hashed_order_completion_does_not_suppress_other_orders(self):
+        done = {"from": "Amazon <shipment@amazon.de>", "subject": "Versendet: Bestellung", "body": "Bestellnummer: 305-1234567-1234567", "sort_key": int(NOW.timestamp() * 1000)}
+        open_order = dict(done, body="Bestellnummer: 305-1234567-1234568")
+        key = delivery_detection.delivery_completion_fingerprint("order", delivery_detection.delivery_order_key(done["subject"], done["from"], done["body"]))
+        result = delivery_detection.detect_open_deliveries([done, open_order], NOW, completed_topics=[key])
+        self.assertEqual([m["subject"] for m in result], ["Amazon #305-1234567-1234568"])
+        self.assertNotIn("1234567", key)
+
+    def test_source_completion_closes_history_not_new_same_merchant_mail(self):
+        old = {"message_id": "old", "from": "DHL <noreply@dhl.de>", "subject": "Ihre BESTSECRET Sendung ist unterwegs", "body": "Paket ist unterwegs.", "sort_key": 1000}
+        older = dict(old, message_id="older", sort_key=500)
+        new = dict(old, message_id="new", sort_key=int(NOW.timestamp() * 1000))
+        key = delivery_detection.delivery_completion_fingerprint("message", "old")
+        self.assertEqual(delivery_detection.detect_open_deliveries([old, older], NOW, completed_topics=[key]), [])
+        result = delivery_detection.detect_open_deliveries([old, older, new], NOW, completed_topics=[key])
+        self.assertEqual([m["message_id"] for m in result], ["new"])
+
+    def test_tracking_completion_is_independent_of_source_message(self):
+        message = {"from": "DHL <noreply@dhl.de>", "subject": "Ihre Sendung ist unterwegs", "body": "Sendungsnummer: 00340434515530000000", "sort_key": int(NOW.timestamp() * 1000)}
+        key = delivery_detection.delivery_completion_fingerprint("tracking", "00340434515530000000")
+        self.assertEqual(delivery_detection.detect_open_deliveries([message], NOW, completed_topics=[key]), [])
+
+    def test_completion_fingerprint_requires_exact_supported_identity(self):
+        with self.assertRaises(ValueError):
+            delivery_detection.delivery_completion_fingerprint("merchant", "BestSecret")
+        with self.assertRaises(ValueError):
+            delivery_detection.delivery_completion_fingerprint("message", "")
+
 
 if __name__ == "__main__":
     unittest.main()
