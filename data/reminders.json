@@ -1,21 +1,5 @@
 [
     {
-        "id": "1EB0967B-2A3F-44C7-AEDB-8B33B7DAEB01",
-        "name": "Erstattung Bayerische da? Juli, August = 370 \u20ac",
-        "list_name": "_INBOX",
-        "due_date": "2026-08-14T00:00:00",
-        "creation_date": "2026-08-05T15:46:07",
-        "modification_date": "2026-09-24T11:29:06",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
-        "alarms": []
-    },
-    {
         "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
         "name": "Pia anrufen: weekly und tgl. Textnachrichten",
         "list_name": "_INBOX",
@@ -84,6 +68,78 @@
             "warten"
         ],
         "alarms": []
+    },
+    {
+        "id": "9EAB06E7-56AA-4BD4-93DA-BE9354DAF567",
+        "name": "VKB: Abbuchung und ausstehende Korrektur pr\u00fcfen",
+        "body": "Korrektur noch in Pr\u00fcfung; R\u00fcckmeldung ausstehend.",
+        "list_name": "PRIVAT",
+        "due_date": "2026-10-01T10:00:00",
+        "remind_me_date": "2026-10-01T10:00:00",
+        "creation_date": "2026-08-05T15:46:07",
+        "modification_date": "2026-09-30T09:40:38",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://mail.google.com/mail/u/?authuser=christian.galler%40gmail.com#all/1a0ec10b690d32ff",
+        "tags": [
+            "warten"
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-10-01T10:00:00",
+                "description": "Thu Oct 01, 2026 at 10:00 AM"
+            }
+        ]
+    },
+    {
+        "id": "847B4044-8EF2-44CB-9842-DBC35EF0548E",
+        "name": "BSI: Eingang Arbeitsvertrag pr\u00fcfen",
+        "body": "Vertrag voraussichtlich am 1.10. fertig; Eingang noch offen.",
+        "list_name": "PRIVAT",
+        "due_date": "2026-10-02T10:00:00",
+        "remind_me_date": "2026-10-02T10:00:00",
+        "creation_date": "2026-09-30T09:36:10",
+        "modification_date": "2026-09-30T10:03:12",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://mail.google.com/mail/u/?authuser=christian.galler%40gmail.com#all/1a0f0ed5f120d2be",
+        "tags": [
+            "warten"
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-10-02T10:00:00",
+                "description": "Fri Oct 02, 2026 at 10:00 AM"
+            }
+        ]
+    },
+    {
+        "id": "44952B41-469F-48F6-990B-CB3598525746",
+        "name": "BSI: Reisekostenerstattung pr\u00fcfen",
+        "body": "Zugesagte Reisekostenerstattung; Geldeingang noch unbest\u00e4tigt.",
+        "list_name": "PRIVAT",
+        "due_date": "2026-10-07T10:00:00",
+        "remind_me_date": "2026-10-07T10:00:00",
+        "creation_date": "2026-09-24T11:18:21",
+        "modification_date": "2026-09-30T10:03:12",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "url": "https://mail.google.com/mail/u/?authuser=christian.galler%40gmail.com#all/1a0f0ed5f120d2be",
+        "tags": [
+            "warten"
+        ],
+        "alarms": [
+            {
+                "absolute_date": "2026-10-07T10:00:00",
+                "description": "Wed Oct 07, 2026 at 10:00 AM"
+            }
+        ]
     },
     {
         "id": "9B0201E3-F790-4D21-AE82-DC5E69AEBE2A",
@@ -218,21 +274,6 @@
         "flagged": false,
         "completed": false,
         "url": "https://www.derstandard.de/story/3000000333513/nonna-ritas-parmigiana-melanzani-mit-sonnenbrand",
-        "alarms": []
-    },
-    {
-        "id": "529EACC3-C01D-4D83-84F4-0956C165C003",
-        "name": "Erstattung Reisekosten BSI komplett da? 780 \u20ac",
-        "list_name": "_INBOX",
-        "creation_date": "2026-09-24T11:18:21",
-        "modification_date": "2026-09-24T11:29:52",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "warten"
-        ],
         "alarms": []
     }
 ]
