@@ -16,6 +16,11 @@ Der aktuelle eigene Nachrichtentext wird vor Signatur und zitiertem Verlauf
 abgetrennt. Vor jeder Antwortaufgabe wird geprueft, ob bereits eine eigene
 Antwort existiert. Nachfasspunkte erfordern eine echte offene Rueckfrage,
 keine Terminbestaetigung, blosse Information oder zitierte alte Frage.
+Explizite Fragen fuer eine spaetere Besprechung sind keine offenen Antworten.
+Eine eigene Zusage wird dadurch nicht automatisch zu einer neuen Erinnerung;
+eine unabhaengige echte Rueckfrage in derselben Mail bleibt erhalten.
+Versand-/Bestellbestaetigungen sind auch ohne Massenmail-Header automatisch.
+Rueckgabehinweise wie "kannst du zuruecksenden" sind keine Antwortaufforderung.
 Eine Absage oder als beendet markierter Vorgang verschwindet aus allen
 Aktions- und Nachfassabschnitten. Explizite Nutzerentscheidungen liegen in
 `data/resolved_topics.json` und haben Vorrang vor alten Mailformulierungen.
@@ -40,6 +45,11 @@ Bestellt und versendet sind verschiedene Zustaende. Eine Bestaetigung mit
 beweisen keine Zustellung: Sie werden als ungeklart angezeigt, nicht still
 unterdrueckt. Abschlussmeldungen brauchen passende Bestell-/Sendungsdaten;
 eine gelieferte BestSecret-Sendung darf keine andere Bestellung schliessen.
+Eine bestaetigte Stornierung der gesamten Bestellung schliesst nur aeltere
+Status derselben konkreten Bestellung. Teilstornierungen, Anfragen und
+fehlgeschlagene Stornierungen sind kein Gesamtabschluss. Relative Angaben
+wie "morgen" werden an das Maildatum in der konfigurierten Zeitzone gebunden
+und als Datum ausgegeben; ausdrueckliche Zeitspannen bleiben Zeitspannen.
 
 Alle Suchseiten werden gelesen und dedupliziert. Wiederholte Pagination-Token
 oder das Sicherheitslimit fuehren zu einem Fehler, nicht zu falschen Leerlisten.

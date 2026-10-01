@@ -13,12 +13,14 @@ import html
 import re
 import unicodedata
 from typing import Any
+from urllib.parse import SplitResult, parse_qs, urlsplit
 import mail_policy
 
 
 DELIVERY_LOOKBACK_DAYS = 60
 DELIVERY_SEARCH_MAX_RESULTS_PER_QUERY = 80
 DELIVERY_SEARCH_TOTAL_LIMIT = 360
+TERMINAL_DELIVERY_STATUSES = frozenset({"delivered", "cancelled"})
 
 
 def detect_open_deliveries(
@@ -64,6 +66,11 @@ def delivery_candidate_from_message(
     status = classify_delivery_status(subject, snippet, text)
     if status == "unknown":
         return None
+    order_key = delivery_order_key(subject, sender, text)
+    # A cancellation must identify a concrete order; never close a merchant
+    # or a vaguely matching product based on an unscoped notice.
+    if status == "cancelled" and not order_key:
+        return None
     if delivery_completion_fingerprints(message).intersection(completed_topics or []):
         status = "delivered"
     display_title = delivery_display_title(subject, sender, text)
@@ -75,11 +82,11 @@ def delivery_candidate_from_message(
         "from": sender,
         "subject": display_title,
         "date": str(message.get("date") or ""),
-        "snippet": delivery_status_summary(status, subject, snippet, text),
+        "snippet": delivery_status_summary(status, subject, snippet, text, eta_reference=eta_reference),
         "status": status,
         "status_rank": delivery_status_rank(status),
         "topic_key": normalize_delivery_key(subject, sender, text),
-        "order_key": delivery_order_key(subject, sender, text),
+        "order_key": order_key,
         "tracking_number": extract_delivery_tracking_number(subject, text),
         "thread_id": str(message.get("thread_id") or message.get("threadId") or ""),
         "sort_key": message_sort_key(message),
@@ -116,14 +123,14 @@ def message_sender(message: dict[str, Any]) -> str:
 def message_sort_key(message: dict[str, Any]) -> int:
     for key in ("sort_key", "internal_date", "internalDate"):
         value = message.get(key)
-        if isinstance(value, int):
+        if isinstance(value, int) and value > 0:
             return value
-        if isinstance(value, str) and value.isdigit():
+        if isinstance(value, str) and value.isdigit() and int(value) > 0:
             return int(value)
-    timestamp = message.get("email_ts") or message.get("timestamp")
+    timestamp = message.get("email_ts") or message.get("timestamp") or message.get("date")
     if isinstance(timestamp, str):
         parsed = parse_message_datetime(timestamp)
-        if parsed:
+        if parsed and parsed.tzinfo is not None:
             return int(parsed.timestamp() * 1000)
     return 0
 
@@ -141,7 +148,10 @@ def parse_message_datetime(value: str) -> dt.datetime | None:
     try:
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
-        return None
+        try:
+            return email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
 
 
 def delivery_search_queries() -> list[str]:
@@ -223,12 +233,51 @@ def extract_tracking_links(text: str) -> list[str]:
     )
     for link in links:
         clean = link.rstrip(".,;:")
+        destination = tracking_link_destination(clean)
+        if destination is None:
+            continue
+        # Merchant navigation is not parcel tracking, even when adjacent to
+        # shipment text or embedded in a merchant's click-through wrapper.
+        path_parts = [part for part in destination.path.lower().split("/") if part and not part.startswith("ref=")]
+        if path_parts and path_parts[-1] in {
+            "order-history", "your-account", "buyagain", "order-details",
+        }:
+            continue
         if (
             any(keyword in clean.lower() for keyword in keywords)
             or has_tracking_context_near_link(text, clean)
         ) and clean not in wanted:
             wanted.append(clean)
-    return wanted
+    return sorted(wanted, key=tracking_link_priority)
+
+
+def tracking_link_destination(link: str) -> SplitResult | None:
+    try:
+        parsed = urlsplit(html.unescape(link))
+        hostname = (parsed.hostname or "").lower()
+        if not hostname or parsed.scheme not in {"http", "https"}:
+            return None
+        if (hostname == "amazon.de" or hostname.endswith(".amazon.de")
+                or hostname == "amazon.com" or hostname.endswith(".amazon.com")):
+            target = parse_qs(parsed.query).get("U", [""])[0]
+            if parsed.path == "/gp/r.html" and target.startswith(("https://", "http://")):
+                destination = urlsplit(target)
+                return destination if destination.hostname else None
+        return parsed
+    except ValueError:
+        return None
+
+
+def tracking_link_priority(link: str) -> int:
+    destination = tracking_link_destination(link)
+    if destination is None:
+        return 2
+    path = destination.path.lower()
+    if any(marker in path for marker in ("progress-tracker", "tracking", "sendungsverfolgung", "/track", "ship-track", "shiptrack")):
+        return 0
+    if any(key.lower() in {"piececode", "trackingnumber", "tracking-id"} for key in parse_qs(destination.query)):
+        return 0
+    return 1
 
 
 def has_tracking_context_near_link(text: str, link: str) -> bool:
@@ -249,7 +298,7 @@ def has_tracking_context_near_link(text: str, link: str) -> bool:
 
 
 def looks_like_delivery(subject: str, snippet: str, text: str) -> bool:
-    if classify_delivery_status_from_subject(subject):
+    if classify_delivery_status_from_subject(subject) or confirmed_order_cancellation(subject, snippet, text):
         return True
     haystack = f"{subject} {snippet} {text[:1200]}".lower()
     normalized = normalize_status_text(haystack)
@@ -401,6 +450,8 @@ def is_non_delivery_account_notification(haystack: str) -> bool:
 
 
 def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
+    if confirmed_order_cancellation(subject, snippet, text):
+        return "cancelled"
     subject_status = classify_delivery_status_from_subject(subject)
     if subject_status:
         return subject_status
@@ -477,6 +528,33 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
     return "unknown"
 
 
+def confirmed_order_cancellation(*values: str) -> bool:
+    # Only affirmative whole-order confirmations are terminal. Item-only
+    # cancellations, requests, conditional advice and negations are not.
+    pattern = re.compile(
+        r"\b(?:bestellung\s+(?:wurde|ist)\s+(?:erfolgreich\s+)?storniert|"
+        r"order\s+(?:has\s+been|was|is)\s+(?:successfully\s+)?cancell?ed)\b"
+    )
+    for value in values:
+        # A newline can be mail wrapping, including between a partial-order
+        # qualifier and "Bestellung"; only punctuation separates statements.
+        for unit in re.findall(r"[^.!?]+[.!?]?", mail_policy.authored_text(value)[:3000]):
+            current = normalize_search_text(unit)
+            match = pattern.search(current)
+            if not match or unit.endswith("?"):
+                continue
+            if re.search(r"\b(?:if|whether|wenn|falls|sofern|ob)\b", current):
+                continue
+            if re.search(
+                r"\b(?:teile?|artikel|positionen?|produkte?|items?|parts?|portions?|products?)\b"
+                r"(?:\s+(?!(?:wurde[n]?|ist|sind|was|were|has|have|is|are)\b)\w+){0,12}\s*$",
+                current[:match.start()],
+            ):
+                continue
+            return True
+    return False
+
+
 def has_pre_shipment_order_signal(haystack: str) -> bool:
     markers = (
         "versandvorbereitung",
@@ -551,10 +629,21 @@ def delivery_status_rank(status: str) -> int:
         "shipped": 2,
         "out_for_delivery": 3,
         "delivered": 4,
+        "cancelled": 4,
     }.get(status, 0)
 
 
 def summarize_delivery_candidates(items: list[dict[str, Any]], now: dt.datetime) -> list[dict[str, Any]]:
+    # Whole-order cancellations close earlier parcels too. Do this before
+    # splitting tracking groups; delivered parcels still close only themselves.
+    cancelled_orders: dict[str, int] = {}
+    for item in items:
+        if item.get("status") == "cancelled" and item.get("order_key") and item.get("sort_key", 0) > 0:
+            key = item["order_key"]
+            cancelled_orders[key] = max(cancelled_orders.get(key, 0), item["sort_key"])
+    items = [item for item in items if item.get("status") != "cancelled"
+             and not (item.get("order_key") in cancelled_orders
+                      and item.get("sort_key", 0) <= cancelled_orders[item["order_key"]])]
     # A shipment with the same explicit order ID supersedes the confirmation.
     # Keep separate tracking IDs separate: one delivered parcel is not all parcels.
     tracked_orders: dict[str, int] = {}
@@ -636,7 +725,9 @@ def delivery_age_hours(item: dict[str, Any], now_ms: int) -> float:
     return max(0, now_ms - sort_key) / 3_600_000
 
 
-def delivery_status_summary(status: str, subject: str, snippet: str, text: str) -> str:
+def delivery_status_summary(
+    status: str, subject: str, snippet: str, text: str, *, eta_reference: dt.datetime | None = None
+) -> str:
     carrier = extract_delivery_carrier(subject, snippet, text)
     carrier_text = f" per {carrier}" if carrier else ""
     if status == "out_for_delivery":
@@ -645,14 +736,20 @@ def delivery_status_summary(status: str, subject: str, snippet: str, text: str) 
         summary = f"versendet{carrier_text}"
     elif status == "ordered":
         summary = "bestellt"
+    elif status == "cancelled":
+        return "storniert"
     else:
         summary = "geliefert"
     eta = extract_delivery_eta(subject, snippet, text)
+    if eta_reference is not None and re.search(r"\b(?:heute|morgen)\b", eta, flags=re.I):
+        absolute_date = extract_relative_delivery_date(eta_reference, eta)
+        if absolute_date:
+            eta = f"voraussichtliche Zustellung {absolute_date:%d.%m.%Y}"
     return f"{summary}, {eta}" if eta and normalize_status_text(eta) not in normalize_status_text(summary) else summary
 
 
 def extract_delivery_eta_end_date(now: dt.datetime, *values: str) -> str:
-    raw_text = clean_mail_excerpt(" ".join(values))
+    raw_text = clean_mail_excerpt(" ".join(mail_policy.authored_text(value) for value in values))
     date_range = re.search(
         r"zustellung\s*:?\s*\d{1,2}\.\s*([A-Za-zÄÖÜäöü]+)\s*[-–]\s*(\d{1,2})\.\s*([A-Za-zÄÖÜäöü]+)",
         raw_text,
@@ -782,7 +879,7 @@ def parse_delivery_item_date(value: Any) -> dt.date | None:
 
 
 def extract_delivery_eta(*values: str) -> str:
-    raw_text = clean_mail_excerpt(" ".join(values))
+    raw_text = clean_mail_excerpt(" ".join(mail_policy.authored_text(value) for value in values))
     date_range = re.search(
         r"zustellung\s*:\s*(\d{1,2}\.\s*[A-Za-zÄÖÜäöü]+)\s*[-–]\s*(\d{1,2}\.\s*[A-Za-zÄÖÜäöü]+)",
         raw_text,

@@ -79,6 +79,7 @@ Eine Mail zählt nur als Lieferung, wenn sie nach Body-Auswertung in einen Statu
 - `shipped`: Versandbereit, unterwegs, Sendungsnummer oder Tracking vorhanden
 - `out_for_delivery`: kommt heute, in Zustellung
 - `delivered`: zugestellt, geliefert, angekommen, liegt nebenan, abgegeben
+- `cancelled`: ausdruecklich bestaetigte Stornierung der gesamten Bestellung
 - `unconfirmed`: Zustellung nicht bestaetigt; Liefertermin oder Status veraltet
 
 Reine Info-Mails, Umfragen, Retourenstatus, HVV-Tickets, Behördenpostfach-Meldungen und eigene Cody-/Self-Mails sind explizit ausgeschlossen. Schwache Statuswörter wie `versendet` reichen ohne bekannten Händler-, Carrier-, Bestell- oder Tracking-Kontext nicht aus.
@@ -90,9 +91,19 @@ Wenn eine Sendungsnummer vorhanden ist, ist sie der stärkste Schlüssel. Dadurc
 Carrier-Betreffs wie `Ihre Adidas AG Sendung kommt heute` und spätere Delivered-Updates mit demselben Händler-/Sendungsnamen werden gemeinsam gruppiert, auch wenn keine Trackingnummer im Betreff steht.
 
 Delivered-Mails schliessen aeltere offene Status derselben konkreten Gruppe.
+Eine vollstaendige Stornierung braucht eine konkrete Bestellidentitaet und einen
+Quellzeitpunkt; sie schliesst aeltere zugehoerige Paketgruppen bereits vor deren
+Aufteilung nach Sendungsnummer. Teilstornierungen schliessen keine gesamte
+Bestellung. Terminale Ereignisse werden nicht als offene Lieferung ausgegeben.
 Ein verstrichener Liefertermin gilt nicht als Zustellnachweis: Die Sendung
 bleibt als `unconfirmed` sichtbar. Der Status einer Bestellung darf keine
 anderen Bestellungen desselben Haendlers schliessen.
+
+"Heute" und "morgen" werden relativ zum Quellzeitpunkt in der konfigurierten
+Zeitzone ausgewertet und mit absolutem Datum angezeigt. Vorhandene absolute
+Zeitspannen bleiben erhalten. Paket-Trackinglinks haben Vorrang vor allgemeinen
+Haendlerlinks; Amazon-Konto-, Kaufhistorien- und Bestelldetailseiten sind keine
+Trackinglinks, auch nicht innerhalb eines Amazon-Weiterleitungslinks.
 
 ## Erledigt-Suppression
 
