@@ -9,6 +9,16 @@ import unicodedata
 from typing import Any
 
 
+# These are notification roles, not merchant domains or general support inboxes.
+# Ignore punctuation and +tags so the same role works across common senders.
+AUTOMATED_MAILBOXES = {
+    "versandbestatigung", "versandbestaetigung",
+    "bestellbestatigung", "bestellbestaetigung",
+    "orderconfirmation", "shippingconfirmation", "shipmentconfirmation",
+    "shipmenttracking", "deliverynotification", "deliveryconfirmation",
+}
+
+
 def normalized(value: str) -> str:
     return unicodedata.normalize("NFKD", html.unescape(value)).encode("ascii", "ignore").decode().lower()
 
@@ -64,6 +74,16 @@ def personal_message(message: dict[str, Any]) -> bool:
             return False
         if any(part in domain for part in ("newsletter", "fashionnews.", "mailchimp.", "substack.")):
             return False
+        mailbox = re.sub(r"[^a-z0-9]", "", normalized(local.split("+", 1)[0]))
+        if mailbox in AUTOMATED_MAILBOXES:
+            return False
+    body = normalized(authored_text(str(message.get("body") or message.get("snippet") or "")))
+    if re.search(
+        r"\b(?:diese\s+(?:e-?mail|nachricht)\s+(?:wurde|ist)\s+automatisch\s+(?:generiert|erstellt)|"
+        r"this\s+(?:e-?mail|message)\s+(?:was|is)\s+automatically\s+generated)\b",
+        body,
+    ):
+        return False
     return True
 
 
@@ -81,13 +101,58 @@ def requests_response(subject: str, value: str) -> bool:
         return False
     text = normalized(authored_text(value))
     text = re.sub(r"https?://\S+", "", text)
-    if "?" in text:
+    for sentence in re.findall(r"[^.!?]+[.!?]*", text):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        # Only the questions explicitly framed as discussion topics or private
+        # reflections are excluded. A separate real ask in the same mail survives.
+        if "?" in sentence and not discussion_or_self_question(sentence):
+            return True
+        if re.search(
+            r"\b(?:bitte\s+(?:um\s+)?(?:eine\s+)?(?:kurze\s+)?(?:ruckmeldung|antwort|bestatig|pruf|meld|teil|gib|sag)|"
+            r"ich\s+(?:warte|bitte)\s+(?:auf|um)|"
+            r"lass(?:en)?\s+(?:mich|sie mich)\s+wissen)", sentence,
+        ):
+            return True
+        # Polite requests can follow a condition or preamble. An explicit
+        # "bitte" or direct benefit to the sender distinguishes them from
+        # "Wenn ..., kannst du ... zuruecksenden" and other permissions.
+        modal = re.search(r"\b(?:kannst|konntest|konnen|konnten)\s+(?:du|sie)\b(.*)", sentence, re.S)
+        if modal:
+            rest = modal.group(1)
+            if re.search(r"\bbitte\b", rest) or (
+                re.match(r"\s+(?:mir|uns)\b", rest)
+                and not re.search(r"\b(?:gerne?|jederzeit|bei bedarf)\b", rest)
+            ):
+                return True
+        # Otherwise, without '?', require an interrogative opening.
+        opening = re.sub(r"^(?:hallo|hi|guten tag|liebe[r]?)\s+[^,\n]+[,\n]\s*", "", sentence)
+        if re.match(r"(?:kannst|konntest|konnen|konnten)\s+(?:du|sie)\b", opening):
+            if not re.search(r"\b(?:gerne?|jederzeit|bei bedarf)\b", opening):
+                return True
+    return False
+
+
+def discussion_or_self_question(sentence: str) -> bool:
+    """Recognize narrow, explicit non-reply question contexts in normalized text."""
+    introduction, colon, question = sentence.partition(":")
+    # Questions addressed to the recipient remain asks even after an agenda
+    # introduction; this also covers non-modal and wh-question word order.
+    if colon and re.search(r"\b(?:du|dir|dich|dein\w*|sie|ihnen|ihr|euch|euer\w*)\b", question):
+        return False
+    if colon and (
+        re.fullmatch(r"(?:unsere\s+)?(?:agenda|leitfragen|diskussionsfragen)", introduction.strip())
+        or (
+            re.search(r"\b(?:termin|gesprach|meeting|workshop)\b", introduction)
+            and re.search(r"\b(?:besprechen|klaren|abgleichen|diskutieren)\b", introduction)
+            and not re.match(r"(?:wann|wie|was|wer|wo|welch\w*)\b", introduction)
+        )
+    ):
         return True
-    return bool(re.search(
-        r"\b(?:bitte\s+(?:um\s+)?(?:eine\s+)?(?:kurze\s+)?(?:ruckmeldung|antwort|bestatig|pruf|meld|teil|gib|sag)|"
-        r"ich\s+(?:warte|bitte)\s+(?:auf|um)|(?:kannst|konntest|konnten)\s+(?:du|sie)|"
-        r"lass(?:en)?\s+(?:mich|sie mich)\s+wissen)", text,
-    ))
+    if re.search(r"\b(?:ich frage mich|frage an mich selbst|notiz an mich)\b", sentence):
+        return not re.search(r"\b(?:du|dir|dich|dein\w*|sie|ihnen|ihr|euch|euer\w*)\b", sentence)
+    return False
 
 
 def meaningful_update(subject: str, value: str) -> bool:

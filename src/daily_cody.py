@@ -2822,7 +2822,7 @@ def format_mail_items(items: list[dict[str, str]]) -> list[str]:
 
 
 def format_delivery_items(items: list[dict[str, Any]]) -> list[str]:
-    open_items = [item for item in items if item.get("status") != "delivered"]
+    open_items = [item for item in items if item.get("status") not in delivery_detection.TERMINAL_DELIVERY_STATUSES]
     if not open_items:
         return ["- Keine offenen Liefer- oder Bestellmails gefunden."]
     lines = []
