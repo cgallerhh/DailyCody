@@ -1,59 +1,5 @@
 [
     {
-        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
-        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
-        "list_name": "_INBOX",
-        "due_date": "2026-09-12T18:00:00",
-        "remind_me_date": "2026-09-12T18:00:00",
-        "creation_date": "2026-06-07T20:08:21",
-        "modification_date": "2026-09-29T11:49:02",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
-        ],
-        "alarms": [
-            {
-                "absolute_date": "2026-09-12T18:00:00",
-                "description": "Sat Sep 12, 2026 at 6:00 PM"
-            }
-        ]
-    },
-    {
-        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
-        "name": "Mutti anrufen",
-        "list_name": "_INBOX",
-        "due_date": "2026-09-13T00:00:00",
-        "creation_date": "2026-06-07T20:09:27",
-        "modification_date": "2026-09-06T20:41:25",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "tags": [
-            "Familie"
-        ],
-        "recurring": true,
-        "recurrence_rules": [
-            {
-                "description": "every week",
-                "frequency": "weekly",
-                "interval": 1
-            }
-        ],
-        "alarms": []
-    },
-    {
         "id": "79EF52EA-2273-4D15-8DC1-46BB97F8E21E",
         "name": "eGK da?",
         "list_name": "Irgendwann-Vielleicht",
@@ -94,28 +40,58 @@
         ]
     },
     {
-        "id": "847B4044-8EF2-44CB-9842-DBC35EF0548E",
-        "name": "BSI: Eingang Arbeitsvertrag pr\u00fcfen",
-        "body": "Vertrag voraussichtlich am 1.10. fertig; Eingang noch offen.",
-        "list_name": "PRIVAT",
-        "due_date": "2026-10-02T10:00:00",
-        "remind_me_date": "2026-10-02T10:00:00",
-        "creation_date": "2026-09-30T09:36:10",
-        "modification_date": "2026-09-30T10:03:12",
+        "id": "D09CF607-BCDB-48C4-B586-845006FE9928",
+        "name": "Pia anrufen: weekly und tgl. Textnachrichten",
+        "list_name": "_INBOX",
+        "due_date": "2026-10-03T18:00:00",
+        "remind_me_date": "2026-10-03T18:00:00",
+        "creation_date": "2026-06-07T20:08:21",
+        "modification_date": "2026-10-02T03:03:46",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
         "completed": false,
-        "url": "https://mail.google.com/mail/u/?authuser=christian.galler%40gmail.com#all/1a0f0ed5f120d2be",
         "tags": [
-            "warten"
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
         ],
         "alarms": [
             {
-                "absolute_date": "2026-10-02T10:00:00",
-                "description": "Fri Oct 02, 2026 at 10:00 AM"
+                "absolute_date": "2026-10-03T18:00:00",
+                "description": "Sat Oct 03, 2026 at 6:00 PM"
             }
         ]
+    },
+    {
+        "id": "5CDF2DF5-BFCD-49C1-B387-719EB2345C4F",
+        "name": "Mutti anrufen",
+        "list_name": "_INBOX",
+        "due_date": "2026-10-04T00:00:00",
+        "creation_date": "2026-06-07T20:09:27",
+        "modification_date": "2026-10-02T03:03:45",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "tags": [
+            "Familie"
+        ],
+        "recurring": true,
+        "recurrence_rules": [
+            {
+                "description": "every week",
+                "frequency": "weekly",
+                "interval": 1
+            }
+        ],
+        "alarms": []
     },
     {
         "id": "44952B41-469F-48F6-990B-CB3598525746",
@@ -209,30 +185,6 @@
         "list_name": "Irgendwann-Vielleicht",
         "creation_date": "2026-09-23T15:26:45",
         "modification_date": "2026-09-23T15:26:45",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "08A1284A-E6EA-4E2C-8B53-26CA8A5A2B13",
-        "name": "Vinted: Alte Anz\u00fcge verkaufen",
-        "list_name": "_INBOX",
-        "creation_date": "2026-06-07T20:07:05",
-        "modification_date": "2026-06-07T20:07:05",
-        "priority": 0,
-        "priority_label": "none",
-        "flagged": false,
-        "completed": false,
-        "alarms": []
-    },
-    {
-        "id": "AB567114-09EC-4F4E-A06E-8705D1371467",
-        "name": "Altkleider wegbringen",
-        "list_name": "_INBOX",
-        "creation_date": "2026-06-07T20:07:24",
-        "modification_date": "2026-06-07T20:07:24",
         "priority": 0,
         "priority_label": "none",
         "flagged": false,
