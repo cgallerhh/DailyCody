@@ -77,6 +77,28 @@ class VisibleMailHTMLTest(unittest.TestCase):
                     daily_cody.extract_message_text(payload, prefer_html=prefer_html),
                     "Hallo\nAktueller Text\nDetails",
                 )
+    def test_mime_plain_preference_survives_valueless_html_alternative(self):
+        payload = {
+            "mimeType": "multipart/alternative",
+            "parts": [
+                {
+                    "mimeType": "text/plain",
+                    "body": {"data": base64.urlsafe_b64encode(b"Plain text").decode()},
+                },
+                {
+                    "mimeType": "text/html",
+                    "body": {
+                        "data": base64.urlsafe_b64encode(
+                            b"<p class style><a href>HTML text</a></p>"
+                        ).decode(),
+                    },
+                },
+            ],
+        }
+        self.assertEqual(daily_cody.extract_message_text(payload), "Plain text")
+        self.assertEqual(
+            daily_cody.extract_message_text(payload, prefer_html=True), "HTML text",
+        )
 
 
 if __name__ == "__main__":
