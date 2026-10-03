@@ -11,7 +11,8 @@ class VisibleMailHTML(HTMLParser):
         self.chunks = []
 
     def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+        # HTMLParser uses None for attributes written without a value.
+        attrs = {name: value or "" for name, value in attrs}
         parent_hidden = self.stack[-1][1] if self.stack else False
         style = re.sub(r"\s+", "", attrs.get("style", "").lower())
         hidden = parent_hidden or tag in {"head", "script", "style", "blockquote"} or "display:none" in style or "visibility:hidden" in style or "gmail_quote" in attrs.get("class", "")
