@@ -14,7 +14,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - a morning quote from `data/morning_quotes.json`
 - source-backed findings from the separate 05:00 weekday follow-up monitor
 
-The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. The plain-text part keeps the exact neutral weather summary. Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
+The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. An additional teal-blue panel above that existing card gives a short German forecast paragraph from the same DWD source, including supported sky conditions, precipitation timing, wind, a nearby forecast temperature and the daytime maximum. The plain-text part includes the identical paragraph, source timestamp/timezone and the original neutral measurements. See [weather overview semantics and preview instructions](docs/weather-overview.md). Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
 
 Source mode is the default (`CODY_GENERATION_MODE=source`). Weather, deliveries,
 all due reminders, follow-up and waiting items are rendered deterministically

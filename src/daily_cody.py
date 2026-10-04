@@ -28,6 +28,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import delivery_detection
+import weather_narrative
 import follow_up_snapshot
 import mail_policy
 import mail_text
@@ -475,8 +476,11 @@ def get_weather(config: Config) -> dict[str, Any]:
         if str(timestamp).startswith(forecast_date.isoformat())
     ]
     today_temperatures = numeric_list_values(hourly.get("temperature_2m", []), today_indexes)
-    current_temp = first_list_value(hourly.get("temperature_2m", []))
-    high = max(today_temperatures) if today_temperatures else None
+    overview = weather_narrative.build_overview(
+        hourly, forecast_date, now, config.timezone, data["issued_at"]
+    )
+    current_temp = overview["current_temp_c"]
+    high = overview["high_c"]
     low = min(today_temperatures) if today_temperatures else None
     max_afternoon_rain = next(
         (
@@ -492,6 +496,8 @@ def get_weather(config: Config) -> dict[str, Any]:
         compact_warnings,
     )
     return {
+        **overview,
+        "timezone": config.timezone,
         "label": config.weather_label,
         "forecast_date": forecast_date.isoformat(),
         "place": weather_place(config.weather_label),
@@ -524,7 +530,8 @@ def get_weather(config: Config) -> dict[str, Any]:
         },
         "next_days": [],
         "warnings": compact_warnings,
-        "summary": summary,
+        "measurement_summary": summary,
+        "summary": f"{overview['narrative']} {summary} {overview['narrative_source']}",
     }
 
 
@@ -569,6 +576,13 @@ def parse_dwd_mosmix_kmz(payload: bytes, timezone: str) -> dict[str, Any]:
         "issued_at": issued_at,
         "hourly": {
             "time": times,
+            "time_utc": [value.strip() for value in raw_times],
+            "weather_code": series.get("ww", [None] * len(times)),
+            "cloud_cover": series.get("N", [None] * len(times)),
+            "cloud_cover_effective": series.get("Neff", [None] * len(times)),
+            "temperature_max_12h": convert_dwd_series(
+                series.get("TX", [None] * len(times)), lambda value: value - 273.15
+            ),
             "temperature_2m": convert_dwd_series(series["TTT"], lambda value: value - 273.15),
             "precipitation_probability": series["R101"],
             "wind_speed_10m": convert_dwd_series(series["FF"], lambda value: value * 3.6),
@@ -586,10 +600,7 @@ def parse_dwd_mosmix_values(value_text: str, expected_length: int) -> list[float
         if token == "-":
             values.append(None)
             continue
-        try:
-            values.append(float(token))
-        except ValueError:
-            values.append(None)
+        values.append(weather_narrative.finite_number(token))
     if len(values) < expected_length:
         values.extend([None] * (expected_length - len(values)))
     return values[:expected_length]
@@ -659,10 +670,7 @@ def numeric_list_values(values: Any, indexes: list[int]) -> list[float]:
 
 
 def number_or_none(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+    return weather_narrative.finite_number(value)
 
 
 def build_neutral_weather_summary(
@@ -3051,6 +3059,24 @@ def send_email(
     request_json(f"{GMAIL_API}/messages/send", method="POST", token=token, body={"raw": raw})
 
 
+def render_weather_overview(weather: dict[str, Any]) -> str:
+    narrative = str(weather.get("narrative") or "").strip()
+    if not narrative:
+        return ""
+    source = html.escape(str(weather.get("narrative_source") or "Quelle: DWD Open Data MOSMIX_L"))
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="width:100%;border-collapse:separate;margin:10px 0 14px">'
+        '<tr><td bgcolor="#206887" class="weather-overview" '
+        'style="padding:24px;border-radius:16px;background:#206887;color:#ffffff;'
+        'font-family:Arial,Helvetica,sans-serif;text-align:left">'
+        '<p style="margin:0;font-size:23px;line-height:1.45;color:#ffffff">'
+        f'{html.escape(narrative)}</p>'
+        '<p style="margin:16px 0 0;font-size:11px;line-height:1.5;color:#e0edf2">'
+        f'{source}</p></td></tr></table>'
+    )
+
+
 def render_weather_card(weather: dict[str, Any]) -> str:
     periods = weather.get("periods")
     if not isinstance(periods, list) or not periods:
@@ -3098,6 +3124,7 @@ def render_weather_card(weather: dict[str, Any]) -> str:
         '<thead><tr>'
         + "".join(
             f'<th scope="col" style="width:{100 / len(columns):.1f}%;padding:10px 7px 7px;'
+            f'box-sizing:border-box;overflow-wrap:anywhere;'
             f'text-align:left;font-size:11px;color:#52646c">{name}</th>'
             for name, _, _, _ in columns
         )
@@ -3125,7 +3152,7 @@ def markdown_to_basic_html(
     in_list = False
     first_paragraph = True
     current_section = ""
-    weather_card = render_weather_card(weather) if weather else ""
+    weather_card = (render_weather_overview(weather) + render_weather_card(weather)) if weather else ""
     weather_summary = str(weather.get("summary") or "") if weather else ""
     section_icons = {
         "Today": "📅",
@@ -3202,6 +3229,8 @@ def markdown_to_basic_html(
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>@media only screen and (max-width:480px) {{ .weather-overview {{ padding:20px !important; }} .weather-overview > p:first-child {{ font-size:20px !important; }} }}</style>
 </head>
 <body style="margin:0;padding:0;background:#f2f6f5;color:#26343a;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:700px;margin:0 auto;padding:18px 12px 22px;background:#ffffff">
