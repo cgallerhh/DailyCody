@@ -196,6 +196,28 @@ class WeatherNarrativeTest(unittest.TestCase):
             self.assertIn(weather["narrative_source"], part)
         self.assertIn(weather["measurement_summary"], message.get_body(preferencelist=("plain",)).get_content())
 
+    def test_weather_overview_matches_compact_briefing_type_without_media_query(self):
+        weather = {"narrative": "Für 06:00 Uhr sind 9 Grad vorhergesagt.", "narrative_source": "DWD · 05.10.2026"}
+        panel = daily_cody.render_weather_overview(weather)
+        self.assertIn("font-size:14px;line-height:1.4", panel)
+        self.assertIn("padding:14px 16px", panel)
+        self.assertIn("margin:8px 0 0;font-size:11px", panel)
+        self.assertIn("-webkit-text-size-adjust:100%", panel)
+        self.assertNotIn("font-size:23px", panel)
+        self.assertNotIn("font-size:20px", panel)
+        self.assertIn(weather["narrative"], panel)
+        self.assertIn(weather["narrative_source"], panel)
+
+    def test_auto_detected_weather_links_are_scoped_and_other_links_stay_normal(self):
+        weather = {"narrative": "Für 06:00 Uhr sind 9 Grad vorhergesagt.", "summary": "Weather"}
+        output = daily_cody.markdown_to_basic_html(
+            "# Daily Cody\n## Today\n- Weather\n- [Termin](https://example.com/appointment)", weather
+        )
+        self.assertIn(".weather-overview a { color:inherit !important; text-decoration:none !important;", output)
+        self.assertNotIn("@media", output)
+        self.assertNotIn("font-size:20px !important", output)
+        self.assertIn('<a href="https://example.com/appointment" style="color:#1a73e8;text-decoration:none">Termin</a>', output)
+
     def test_kmz_optional_fields_and_utc_are_preserved(self):
         xml = '''<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:dwd="https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd"><Document><ExtendedData><dwd:IssueTime>2026-10-02T03:00Z</dwd:IssueTime><dwd:TimeStep>2026-10-02T18:00Z</dwd:TimeStep></ExtendedData><Placemark><name>C720</name><ExtendedData>'''
         for key, value in {"TTT": "290.15", "FF": "2", "FX1": "4", "R101": "60", "N": "80", "Neff": "65", "ww": "80", "TX": "294.15"}.items():

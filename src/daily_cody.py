@@ -3066,13 +3066,14 @@ def render_weather_overview(weather: dict[str, Any]) -> str:
     source = html.escape(str(weather.get("narrative_source") or "Quelle: DWD Open Data MOSMIX_L"))
     return (
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="width:100%;border-collapse:separate;margin:10px 0 14px">'
+        'style="width:100%;border-collapse:separate;margin:8px 0 10px">'
         '<tr><td bgcolor="#206887" class="weather-overview" '
-        'style="padding:24px;border-radius:16px;background:#206887;color:#ffffff;'
-        'font-family:Arial,Helvetica,sans-serif;text-align:left">'
-        '<p style="margin:0;font-size:23px;line-height:1.45;color:#ffffff">'
+        'style="padding:14px 16px;border-radius:16px;background:#206887;color:#ffffff;'
+        'font-family:Arial,Helvetica,sans-serif;text-align:left;'
+        '-webkit-text-size-adjust:100%;text-size-adjust:100%">'
+        '<p style="margin:0;font-size:14px;line-height:1.4;color:#ffffff">'
         f'{html.escape(narrative)}</p>'
-        '<p style="margin:16px 0 0;font-size:11px;line-height:1.5;color:#e0edf2">'
+        '<p style="margin:8px 0 0;font-size:11px;line-height:1.4;color:#e0edf2">'
         f'{source}</p></td></tr></table>'
     )
 
@@ -3230,7 +3231,7 @@ def markdown_to_basic_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>@media only screen and (max-width:480px) {{ .weather-overview {{ padding:20px !important; }} .weather-overview > p:first-child {{ font-size:20px !important; }} }}</style>
+  <style>.weather-overview a {{ color:inherit !important; text-decoration:none !important; font-size:inherit !important; font-family:inherit !important; line-height:inherit !important; }}</style>
 </head>
 <body style="margin:0;padding:0;background:#f2f6f5;color:#26343a;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:700px;margin:0 auto;padding:18px 12px 22px;background:#ffffff">

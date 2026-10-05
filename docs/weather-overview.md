@@ -67,8 +67,11 @@ and this limitation is visibly labelled in the preview. Production warnings
 are unchanged.
 
 The HTML uses an email presentation table, inline color/padding/font styles and
-a `bgcolor` fallback. A small media query reduces text size on narrow screens;
-the fluid layout also works without media-query support. Mail clients that do
+a `bgcolor` fallback. The paragraph uses the same compact 14px type and 1.4 line
+height as ordinary briefing text, with 14px/16px padding at every screen width.
+It does not rely on media-query support to avoid oversized mobile text. Scoped
+link styling keeps automatically detected times visually consistent within
+the weather box without changing links elsewhere. Mail clients that do
 not support border-radius may show square corners. Browser/static render checks
 do not replace a real Apple Mail/Gmail/Outlook inbox test.
 
