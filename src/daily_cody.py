@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -32,6 +32,7 @@ import weather_narrative
 import follow_up_snapshot
 import mail_policy
 import mail_text
+import ticktick_tasks
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -201,6 +202,9 @@ class Config:
     reminders_refresh_command: str
     reminders_refresh_timeout_seconds: int
     application_wiki_snapshot_path: str
+    ticktick_access_token: str = field(default="", repr=False)
+    ticktick_timeout_seconds: float = 15
+    ticktick_total_timeout_seconds: float = 90
 
 
 def getenv(name: str, default: str | None = None) -> str:
@@ -250,6 +254,9 @@ def load_config() -> Config:
         application_wiki_snapshot_path=getenv(
             "APPLICATION_WIKI_SNAPSHOT_PATH", "data/application_wiki_snapshot.json"
         ),
+        ticktick_access_token=os.getenv("TICKTICK_ACCESS_TOKEN", ""),
+        ticktick_timeout_seconds=float(getenv("TICKTICK_TIMEOUT_SECONDS", "15")),
+        ticktick_total_timeout_seconds=float(getenv("TICKTICK_TOTAL_TIMEOUT_SECONDS", "90")),
     )
 
 
@@ -1587,6 +1594,12 @@ def split_reminders_for_briefing(
     waiting = []
     later = []
     for reminder in reminders:
+        if reminder.get("source") == "ticktick":
+            tick_today, tick_later, tick_waiting = ticktick_tasks.split_tasks([reminder], now)
+            today_todos.extend(tick_today)
+            later.extend(tick_later)
+            waiting.extend(tick_waiting)
+            continue
         due = parse_short_due_date(reminder.get("due", ""), now)
         if due and due <= today:
             today_todos.append(reminder)
@@ -2297,19 +2310,26 @@ def build_briefing(
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
+    *,
+    tasks_status: dict[str, Any] | None = None,
 ) -> str:
     recent_mail = [m for m in recent_mail if mail_policy.personal_message(m) and not m.get("closed")]
     open_mail = [m for m in open_mail if mail_policy.personal_message(m) and not m.get("answered")]
     waiting_for_mail = [m for m in waiting_for_mail if not mail_policy.excluded_person(m.get("to", "")) and not mail_policy.closed_reply(m.get("snippet", ""))]
     today_reminders, upcoming_reminders, waiting_reminders = split_reminders_for_briefing(reminders, now)
+    # TickTick is authoritative for tasks. Historical application exports must
+    # neither add old tasks nor silently suppress new TickTick tasks.
+    application_wiki = {}
     action_overrides = (
-        application_wiki.get("action_overrides", [])
-        + load_resolved_topic_overrides()
+        load_resolved_topic_overrides()
         + infer_resolved_action_overrides(recent_mail)
     )
-    today_reminders = filter_items_by_action_overrides(today_reminders, action_overrides)
-    upcoming_reminders = filter_items_by_action_overrides(upcoming_reminders, action_overrides)
-    waiting_reminders = filter_items_by_action_overrides(waiting_reminders, action_overrides)
+    def filter_legacy_tasks(items):
+        return [item for item in items if item.get("source") == "ticktick" or
+                not is_blocked_by_action_override(item, action_overrides)]
+    today_reminders = filter_legacy_tasks(today_reminders)
+    upcoming_reminders = filter_legacy_tasks(upcoming_reminders)
+    waiting_reminders = filter_legacy_tasks(waiting_reminders)
     recent_mail = filter_items_by_action_overrides(recent_mail, action_overrides)
     open_mail = filter_items_by_action_overrides(open_mail, action_overrides)
     waiting_for_mail = filter_items_by_action_overrides(waiting_for_mail, action_overrides)
@@ -2347,6 +2367,7 @@ def build_briefing(
         "reminders": upcoming_reminders,
         "today_todos": today_reminders,
         "data_warnings": [reminders_warning] if reminders_warning else [],
+        "tasks_status": tasks_status or {},
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
@@ -2432,11 +2453,11 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Wenn world_cup_games vorhanden ist: Unter Today jedes WM-Spiel als eigene kurze Zeile nennen, "
         "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
         "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
-        "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
+        "Today's to-dos ist die Aktionsliste: alle today_todos aus TickTick plus offene Mails vom Vortag. "
         "Unter Follow-up die geprueften Punkte aus follow_up_lines verwenden, inklusive Pruefzeit und Datenhinweis. "
         "Diese Punkte stammen aus dem separaten Follow-Up-Monitor; keine weiteren Erkenntnisse erfinden. "
         "Formuliere To-dos knapp, freundlich und konkret; lieber natürlich als pointiert. "
-        "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
+        "Unter Reminders: aktuelle TickTick-Aufgaben mit vorhandenem Termin oder ohne Termin; keine Fristen erfinden. "
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
         "die Liste nur nennen, wenn sie wirklich vorhanden ist. Niemals 'keine Angabe' schreiben. "
         "An Freitagen dürfen Reminders als Wochenplanungsblick länger sein, sonst sehr knapp halten. "
@@ -2531,7 +2552,7 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     lines.extend(["", "## Today's to-dos"])
     todo_lines = format_today_todo_reminders(context["today_todos"])
     todo_lines.extend(format_open_mail_items(context["yesterday_open_mail"]))
-    lines.extend(todo_lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."])
+    lines.extend(task_section_lines(context, todo_lines))
     if context["reminders"]:
         lines.extend(["", "## Reminders"])
         lines.extend(format_reminder_items(context["reminders"]))
@@ -2590,9 +2611,16 @@ def finalize_briefing(
         briefing,
         "Today's to-dos",
         {"today s to dos", "today to dos"},
-        todo_lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."],
+        task_section_lines(context, todo_lines),
         {"follow up", "waiting for", "deliveries", "approaching"},
     )
+    if "reminders" in context:
+        briefing = replace_list_section(
+            briefing, "Reminders", {"reminders"},
+            format_reminder_items(context["reminders"]),
+            {"follow up", "waiting for", "deliveries", "approaching"},
+            omit_empty=True,
+        )
     briefing = replace_list_section(
         briefing,
         "Waiting for...",
@@ -2640,8 +2668,10 @@ def replace_list_section(
     known_titles: set[str],
     items: list[str],
     before_titles: set[str],
+    *,
+    omit_empty: bool = False,
 ) -> str:
-    replacement = [f"## {heading}", *items, ""]
+    replacement = [] if omit_empty and not items else [f"## {heading}", *items, ""]
     lines = briefing.splitlines()
     start = next(
         (
@@ -2651,6 +2681,8 @@ def replace_list_section(
         None,
     )
     if start is None:
+        if not replacement:
+            return briefing
         insert_at = next(
             (
                 idx for idx, line in enumerate(lines)
@@ -2846,7 +2878,14 @@ def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
     if not items:
         return ["- Keine offenen Nachfasspunkte gefunden."]
     lines = []
-    for item in items[:8]:
+    legacy_count = 0
+    for item in items:
+        if item.get("source") == "ticktick":
+            lines.append(ticktick_tasks.format_task(item))
+            continue
+        if legacy_count >= 8:
+            continue
+        legacy_count += 1
         if item.get("source") == "reminder":
             due = f"{item['due']} — " if item.get("due") else ""
             lines.append(f"- {due}{item['subject']} — nachfassen.")
@@ -2869,6 +2908,9 @@ def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
         return []
     lines = []
     for item in items:
+        if item.get("source") == "ticktick":
+            lines.append(ticktick_tasks.format_task(item))
+            continue
         due = f"{item['due']}: " if item.get("due") else ""
         list_name = f" ({item['list']})" if item.get("list") else ""
         notes = f" — {item['notes']}" if item.get("notes") else ""
@@ -2879,6 +2921,9 @@ def format_reminder_items(items: list[dict[str, str]]) -> list[str]:
 def format_waiting_reminders(items: list[dict[str, str]]) -> list[dict[str, str]]:
     output = []
     for item in items:
+        if item.get("source") == "ticktick":
+            output.append({**item, "subject": item["title"], "snippet": item.get("notes", "")})
+            continue
         output.append(
             {
                 "source": "reminder",
@@ -2954,21 +2999,42 @@ def is_blocked_by_action_override(item: dict[str, Any], action_overrides: list[d
 def merge_waiting_for_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
     merged = []
     seen = set()
+    legacy_count = 0
     for item in items:
-        key = normalize_status_text(item.get("subject") or item.get("to") or item.get("snippet") or "")
+        key = ("ticktick:" + item["id"] if item.get("source") == "ticktick" else
+               normalize_status_text(item.get("subject") or item.get("to") or item.get("snippet") or ""))
         if not key:
             key = normalize_status_text(json.dumps(item, ensure_ascii=False))
-        key = key[:80]
+        if item.get("source") != "ticktick":
+            key = key[:80]
         if key in seen:
             continue
         seen.add(key)
+        if item.get("source") != "ticktick":
+            if legacy_count >= 12:
+                continue
+            legacy_count += 1
         merged.append(item)
-    return merged[:12]
+    return merged
+
+
+def task_section_lines(context: dict[str, Any], lines: list[str]) -> list[str]:
+    status = context.get("tasks_status") or {}
+    if status.get("source") != "TickTick":
+        return lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."]
+    if not status.get("available"):
+        return ["- TickTick-Aufgabenstand unbekannt; aktuelle Aufgaben konnten nicht gelesen werden.", *lines]
+    stamp = dt.datetime.fromisoformat(status["fetched_at"]).astimezone(ticktick_tasks.BERLIN)
+    provenance = f"- Quelle: TickTick; frisch gelesen {stamp:%d.%m.%Y %H:%M} (Europe/Berlin), inklusive Inbox."
+    return [provenance, *(lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."])]
 
 
 def format_today_todo_reminders(items: list[dict[str, str]]) -> list[str]:
     lines = []
     for item in items:
+        if item.get("source") == "ticktick":
+            lines.append(ticktick_tasks.format_task(item))
+            continue
         notes = f" — {item['notes']}" if item.get("notes") else ""
         lines.append(f"- {item['title']}{notes}")
     return lines
@@ -3336,12 +3402,18 @@ def main() -> int:
     weather = get_weather(config)
     today_events, upcoming_events = list_calendar_events(config, token, now)
     world_cup_games = list_world_cup_games(config, now, today_events)
-    reminders, reminders_warning = read_exported_reminders(config, now)
-    application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
     delivery_mail = list_delivery_mail(token, config.sender, config.recipient, now)
     open_mail = list_yesterday_open_mail(token, now, recent_mail)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
+    # Read just before composing; never refresh Apple or reuse a persisted task snapshot.
+    tasks = ticktick_tasks.read_tasks(
+        config.ticktick_access_token, now,
+        timeout_seconds=config.ticktick_timeout_seconds,
+        total_timeout_seconds=config.ticktick_total_timeout_seconds,
+    )
+    if tasks.warning:
+        print(tasks.warning, file=sys.stderr)
     briefing = build_briefing(
         config,
         now,
@@ -3349,13 +3421,14 @@ def main() -> int:
         today_events,
         upcoming_events,
         world_cup_games,
-        reminders,
-        reminders_warning,
-        application_wiki,
+        tasks.tasks,
+        tasks.warning,
+        {},
         recent_mail,
         delivery_mail,
         open_mail,
         waiting_for_mail,
+        tasks_status=tasks.status(),
     )
 
     if config.dry_run:

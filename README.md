@@ -6,7 +6,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - neutral DWD Open Data MOSMIX weather measurements for `21077 Hamburg-Harburg`, split into morning, midday, and afternoon with temperature, rain probability, and wind in layman terms
 - Google Calendar events from `privat`, `Geburtstage`, `A&C`
-- Apple Reminders from a local Mac export
+- current open TickTick tasks from all active task lists, including Inbox
 - order and delivery emails across merchants, including tracking links when they appear in the email
 - yesterday's personal Gmail messages with an actual unanswered request and a source link
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
@@ -17,7 +17,7 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. An additional teal-blue panel above that existing card gives a short German forecast paragraph from the same DWD source, including supported sky conditions, precipitation timing, wind, a nearby forecast temperature and the daytime maximum. The plain-text part includes the identical paragraph, source timestamp/timezone and the original neutral measurements. See [weather overview semantics and preview instructions](docs/weather-overview.md). Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
 
 Source mode is the default (`CODY_GENERATION_MODE=source`). Weather, deliveries,
-all due reminders, follow-up and waiting items are rendered deterministically
+all due TickTick tasks, follow-up and waiting items are rendered deterministically
 from source data. Personal-mail sections exclude newsletters, advertising and
 messages from Eveline; completed MeinAuto topics are suppressed. Merchant
 confirmations remain eligible for deliveries, including confirmations in Trash.
@@ -66,9 +66,12 @@ Create a fine-grained GitHub token for `cgallerhh/DailyCody` with **Actions: Rea
 
 `force_send=true` bypasses the local time window for the exact external trigger. `allow_duplicate=false` keeps the daily duplicate guard active if cron-job.org retries.
 
-Apple Reminders are different from Gmail and Google Calendar: GitHub Actions cannot read them directly because Apple only exposes them through the signed-in Mac. Daily Cody therefore reads `data/reminders.json`, which your Mac can update and push before the morning briefing.
-
-The Bewerbungen Obsidian vault works the same way: GitHub Actions cannot read the local iCloud vault directly. The local export reads the curated dashboard at `LLM-Wiki/BEWERBUNGEN/pages/_core/Bewerbungs-Dashboard.md` and writes `data/application_wiki_snapshot.json`. Daily Cody uses that snapshot for application waiting points and for suppressing outdated follow-up reminders. It does not read `raw/INBOX` files.
+Tasks are read directly from TickTick on every briefing run, just before composition.
+There is no local export prerequisite or saved-task fallback. The existing ChatGPT
+TickTick connection does not authenticate GitHub Actions. A separately approved
+read-only OAuth token is required; until then the task section reports an unknown
+current task state. Historical Apple and application-wiki snapshots do not add tasks.
+See [the task source and safe rollout plan](docs/ticktick-tasks.md).
 
 ## Required GitHub Secrets
 
@@ -77,6 +80,7 @@ Create these secrets in `Settings -> Secrets and variables -> Actions`:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
+- `TICKTICK_ACCESS_TOKEN` — a separately approved TickTick OAuth token with only `tasks:read`; never a ChatGPT MCP token
 
 Optional, only for explicit AI mode:
 
@@ -114,39 +118,28 @@ python3 scripts/get_google_refresh_token.py
 
 Copy the three printed Google values into GitHub Secrets.
 
-## Apple Reminders Export
+## TickTick Tasks
 
-Install the local Reminders command line tool once:
+The runner enumerates every active task list with project pagination and explicitly
+reads Inbox, then reads all open tasks per list. It excludes completed/abandoned
+tasks and notes, deduplicates by task ID and preserves separate tasks with identical
+titles. Today's and overdue tasks appear under Today's to-dos; the next two days
+(seven on Fridays) appear under Reminders. Undated tasks remain visible as
+"ohne Termin"; explicit waiting tasks remain under Waiting for without invented dates.
+Timepoints are converted to Europe/Berlin and all-day tasks retain their calendar date.
 
-```bash
-curl -fsSL https://rem.sidv.dev/install | bash
-```
+On any incomplete/failed read, the full task result is discarded and the briefing
+explicitly says the TickTick task state is unknown. It never presents old Apple data
+as current TickTick tasks. [Details, tests and required auth approval](docs/ticktick-tasks.md).
 
-The Homebrew tap calls the formula `rem-cli` and installs a binary named `rem`, but if Homebrew complains about the formula, use the install command above. Run `rem` once and allow macOS access to Reminders when prompted. The export script can be run manually from a checkout outside iCloud Drive:
+For a task-only runner check, use workflow input `ticktick_check_only=true`. This
+runs `scripts/check_ticktick_access.py`, reports only counts and freshness, and
+exits before building or sending an email. Do this after separate OAuth/secret
+approval and before any product rollout.
 
-```bash
-scripts/export_apple_reminders.sh
-```
-
-The script updates `data/reminders.json`, writes `data/reminders_export_status.json`, commits the changed export files, and pushes them to GitHub. Daily Cody includes reminders that are overdue, due today, or due in the next two days (seven days on Fridays). Open recurring reminders retain the due date exported by Apple, including overdue dates. Undated open reminders are ignored by default so old inbox/backlog leftovers do not become morning to-dos.
-
-To let the Mac update the export automatically, install the local LaunchAgent:
-
-```bash
-scripts/install_reminders_export_agent.sh
-```
-
-The agent checks every 30 minutes while the Mac is awake. It exports during the normal `23:59` to `06:59` window, and it also runs a catch-up export outside that window whenever the previous export is older than 1 hour. This repairs a missed overnight export as soon as the Mac is available. The catch-up age can be changed with `REMINDERS_CATCHUP_MAX_AGE_HOURS`.
-
-The installer keeps the runner, a Git checkout, and a stable, locally signed `rem` binary in `~/Library/Application Support/DailyCody`. The LaunchAgent runs from that checkout, keeping its working files and Git index outside iCloud Drive. Reinstalling the agent preserves this checkout and the signed `rem` copy. Set `REMINDERS_REFRESH_CLI=true` only when intentionally replacing the binary; macOS may then request Reminders access again.
-
-The agent syncs its local checkout with `origin/main` before committing and retries the push after a rebase if GitHub rejects it. If that checkout is dirty, staged, or Git reports index trouble, the script publishes through an isolated temporary clone. The source checkout in Documents is no longer used by the agent and may have a different local snapshot; GitHub `main` is the source for the scheduled briefing. Outside the normal export window, the LaunchAgent also wakes the export when local commits are still pending push.
-
-The GitHub workflow requires fresh Reminders by default (`REQUIRE_FRESH_REMINDERS=true`, `REMINDERS_MAX_AGE_HOURS=24`) but it no longer drops the whole briefing when that export is stale. Instead, Daily Cody skips Apple Reminders for that run, adds a short warning to the briefing, and still sends the rest of the morning mail. Set `FAIL_ON_STALE_REMINDERS=true` only if you want the old fail-closed behavior back. If `rem` reports Reminders access denied, run `rem export --incomplete --format json` once from a normal Terminal and allow Reminders access in macOS Privacy settings.
-
-When Daily Cody runs locally, it reads the agent's snapshot if its export timestamp is newer than the checkout's snapshot. If the selected export is missing or stale, it attempts `scripts/export_apple_reminders_if_window.sh` before reading it. Control this with `REFRESH_STALE_REMINDERS`, `REMINDERS_REFRESH_COMMAND`, and `REMINDERS_REFRESH_TIMEOUT_SECONDS`.
-
-If Cody says the export is many hours old, check `~/Library/Logs/DailyCody/reminders-export.err.log` and `~/Library/Application Support/DailyCody/repo/data/reminders_export_status.json`. Compare that timestamp with `data/reminders_export_status.json` on GitHub `main`; a fresh local export does not prove a successful push. Check `launchctl print gui/$(id -u)/com.dailycody.reminders-export` for the agent's last exit code. `reminders access denied` requires a macOS Privacy grant for the stable `rem` binary; `resource deadlock avoided` in the Documents checkout means the agent was not reinstalled with the local checkout.
+The legacy Mac LaunchAgent also publishes the application wiki. It must be assessed
+separately before retiring only Cody's Apple export; this change does not stop any
+systemwide scheduled jobs. No local Apple export is expected by the new workflow.
 
 ## Delivery Status
 

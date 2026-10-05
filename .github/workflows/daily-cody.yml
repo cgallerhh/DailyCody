@@ -27,6 +27,10 @@ on:
         description: "Mark this email as a test for review"
         required: false
         default: "false"
+      ticktick_check_only:
+        description: "Read TickTick coverage only; never build or send a briefing"
+        required: false
+        default: "false"
 
 jobs:
   send-briefing:
@@ -65,10 +69,12 @@ jobs:
           OPENAI_TIMEOUT_SECONDS: ${{ vars.OPENAI_TIMEOUT_SECONDS || '120' }}
           OPENAI_MAX_ATTEMPTS: ${{ vars.OPENAI_MAX_ATTEMPTS || '2' }}
           ALLOW_TEMPLATE_FALLBACK: ${{ vars.ALLOW_TEMPLATE_FALLBACK || 'false' }}
-          REQUIRE_FRESH_REMINDERS: ${{ vars.REQUIRE_FRESH_REMINDERS || 'true' }}
-          FAIL_ON_STALE_REMINDERS: ${{ vars.FAIL_ON_STALE_REMINDERS || 'false' }}
-          REMINDERS_MAX_AGE_HOURS: ${{ vars.REMINDERS_MAX_AGE_HOURS || '24' }}
-          REFRESH_STALE_REMINDERS: ${{ vars.REFRESH_STALE_REMINDERS || 'false' }}
+          # Separate, explicitly approved read-only OAuth authorization for this runner.
+          # Never use a ChatGPT MCP credential or a committed task snapshot.
+          TICKTICK_ACCESS_TOKEN: ${{ secrets.TICKTICK_ACCESS_TOKEN }}
+          TICKTICK_TIMEOUT_SECONDS: "15"
+          TICKTICK_TOTAL_TIMEOUT_SECONDS: "90"
+          TICKTICK_CHECK_ONLY: ${{ github.event.inputs.ticktick_check_only || 'false' }}
           FORCE_SEND: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.force_send || 'false' }}
           ALLOW_DUPLICATE: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[daily-cody-smoke]') && 'true' || github.event.inputs.allow_duplicate || 'false' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
@@ -76,6 +82,10 @@ jobs:
         shell: bash
         run: |
           set -o errexit -o nounset -o pipefail
+          if [[ "$TICKTICK_CHECK_ONLY" == "true" ]]; then
+            python scripts/check_ticktick_access.py
+            exit $?
+          fi
           max_attempts=2
           for attempt in $(seq 1 "$max_attempts"); do
             if python src/daily_cody.py; then
