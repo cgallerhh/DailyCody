@@ -1,178 +1,156 @@
 # TickTick-Aufgaben in Daily Cody
 
-**Review-Stand 06.10.2026: Aktivierung blockiert.** Der vollständige lesende
-OpenAPI-Inbox-Zugang ist nicht belegt. Die OAuth-Einrichtung ist vor jeder
-Geheimniseingabe/Anmeldung pausiert. Keine weitere Anmeldung als Versuch.
-[Befund, Grenzen und sichere Alternativen](ticktick-inbox-blocker.md).
+**Stand 06.10.2026: getesteter Draft, noch nicht aktiviert.** Der Produktionspfad
+dieses Branches nutzt den offiziellen Remote-MCP. Die tatsächlichen
+authentifizierten Tool-Schemas, vollständige Inbox-Abdeckung, Refresh und ein
+frischer GitHub-Runner sind noch nicht live abgenommen. Die Einrichtung bleibt
+vor Registrierung, Browseranmeldung und Speicheränderung gesperrt.
+[Konkreter Handoff und Runner-Abhängigkeit](ticktick-mcp-handoff.md).
+Die frühere OpenAPI-Inbox-Untersuchung ist [historisch](ticktick-inbox-blocker.md).
 
 ## Abruf und Ausgabe
 
-Der GitHub-Runner liest bei jedem tatsächlich gebauten Briefing TickTick direkt
-über die offizielle Open API. Nach dem Duplikatschutz und den übrigen Quellen
-werden die Aufgaben unmittelbar vor der Zusammenstellung neu abgerufen.
-Es gibt weder einen gespeicherten TickTick-Snapshot noch einen Apple-Fallback.
-Die alten Apple-Reader bleiben nur als historische, getestete Hilfsfunktionen;
-`main()` verwendet und aktualisiert sie nicht mehr.
+Nach Duplikatschutz und den übrigen Quellen ruft `main()` Aufgaben unmittelbar
+vor der Zusammenstellung frisch ab. Es gibt keinen gespeicherten Aufgabenstand
+und keinen Apple-Fallback. Der alte Bewerbungs-Wiki-Snapshot ergänzt oder
+unterdrückt keine TickTick-Aufgaben. Historische Apple-Hilfsfunktionen bleiben
+getestet; der alte OpenAPI-Reader liegt ausschließlich als Testreferenz vor.
 
-- Alle aktiven Aufgabenlisten werden über `GET /open/v1/project` mit
-  `offset`/`limit` vollständig ermittelt. Geschlossene Listen und Notizlisten
-  sind keine aktiven Aufgabenlisten. Geteilte zugängliche Aufgabenlisten sind
-  eingeschlossen.
-- `GET /open/v1/project/{id}/data` liefert die vollständige offene Aufgabenliste.
-  Zusätzlich wird **immer** `GET /open/v1/project/inbox/data` gelesen, auch wenn
-  die paginierte Listenübersicht die virtuelle Inbox auslässt. Keine feste
-  Listen-ID-Konfiguration, keine Titel-Deduplizierung, keine 8-/12-Aufgaben-Grenze.
-- Die virtuelle Inbox des MCP-Connectors belegt keine OpenAPI-Inbox-Identität.
-  Der zusätzliche unpaginierte GET aus dem ersten Formatfix hat die zweite
-  Live-Probe nicht bestanden und ist entfernt. Ein fehlendes/null-Projektobjekt
-  mit Aufgabenarray bleibt unbekannte Abdeckung, auch bei leerem Array oder
-  vorhandener virtueller MCP-Listenmetadaten. Es wird keine Inbox-ID aus
-  Aufgabe, Benutzer-ID oder Token abgeleitet. Die Fehlermeldung enthält nur
-  erlaubte Strukturmerkmale (Datentypen, Feldvorhandensein und Anzahl), keine
-  IDs, Namen, unbekannten Schlüssel oder Antwortinhalte. Normale Listen
-  behalten ihre Identitäts-, Status-, Pagination- und Terminprüfungen.
-- Der alternative Filter-Endpunkt hat laut Dokumentation eine Grenze von 200
-  Aufgaben und wird deshalb nicht verwendet. Der Listeninhalt-Endpunkt hat
-  keine dokumentierte Pagination. Unerwartete Fortsetzungsmarker werden als
-  unvollständige Abdeckung abgelehnt.
-- Stabile TickTick-Aufgaben-IDs deduplizieren dieselbe Aufgabe. Zwei Aufgaben
-  mit demselben Titel bleiben zwei Aufgaben. Widersprüchliche Duplikate während
-  eines Abrufs führen zu einer sichtbaren Fehlermeldung.
-- Status `0` ist offen; `2` (erledigt), `-1` (aufgegeben) und Notizen entfallen.
-  Ein nach Wiederöffnung/Wiederholung verbliebenes `completedTime` ersetzt
-  nicht den aktuellen Status. Wiederholungen werden nicht lokal neu berechnet.
+- Streamable HTTP verwendet JSON-RPC-POST an `https://mcp.ticktick.com/`.
+  Jede neue Session initialisiert das Protokoll und liest den paginierten
+  `tools/list`-Katalog. Erlaubt sind ausschließlich **`list_projects`** und
+  **`get_project_with_undone_tasks`**. Keine Schreibtools, Sampling-Aufrufe,
+  Cookies, Redirects oder alte SSE-Transportalternative.
+- Die remote gelieferten Eingabe-/Ausgabe-Schemas werden vor bzw. nach jedem
+  Tool-Aufruf geprüft. Unbekannte Schema-Anforderungen, andere Toolnamen,
+  notwendige Datumsfilter oder fehlende Lesetools führen zu unbekanntem Stand.
+  Die derzeitigen Erwartungen stammen aus verfügbaren Connector-Metadaten;
+  sie sind noch kein Beleg für den authentifizierten nativen Remote-Katalog.
+- Ein unpaginierter Listenabruf muss die virtuelle Inbox `inbox` bestätigen.
+  Anschließend werden alle Listen mit `offset`/`limit` gelesen. Geschlossene
+  Listen und Notizlisten entfallen; zugängliche geteilte Aufgabenlisten zählen.
+  Jede aktive Liste inklusive Inbox wird ohne Datumsfilter vollständig gelesen.
+  Kein Filter-Endpunkt mit 200-Aufgaben-Limit und keine feste Listenauswahl.
+- Nur beim MCP-Inbox-Aufruf darf `project: null` vorkommen, nachdem die frische
+  MCP-Listenübersicht die Inbox bestätigt hat. Aufgaben-IDs und `projectId`
+  bleiben erhalten; widersprüchliche Listenidentitäten oder Fortsetzungsmarker
+  werden abgelehnt. Diese Ausnahme gilt nicht für die frühere Open API.
+  Eine leere Inbox kann ein gültiges Ergebnis sein, beweist aber nicht die
+  verlangte Live-Abnahme einer bekannten undatierten Aufgabe.
+- Stabile Aufgaben-IDs deduplizieren gleiche Einträge. Gleichnamige Aufgaben
+  mit verschiedenen IDs bleiben getrennt. Widersprüchliche Duplikate verwerfen
+  den gesamten Abruf. Status `0` ist offen; `2`, `-1` und Notizen entfallen.
+  Ein altes `completedTime` überstimmt keinen wieder offenen Status.
 - Fällige und überfällige Aufgaben erscheinen unter `Today's to-dos`.
-  Der Ausblick unter `Reminders` umfasst heute plus zwei Tage, freitags sieben
-  Tage, jeweils einschließlich der Grenze. Alle undatierten Aufgaben bleiben
-  dort sichtbar mit **ohne Termin**. Warten-auf-Aufgaben aus Listennamen, Tags
-  oder ausdrücklichen Textmarkern erscheinen unter `Waiting for...`, auch ohne
-  Termin oder mit späterem Termin. Es wird keine Nachfassfrist erfunden.
-- Ausschließlich `dueDate` wird als **fällig** bezeichnet. Ein alleiniger
-  `startDate` wird als **geplant** ausgegeben. Termine enthalten das Jahr;
-  Datumsauswahl arbeitet auf ISO-Daten, nicht auf kurzen Anzeigeetiketten.
-  Zeitpunkte werden nach Europe/Berlin umgerechnet. Ganztägige Aufgaben
-  behalten das Kalenderdatum ihrer Aufgabenzeitzone und erhalten keine Uhrzeit.
-  Mehrdeutige Zeitpunkte ohne Offset in einer Sommerzeitwechsel-Stunde werden
-  abgelehnt. TickTicks dokumentiertes Datumformat enthält einen Offset.
-- Aufgaben werden ausschließlich aus diesem Abruf übernommen. Der alte
-  Bewerbungs-Wiki-Snapshot ergänzt und unterdrückt keine TickTick-Aufgaben.
-  Die unabhängigen Gmail-/Monitor-Abschnitte bleiben ihren vorhandenen
-  Quellenregeln unterworfen. Wetterbox und Mail-HTML bleiben unverändert.
+  `Reminders` umfasst heute plus zwei Tage, freitags sieben Tage, einschließlich
+  der Grenze. Undatierte Aufgaben bleiben als **ohne Termin** sichtbar.
+  Ausdrückliche Warten-auf-Aufgaben aus Listen, Tags oder Textmarkern erscheinen
+  unter `Waiting for...`, auch ohne oder mit späterem Termin. Keine erfundenen
+  Nachfassfristen und keine lokal erzeugten Wiederholungen.
+- Nur `dueDate` heißt **fällig**. Ein alleiniger `startDate` heißt **geplant**.
+  Zeitpunkte werden nach Europe/Berlin umgerechnet; ganztägige Aufgaben behalten
+  das Kalenderdatum ihrer Aufgabenzeitzone und bekommen keine Uhrzeit.
+  Termine enthalten das Jahr. Mehrdeutige lokale Zeitpunkte während der
+  Sommerzeitumstellung ohne Offset werden abgelehnt.
 
-Ein erfolgreicher Abruf bekommt einen sichtbaren Prüfzeitpunkt mit Inbox-Hinweis.
-Bei fehlendem Token, HTTP 401/403, Netzwerkfehler, Zeitlimit, ungültigen Daten
-oder unvollständiger Pagination wird der komplette Aufgabenabruf verworfen.
-Die Mail nennt **TickTick-Aufgabenstand unbekannt**; sie behauptet dann keine
-leere aktuelle Aufgabenliste. Andere Quellen können weiterhin erscheinen.
-Fehlertexte enthalten keine Tokens, Aufgabeninhalte oder API-Antworttexte.
-Keine Redirects mit Authorization-Header. Requests sind ausschließlich GET,
-mit 15 Sekunden je Request, 90 Sekunden Abrufbudget und höchstens drei
-Versuchen bei HTTP 429/5xx oder Transportfehlern. Kein persistenter Cache.
+Der erfolgreiche Abruf zeigt einen Prüfzeitpunkt mit Inbox-Hinweis. Bei Auth-,
+Transport-, Schema-, Identitäts-, Pagination- oder Zeitfehlern wird der komplette
+Aufgabenabruf verworfen. Die Mail sagt **TickTick-Aufgabenstand unbekannt**;
+sie behauptet keine frische leere Liste und verwendet keine alten Apple-Daten.
+Fehler enthalten keine Tokens, Aufgabeninhalte oder Server-Antworttexte.
+Andere Quellen behalten ihre bestehenden Regeln; Mail-Layout und kompakte
+14px-Wetterbox wurden nicht geändert.
 
-## Authentifizierung: erforderliche Freigabe
+Je Request gelten 15 Sekunden, insgesamt 90 Sekunden inklusive Wiederholungen
+und Session-Neustart. HTTP 429/5xx und Transportfehler erhalten höchstens drei
+Versuche. Eine abgelaufene MCP-Session darf einmal neu initialisiert werden;
+dabei werden Teilresultate verworfen und Schemas erneut gelesen. Antwort- und
+Streamgrößen sowie Pagination sind begrenzt. Kein persistenter Aufgabencache.
 
-Am 06.10.2026 wurde die separate Read-only-Einrichtung, sichere Secret-Ablage,
-Mail-freie Live-Prüfung und der Merge **nach erfolgreicher Prüfung** ausdrücklich
-freigegeben. Die geheime Eingabe/Autorisierung ist ein notwendiger Nutzer-Handoff.
-Konkrete Schritte: [sichere OAuth-Nutzerübergabe](ticktick-oauth-handoff.md).
+## Eigene Authentifizierung und Lebenszyklus
 
-Die ChatGPT-/dot-TickTick-Verbindung authentifiziert den GitHub-Runner nicht.
-Es wurden keine MCP-Zugangsdaten gelesen, kopiert oder gespeichert.
-Der Workflow erwartet einen **separaten** Actions-Secret `TICKTICK_ACCESS_TOKEN`.
-Diese Änderung legt das Secret nicht an.
-Ein Audit ausschließlich der Secretnamen fand noch kein `TICKTICK*`-Secret
-im Repository. Es wurden keine Secretwerte abgefragt.
+Die dot-/ChatGPT-Verbindung authentifiziert GitHub Actions nicht. Es wurden
+keine Connector-Zugangsdaten gelesen, kopiert oder übernommen. Die vorbereitete
+eigene Public-Client-Registrierung fordert ausschließlich `tasks:read`, PKCE
+S256 und die feste MCP-Resource an. Kein Client-Secret ist vorgesehen.
 
-Vor Einrichtung ist konkret freizugeben:
+Die [offizielle MCP-Anleitung](https://help.ticktick.com/articles/7438129581631995904)
+beschreibt OAuth und automatischen Refresh. Die öffentlich geprüfte
+[OAuth-Discovery](https://ticktick.com/.well-known/oauth-authorization-server)
+advertisiert dagegen nur `authorization_code`. Das beweist weder fehlenden
+Refresh noch funktionierenden Refresh. Registrierung, Tokenablauf,
+erzwungener Refresh und Wiederaufnahme aus gespeichertem Zustand müssen live
+bestätigt werden. Bis dahin bleibt `HANDOFF_APPROVED = False` im Setup-Helfer.
 
-1. Eine eigene TickTick-OAuth-App für Daily Cody registrieren bzw. eine bereits
-   hierfür genehmigte App verwenden. Christian autorisiert das Konto selbst,
-   ausschließlich mit **`tasks:read`**. Kein `tasks:write`.
-2. Den OAuth-Code über die registrierte Redirect-URI und einen geprüften
-   `state` austauschen. Client-Secret und Token dürfen ausschließlich im
-   vertrauenswürdigen lokalen Prozess bzw. in verschlüsselter Secret-Verwaltung
-   vorkommen, niemals in Chat, Git, Shell-History, Prozessargumenten oder Logs.
-3. Den neuen OAuth-Access-Token nur als verschlüsseltes GitHub-Actions-Secret
-   `TICKTICK_ACCESS_TOKEN` in `cgallerhh/DailyCody` speichern, z.B. mittels
-   `gh secret set ...` über stdin. App-Client-Secret wird vom Runner nicht benötigt.
-   Der Token gewährt dem GitHub-Runner dauerhaften Lesezugriff bis Ablauf/Widerruf.
-   Die tatsächliche Laufzeit ist beim genehmigten OAuth-Austausch festzuhalten.
+Die vorbereitete Ablage trennt zwei Rollen:
 
-Die offizielle Dokumentation nennt derzeit nur `authorization_code` als Grant,
-keinen zugesicherten Refresh-Token-Vertrag. Deshalb gibt es keinen erfundenen
-automatischen Refresh. Widerruf/Ablauf ist sichtbar und erfordert erneute
-Autorisierung. Die neue persönliche API-Token-Option des Anbieters wird wegen
-nicht dokumentiertem minimalem Read-only-Scope nicht automatisch eingerichtet.
+| Rolle | Vorgesehener Zustand | Grenze |
+| --- | --- | --- |
+| Eigener Mac-Keychain-Eintrag | Eigener Client, Access-/Refresh-Token, Ablauf und Generation | Noch nicht angelegt; nur fester Cody-Eintrag, keine Suche nach fremden Tokens |
+| Actions-Secret `TICKTICK_MCP_AUTH_JSON` | Access-Snapshot ohne Refresh-Token | Funktioniert nur bis Ablauf; Actions kann ihn nicht selbst erneuern |
+| Actions-Secret `TICKTICK_MCP_INBOX_PROBE_ID` | Bekannte aktive undatierte Inbox-ID | Nur Abnahme, kein dauerhaftes Kriterium für normale Briefings |
 
-Referenz: [offizielle TickTick Open API](https://developer.ticktick.com/docs/openapi.md),
-am 06.10.2026 geprüft: OAuth, Projekt-Pagination, Filter-Grenze, Status und Datumfelder.
+Der Refresh-Pfad prüft einen beschreibbaren dauerhaften Speicher **vor** dem
+Refresh-Aufruf, speichert den neuen Zustand und lädt ihn erneut, bevor der neue
+Access-Token benutzt wird. Ein Umgebungs-/Actions-Snapshot wird nicht als
+dauerhafter Speicher ausgegeben und verbraucht keinen rotierenden Refresh-Token.
+Ein geplanter lokaler Erneuerungsdienst ist noch nicht implementiert/installiert.
+Der GitHub-Runner läuft mit diesem Entwurf nur bis zum Tokenablauf autonom.
+Für Erneuerung müsste der Mac verfügbar sein; eine autonome Cloud-Lösung
+benötigte eine zusätzlich abgestimmte Speicher-/Zugriffsarchitektur.
 
-## Sichere Live-Abnahme vor Produktivumschaltung
+## Mail-freie Live-Abnahme
 
-Nach Auth-Freigabe läuft zunächst ausschließlich die Aufgabenprüfung:
+Nach abgestimmtem Handoff prüft der Helfer: bekannten offenen undatierten
+Inbox-Eintrag nach ID, alle relevanten Listen, initialen Abruf, erzwungenen
+Refresh, verschlüsselte Persistenz und erneutes Laden durch einen unabhängigen
+Keychain-Helferprozess. Erst danach wäre eine Secret-Veröffentlichung erlaubt.
+Ein weiterer Livecheck auf einem frischen Actions-Runner bleibt erforderlich.
 
-```bash
-# Token sicher in der Prozessumgebung bereitstellen, keinen Wert hier einsetzen.
-python3 scripts/check_ticktick_access.py
-```
+`ticktick_check_only=true` führt ausschließlich `scripts/check_ticktick_access.py`
+aus und beendet den Workflow vor Briefing-Aufbau und Mailversand. Fehlende
+Probe-ID, verschwundene/erledigte/datierte Probe oder leere Inbox bestehen die
+Abnahme nicht. Logs zeigen nur Anzahlen, Zeitpunkt und Prüfstatus. Der separate
+Lifecycle-Harness prüft außerdem die erwartete Token-Generation. Der Actions-
+Input `ticktick_expected_generation` prüft denselben Nachweis vor dem Task-Abruf;
+bei einer veralteten Generation endet der Check vor dem Netzwerk. Ein Snapshot
+ohne dauerhaften Speicher kann keinen Live-Refresh nachweisen.
 
-Oder auf dem tatsächlichen GitHub-Runner den bestehenden Workflow auf dem
-Review-Branch mit `ticktick_check_only=true` dispatchen. Dieser Pfad führt
-ausschließlich das Prüfskript aus und beendet sich vor dem Briefing-Code.
-Er benötigt keine Google-Abfragen und baut oder sendet keine Mail.
-Logs zeigen nur Anzahl relevanter offener Aufgaben, Listenabdeckung inklusive
-Inbox und Abrufzeit; keine Titel oder Tokens. Bei Fehler endet er mit Exit 1.
-
-**Inbox mit dem eigenen `tasks:read`-OAuth-Token ist nicht live verifiziert.**
-Der ausdrücklich dokumentierte `inbox`-Alias gehört zu `POST /task/undone`,
-das Datumsgrenzen verlangt und höchstens 14 Tage abdeckt. Daraus folgt keine
-Alias-Zusage für `GET /project/inbox/data` und keine vollständige Abdeckung
-undatierter Aufgaben. Keine weitere OAuth-Wiederholung bis zu einem belegten
-vollständigen Lesevertrag. Einzelheiten: [Inbox-Blocker](ticktick-inbox-blocker.md).
-
-Die Abnahme muss alle aktiven Listen, auch leere Inbox, gegen den lesenden
-TickTick-Connector vergleichen und Termine/Ganztagsdaten bestätigen.
-Der separate Connector-Gegencheck in dieser Arbeit ist keine erfolgreiche
-Authentifizierung der Open API im Actions-Runner.
-Erst danach gilt die erteilte bedingte Freigabe für Merge und produktive Umschaltung.
-Keine zusätzliche Briefing-Mail als Test versenden.
+Der lesende Connector-Gegencheck fand aktuell **keine aktive undatierte
+Inbox-Aufgabe**. Es wurde keine Testaufgabe angelegt. Eine solche menschliche
+Probe braucht Freigabe, falls keine vorhandene Aufgabe verwendet werden kann.
+Kein Merge/Deployment oder zusätzlicher Mailtest vor vollständiger Abnahme.
 
 ## Tatsächliche Runner und Zeitpläne: Audit 06.10.2026
 
 | Zweck | Tatsächlicher Runner / Zeitplan | Behandlung |
 | --- | --- | --- |
-| Morgenbriefing | GitHub Actions, ubuntu-latest, Python 3.12; externer `workflow_dispatch` um 06:00 Berlin, Backup `*/5 4-7 * * *` UTC; Versandfenster 06:00–08:59 Berlin mit Duplikatschutz | Zeitpunkt und Versandregeln bleiben erhalten; TickTick-Umstellung ist noch Draft und blockiert |
-| Apple-/Wiki-Export | geladener Mac-LaunchAgent `com.dailycody.reminders-export`; alle 1800 s, RunAtLoad; Arbeitsordner `~/Library/Application Support/DailyCody/repo`; Runner `export_apple_reminders_if_window.sh` | Noch unverändert, keine produktive Umschaltung während Review |
-| Lokale Codex-Automationen | Keine passende DailyCody-/Apple-Export-Automation in `~/.codex/automations` gefunden | Keine pauschale Änderung |
-| Benutzer-Crontab | Keine passende DailyCody-/Apple-Export-Zeile gefunden | Keine Änderung |
+| Morgenbriefing | GitHub Actions, Ubuntu, Python 3.12; externer Dispatch 06:00 Berlin, Backup `*/5 4-7 * * *` UTC; Versandfenster 06:00–08:59 Berlin, Duplikatschutz | Unverändert; Draft nicht aktiviert |
+| Apple-/Wiki-Export | Geladener Mac-LaunchAgent `com.dailycody.reminders-export`; alle 1800 s und RunAtLoad; `~/Library/Application Support/DailyCody/repo` | Bleibt ausdrücklich aktiv; keine Umkonfiguration |
+| Lokale Codex-Automationen / Benutzer-Crontab | Kein passender zusätzlicher DailyCody-/Apple-Export-Auftrag gefunden | Keine Änderung |
 
-Die Hauptbasis war `f992b67c9dc9842dd1f2bc3157c243f5c3d924e8`.
-PR4/Wetterfix `38c0f8975cff03f75c4d172468740d883db24163` ist ein Vorfahr.
-Letzter geprüfter erfolgreicher Morgen-Dispatch:
-[05.10.2026, 06:00 Berlin](https://github.com/cgallerhh/DailyCody/actions/runs/37261698807).
-Der externe Scheduler selbst ist nicht zugänglich; der Dispatch ist belegt.
-
-Der LaunchAgent exportiert im Fenster 23:59–06:59 sowie bei über einer Stunde
-alten Daten/ausstehenden Pushes. Sein Exportskript veröffentlicht zusätzlich
-`application_wiki_snapshot.json`. Deshalb ist ein pauschales Stoppen unzulässig:
-Nach erfolgreicher Abnahme und Produktivfreigabe prüfen, ob andere Verbraucher
-den Wiki-Export brauchen; gegebenenfalls separat erhalten. Cody liest diesen
-Snapshot nach der Umstellung nicht mehr. Der Apple-/Wiki-LaunchAgent bleibt
-gemäß ausdrücklicher Nutzeranweisung aktiv; er wird nicht entladen.
-Keine Änderungen an Aufgaben.
-Der Workflow erwartet keinen Apple-Refresh und keinen frischen Apple-Export mehr.
+Basis `f992b67c9dc9842dd1f2bc3157c243f5c3d924e8` enthält den PR4-Wetterfix
+`38c0f8975cff03f75c4d172468740d883db24163` als Vorfahren. Belegt ist der
+[Morgen-Dispatch am 05.10.2026 um 06:00 Berlin](https://github.com/cgallerhh/DailyCody/actions/runs/37261698807).
+Die Konfiguration des externen Schedulers selbst ist nicht zugänglich.
+Ein erneuter Main-Abgleich vor Abschluss sah `5216cc7`; seit der geprüften Basis
+hatten sich ausschließlich Apple-Export-Statuszeitpunkte geändert, kein Quellcode.
+Der Mac-LaunchAgent veröffentlicht auch `application_wiki_snapshot.json`;
+er wird nicht entladen. Keine Aufgaben wurden verändert oder migriert.
 
 ## Verifikation
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile src/*.py scripts/check_ticktick_access.py
+python3 -m py_compile src/*.py scripts/check_ticktick_access.py scripts/check_ticktick_mcp_lifecycle.py scripts/setup_ticktick_mcp.py scripts/setup_ticktick_oauth.py
 git diff --check
 ```
 
-Neue Tests verwenden ausschließlich synthetische Daten. Die Tests prüfen
-Listen-Pagination, Inbox, mehr als 200 Aufgaben, stabile IDs, abgeschlossene
-und wiedergeöffnete Aufgaben, Teilausfälle, Authfehler, Retry-/Zeitgrenzen,
-Mitternacht/Jahreswechsel/Sommerzeit, undatierte und Warten-auf-Aufgaben,
-fehlende Runner-Authentifizierung und den Hauptpfad ohne Apple-Fallback.
-Die separate Test-Workflow prüft Python 3.12 ohne Secrets und ohne Mailversand.
+Tests verwenden ausschließlich synthetische Daten. Sie prüfen bestehende Mail-/
+Wetterregeln, Europe/Berlin-Mitternacht/Jahreswechsel/Sommerzeit, Ganztagsdaten,
+Inbox, mehr als 200 Aufgaben, Pagination, stabile IDs, erledigte/wieder offene
+Aufgaben, Warten-auf und undatierte Aufgaben, Teilausfälle, Auth-/Retry-/Zeitgrenzen,
+JSON/SSE, Tool-Schemas, Session-Neustart, Scope-/Expiry-Grenzen, Refresh-Rotation,
+Persistenzfehler, geschützte Keychain-IPC und die gesperrte Einrichtung.
+Python-3.12-CI benötigt keine Secrets und versendet keine Mail. Der native
+Swift-Keychain-Helfer wurde lokal nur typgeprüft, nicht gegen eine Keychain ausgeführt.

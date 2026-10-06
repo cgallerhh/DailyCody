@@ -202,7 +202,7 @@ class Config:
     reminders_refresh_command: str
     reminders_refresh_timeout_seconds: int
     application_wiki_snapshot_path: str
-    ticktick_access_token: str = field(default="", repr=False)
+    ticktick_mcp_auth_json: str = field(default="", repr=False)
     ticktick_timeout_seconds: float = 15
     ticktick_total_timeout_seconds: float = 90
 
@@ -254,7 +254,7 @@ def load_config() -> Config:
         application_wiki_snapshot_path=getenv(
             "APPLICATION_WIKI_SNAPSHOT_PATH", "data/application_wiki_snapshot.json"
         ),
-        ticktick_access_token=os.getenv("TICKTICK_ACCESS_TOKEN", ""),
+        ticktick_mcp_auth_json=os.getenv("TICKTICK_MCP_AUTH_JSON", ""),
         ticktick_timeout_seconds=float(getenv("TICKTICK_TIMEOUT_SECONDS", "15")),
         ticktick_total_timeout_seconds=float(getenv("TICKTICK_TOTAL_TIMEOUT_SECONDS", "90")),
     )
@@ -3408,7 +3408,7 @@ def main() -> int:
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     # Read just before composing; never refresh Apple or reuse a persisted task snapshot.
     tasks = ticktick_tasks.read_tasks(
-        config.ticktick_access_token, now,
+        config.ticktick_mcp_auth_json, now,
         timeout_seconds=config.ticktick_timeout_seconds,
         total_timeout_seconds=config.ticktick_total_timeout_seconds,
     )

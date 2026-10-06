@@ -31,6 +31,10 @@ on:
         description: "Read TickTick coverage only; never build or send a briefing"
         required: false
         default: "false"
+      ticktick_expected_generation:
+        description: "Optional token generation from the approved lifecycle receipt (check-only)"
+        required: false
+        default: ""
 
 jobs:
   send-briefing:
@@ -71,7 +75,9 @@ jobs:
           ALLOW_TEMPLATE_FALLBACK: ${{ vars.ALLOW_TEMPLATE_FALLBACK || 'false' }}
           # Separate, explicitly approved read-only OAuth authorization for this runner.
           # Never use a ChatGPT MCP credential or a committed task snapshot.
-          TICKTICK_ACCESS_TOKEN: ${{ secrets.TICKTICK_ACCESS_TOKEN }}
+          TICKTICK_MCP_AUTH_JSON: ${{ secrets.TICKTICK_MCP_AUTH_JSON }}
+          TICKTICK_MCP_INBOX_PROBE_ID: ${{ secrets.TICKTICK_MCP_INBOX_PROBE_ID }}
+          TICKTICK_MCP_EXPECTED_GENERATION: ${{ github.event.inputs.ticktick_expected_generation || '' }}
           TICKTICK_TIMEOUT_SECONDS: "15"
           TICKTICK_TOTAL_TIMEOUT_SECONDS: "90"
           TICKTICK_CHECK_ONLY: ${{ github.event.inputs.ticktick_check_only || 'false' }}

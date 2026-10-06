@@ -19,5 +19,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m unittest discover -s tests
-      - run: python -m py_compile src/*.py scripts/check_ticktick_access.py scripts/setup_ticktick_oauth.py
+      - run: python -m py_compile src/*.py scripts/check_ticktick_access.py scripts/check_ticktick_mcp_lifecycle.py scripts/setup_ticktick_mcp.py scripts/setup_ticktick_oauth.py
       - run: git diff --check

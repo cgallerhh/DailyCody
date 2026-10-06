@@ -35,7 +35,7 @@ CALLBACK_HOST = "127.0.0.1:8765"
 REDIRECT_URI = "http://" + CALLBACK_HOST + "/callback"
 TOKEN_URL = "https://ticktick.com/oauth/token"
 RESULT_PATH = Path(__file__).resolve().parents[2] / "ticktick-oauth-result.json"
-SETUP_PAUSED_FOR_INBOX = True  # No verified full read-only Open API Inbox route.
+SETUP_PAUSED_FOR_INBOX = True  # Retired Open API helper; MCP handoff needs review.
 
 
 class SetupError(RuntimeError):
@@ -234,9 +234,9 @@ def main() -> int:
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         raise SetupError("Bitte ausschließlich im eigenen Terminal starten; keine Chat-PTY oder umgeleitete Eingabe.")
     if SETUP_PAUSED_FOR_INBOX:
-        raise SetupError("Einrichtung pausiert: vollständiger OpenAPI-Lesezugriff auf die Inbox ist nicht bestätigt. "
+        raise SetupError("Einrichtung pausiert: alter OpenAPI-Helfer bleibt gesperrt; neuer Remote-MCP-Handoff ist vorzubereiten. "
                          "Keine erneute Anmeldung oder Geheimniseingabe. Kein Secret gespeichert. "
-                         "Befund: docs/ticktick-inbox-blocker.md")
+                         "Plan: docs/ticktick-mcp-handoff.md")
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     warnings.simplefilter("error", getpass.GetPassWarning)
     check_github_destination()

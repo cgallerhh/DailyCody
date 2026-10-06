@@ -2,10 +2,11 @@
 
 Daily Cody is a GitHub-hosted morning briefing. It sends an email from `Cody Chief of Staff <christian.galler+cody@gmail.com>` to `xx@gmail.com` around 06:00 `Europe/Berlin`.
 
-**TickTick draft rollout is blocked:** full read-only Open API Inbox coverage has
-not been established. The OAuth setup helper is paused before secret input or
-authorization. Do not repeat sign-in, merge, or activate this branch. See the
-[Inbox investigation and safe alternatives](docs/ticktick-inbox-blocker.md).
+**TickTick MCP rollout is still a draft:** the official remote MCP client and
+OAuth lifecycle are prepared and tested with synthetic data. Authenticated remote
+schemas, a known undated Inbox task, refresh and a fresh Actions runner still need
+live acceptance. Setup is paused before registration, login or storage changes.
+See the [concrete MCP handoff and runner limitations](docs/ticktick-mcp-handoff.md).
 
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
@@ -71,10 +72,11 @@ Create a fine-grained GitHub token for `cgallerhh/DailyCody` with **Actions: Rea
 
 `force_send=true` bypasses the local time window for the exact external trigger. `allow_duplicate=false` keeps the daily duplicate guard active if cron-job.org retries.
 
-Tasks are read directly from TickTick on every briefing run, just before composition.
+On this draft branch, tasks are read from TickTick's official remote MCP on every
+briefing run, just before composition.
 There is no local export prerequisite or saved-task fallback. The existing ChatGPT
 TickTick connection does not authenticate GitHub Actions. A separately approved
-read-only OAuth token is required; until then the task section reports an unknown
+read-only OAuth state is required; until then the task section reports an unknown
 current task state. Historical Apple and application-wiki snapshots do not add tasks.
 See [the task source and safe rollout plan](docs/ticktick-tasks.md).
 
@@ -85,7 +87,16 @@ Create these secrets in `Settings -> Secrets and variables -> Actions`:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
-- `TICKTICK_ACCESS_TOKEN` — a separately approved TickTick OAuth token with only `tasks:read`; never a ChatGPT MCP token
+- `TICKTICK_MCP_AUTH_JSON` — a separately approved `tasks:read` MCP access snapshot;
+  no refresh token and no ChatGPT connector credential
+- `TICKTICK_MCP_INBOX_PROBE_ID` — the known active undated Inbox task ID for the
+  mail-free acceptance check; never automatically create a task to obtain it
+
+These TickTick secrets have not been configured. The prepared Actions snapshot
+cannot renew itself: its dedicated refresh token would stay in an approved
+external keeper. The proposed local Keychain keeper needs the Mac available at
+renewal times and is not installed. Agree on that dependency or a separate cloud
+keeper before activation; see [the handoff](docs/ticktick-mcp-handoff.md).
 
 Optional, only for explicit AI mode:
 
@@ -125,8 +136,11 @@ Copy the three printed Google values into GitHub Secrets.
 
 ## TickTick Tasks
 
-The runner enumerates every active task list with project pagination and explicitly
-reads Inbox, then reads all open tasks per list. It excludes completed/abandoned
+The draft runner uses Streamable HTTP at `https://mcp.ticktick.com/`, validates the
+remote tool catalog and calls only `list_projects` and
+`get_project_with_undone_tasks`. It enumerates every active task list with project
+pagination, requires the fresh catalog's Inbox and reads all open tasks per list
+without date filters. It excludes completed/abandoned
 tasks and notes, deduplicates by task ID and preserves separate tasks with identical
 titles. Today's and overdue tasks appear under Today's to-dos; the next two days
 (seven on Fridays) appear under Reminders. Undated tasks remain visible as
@@ -139,8 +153,10 @@ as current TickTick tasks. [Details, tests and required auth approval](docs/tick
 
 For a task-only runner check, use workflow input `ticktick_check_only=true`. This
 runs `scripts/check_ticktick_access.py`, reports only counts and freshness, and
-exits before building or sending an email. Do this after separate OAuth/secret
-approval and before any product rollout.
+exits before building or sending an email. A known active undated Inbox task must
+be found by ID; an empty Inbox does not pass acceptance. Do this after the agreed
+OAuth/secret handoff and before any product rollout. Schema assumptions are
+fail-closed until checked against the authenticated native remote MCP catalog.
 
 The legacy Mac LaunchAgent also publishes the application wiki. It must be assessed
 separately before retiring only Cody's Apple export; this change does not stop any

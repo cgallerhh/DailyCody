@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import daily_cody
 import ticktick_tasks as tt
+import ticktick_openapi_reference as old
 
 NOW = dt.datetime(2026, 10, 6, 6, tzinfo=tt.BERLIN)
 TOKEN = "synthetic-token-never-real"
@@ -27,7 +28,7 @@ def project_data(project_id="p", tasks=None):
 
 
 def client_responses(responses, **kwargs):
-    client = tt.TickTickClient(TOKEN, **kwargs)
+    client = old.TickTickClient(TOKEN, **kwargs)
     client._get = Mock(side_effect=responses)
     return client
 
@@ -59,8 +60,8 @@ class TickTickCoverageTest(unittest.TestCase):
         for data in [{"project": None, "tasks": [], "columns": []}, {"tasks": []}]:
             with self.subTest(data=data):
                 client = client_responses([[{"id": "inbox", "name": "Inbox", "kind": "TASK"}], data])
-                with patch.object(tt, "TickTickClient", return_value=client):
-                    result = tt.read_tasks(TOKEN, NOW)
+                with patch.object(old, "TickTickClient", return_value=client):
+                    result = old.read_open_api_reference(TOKEN, NOW)
                 self.assertEqual(result.tasks, [])
                 self.assertEqual(result.project_count, 0)
                 self.assertFalse(result.status()["available"])
@@ -84,8 +85,8 @@ class TickTickCoverageTest(unittest.TestCase):
 
     def test_unverified_alias_does_not_trigger_speculative_unpaginated_discovery(self):
         client = client_responses([[], {"project": None, "tasks": []}])
-        with patch.object(tt, "TickTickClient", return_value=client):
-            result = tt.read_tasks(TOKEN, NOW)
+        with patch.object(old, "TickTickClient", return_value=client):
+            result = old.read_open_api_reference(TOKEN, NOW)
         self.assertFalse(result.status()["available"])
         self.assertIn("Aufgabenstand unbekannt", result.warning)
         self.assertEqual(client._get.call_count, 2)
@@ -93,8 +94,8 @@ class TickTickCoverageTest(unittest.TestCase):
     def test_unknown_inbox_discards_previously_read_tasks(self):
         client = client_responses([[{"id": "p"}], project_data("p", [task()]),
                                    {"project": None, "tasks": []}])
-        with patch.object(tt, "TickTickClient", return_value=client):
-            result = tt.read_tasks(TOKEN, NOW)
+        with patch.object(old, "TickTickClient", return_value=client):
+            result = old.read_open_api_reference(TOKEN, NOW)
         self.assertEqual(result.tasks, [])
         self.assertIn("TickTick-Inbox", result.warning)
         self.assertEqual(result.project_count, 0)
@@ -126,7 +127,7 @@ class TickTickCoverageTest(unittest.TestCase):
 
     def test_inbox_data_fixture_uses_shared_timeout_and_discards_late_result(self):
         client = client_responses([[], project_data("inbox-account-id")])
-        with patch.object(tt.time, "monotonic", side_effect=[0, 91]), self.assertRaises(tt.TickTickError):
+        with patch.object(old.time, "monotonic", side_effect=[0, 91]), self.assertRaises(tt.TickTickError):
             client.read(NOW)
 
     def test_response_structure_diagnostic_never_emits_private_keys_or_values(self):
@@ -167,8 +168,8 @@ class TickTickCoverageTest(unittest.TestCase):
 
     def test_partial_failure_never_returns_partial_or_apple_tasks(self):
         client = client_responses([[{"id": "p"}], project_data("p", [task()]), tt.TickTickError("synthetischer Fehler")])
-        with patch.object(tt, "TickTickClient", return_value=client), patch.object(daily_cody, "read_exported_reminders") as apple:
-            result = tt.read_tasks(TOKEN, NOW)
+        with patch.object(old, "TickTickClient", return_value=client), patch.object(daily_cody, "read_exported_reminders") as apple:
+            result = old.read_open_api_reference(TOKEN, NOW)
         self.assertEqual(result.tasks, [])
         self.assertFalse(result.status()["available"])
         self.assertIn("Aufgabenstand unbekannt", result.warning)
@@ -196,7 +197,7 @@ class TickTickCoverageTest(unittest.TestCase):
 
     def test_budget_is_shared_by_lists_and_discards_late_partial_result(self):
         client = client_responses([[{"id": "p"}], project_data("p", [task()]), project_data("inbox")])
-        with patch.object(tt.time, "monotonic", side_effect=[0, 91]), self.assertRaises(tt.TickTickError):
+        with patch.object(old.time, "monotonic", side_effect=[0, 91]), self.assertRaises(tt.TickTickError):
             client.read(NOW)
         self.assertEqual(client._get.call_count, 2)
 
@@ -278,7 +279,7 @@ class TickTickDateTest(unittest.TestCase):
 
 class TickTickTransportTest(unittest.TestCase):
     def client(self):
-        client = tt.TickTickClient(TOKEN)
+        client = old.TickTickClient(TOKEN)
         client.deadline = __import__("time").monotonic() + 90
         client.opener = Mock()
         return client
@@ -300,7 +301,7 @@ class TickTickTransportTest(unittest.TestCase):
         self.assertEqual(c._get("/project?offset=0&limit=100"), [])
         req = c.opener.open.call_args.args[0]
         self.assertEqual(req.get_method(), "GET")
-        self.assertTrue(req.full_url.startswith(tt.API + "/project"))
+        self.assertTrue(req.full_url.startswith(old.API + "/project"))
         self.assertEqual(req.get_header("Authorization"), "Bearer " + TOKEN)
         self.assertLessEqual(c.opener.open.call_args.kwargs["timeout"], 15)
         self.assertIsNone(req.data)
@@ -309,7 +310,7 @@ class TickTickTransportTest(unittest.TestCase):
         for code in [401, 403, 302, 404]:
             c = self.client()
             c.opener.open.side_effect = self.http_error(code)
-            with self.subTest(code=code), self.assertRaises(tt.TickTickError) as raised, patch.object(tt.time, "sleep") as sleep:
+            with self.subTest(code=code), self.assertRaises(tt.TickTickError) as raised, patch.object(old.time, "sleep") as sleep:
                 c._get("/project")
             self.assertNotIn(TOKEN, str(raised.exception))
             self.assertEqual(c.opener.open.call_count, 1)
@@ -317,10 +318,10 @@ class TickTickTransportTest(unittest.TestCase):
         self.assertIsNone(tt.NoRedirect().redirect_request(None, None, 302, "", {}, "https://other.invalid"))
 
     def test_429_5xx_and_network_errors_retry_and_recover(self):
-        for error in [self.http_error(429), self.http_error(503), urllib.error.URLError(TOKEN), TimeoutError(TOKEN), tt.http.client.IncompleteRead(b"private", 100)]:
+        for error in [self.http_error(429), self.http_error(503), urllib.error.URLError(TOKEN), TimeoutError(TOKEN), old.http.client.IncompleteRead(b"private", 100)]:
             c = self.client()
             c.opener.open.side_effect = [error, self.response(b"[]")]
-            with self.subTest(error=type(error).__name__), patch.object(tt.time, "sleep") as sleep:
+            with self.subTest(error=type(error).__name__), patch.object(old.time, "sleep") as sleep:
                 self.assertEqual(c._get("/project"), [])
             self.assertEqual(c.opener.open.call_count, 2)
             sleep.assert_called_once_with(1)
@@ -328,23 +329,23 @@ class TickTickTransportTest(unittest.TestCase):
     def test_exhausted_retries_are_sanitized(self):
         c = self.client()
         c.opener.open.side_effect = urllib.error.URLError(TOKEN)
-        with patch.object(tt.time, "sleep"), self.assertRaises(tt.TickTickError) as raised:
+        with patch.object(old.time, "sleep"), self.assertRaises(tt.TickTickError) as raised:
             c._get("/project")
         self.assertEqual(c.opener.open.call_count, 3)
         self.assertNotIn(TOKEN, str(raised.exception))
 
     def test_deadline_prevents_request_sleep_and_late_success(self):
         c = self.client()
-        with patch.object(tt.time, "monotonic", return_value=c.deadline), self.assertRaises(tt.TickTickError):
+        with patch.object(old.time, "monotonic", return_value=c.deadline), self.assertRaises(tt.TickTickError):
             c._get("/project")
         c.opener.open.assert_not_called()
         c.opener.open.side_effect = urllib.error.URLError(TOKEN)
-        with patch.object(tt.time, "monotonic", return_value=c.deadline - 0.5), patch.object(tt.time, "sleep") as sleep, self.assertRaises(tt.TickTickError):
+        with patch.object(old.time, "monotonic", return_value=c.deadline - 0.5), patch.object(old.time, "sleep") as sleep, self.assertRaises(tt.TickTickError):
             c._get("/project")
         sleep.assert_not_called()
         c.opener.open.side_effect = None
         c.opener.open.return_value = self.response(b"[]")
-        with patch.object(tt.time, "monotonic", side_effect=[c.deadline - 1, c.deadline + 1]), self.assertRaises(tt.TickTickError):
+        with patch.object(old.time, "monotonic", side_effect=[c.deadline - 1, c.deadline + 1]), self.assertRaises(tt.TickTickError):
             c._get("/project")
 
     def test_invalid_json_and_size_limit_are_not_successful_empty_lists(self):
@@ -436,13 +437,35 @@ class TickTickBriefingTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("ticktick_preflight", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        result = tt.TaskRead(tasks=[{"title": "SYNTHETIC PRIVATE TITLE"}], fetched_at=NOW.isoformat(), project_count=2, open_task_count=3)
-        with patch.object(tt, "read_tasks", return_value=result), patch("sys.stdout", new_callable=io.StringIO) as out:
+        result = tt.TaskRead(tasks=[{"title": "SYNTHETIC PRIVATE TITLE"}], fetched_at=NOW.isoformat(), project_count=2, open_task_count=3, inbox_probe_verified=True)
+        state = module.auth.State("synthetic-own-client", TOKEN, expires_at=NOW.timestamp() + 3600, generation=1)
+        env = {"TICKTICK_MCP_INBOX_PROBE_ID": "synthetic-probe", "TICKTICK_MCP_AUTH_JSON": state.to_json(),
+               "TICKTICK_MCP_EXPECTED_GENERATION": "1"}
+        with patch.dict(module.os.environ, env, clear=True), patch.object(tt, "read_tasks", return_value=result), patch("sys.stdout", new_callable=io.StringIO) as out:
             self.assertEqual(module.main(), 0)
         self.assertIn("3 total open tasks", out.getvalue())
+        self.assertIn("generation 1", out.getvalue())
         self.assertNotIn("SYNTHETIC PRIVATE TITLE", out.getvalue())
-        with patch.object(tt, "read_tasks", return_value=tt.TaskRead(warning="nicht verfügbar")), patch("sys.stderr", new_callable=io.StringIO):
+        self.assertNotIn(TOKEN, out.getvalue())
+        self.assertNotIn("synthetic-probe", out.getvalue())
+        with patch.dict(module.os.environ, env, clear=True), patch.object(tt, "read_tasks", return_value=tt.TaskRead(warning="nicht verfügbar")), patch("sys.stderr", new_callable=io.StringIO):
             self.assertEqual(module.main(), 1)
+
+    def test_runner_probe_rejects_stale_generation_before_task_network(self):
+        import importlib.util
+        path = Path(__file__).resolve().parents[1] / "scripts/check_ticktick_access.py"
+        spec = importlib.util.spec_from_file_location("ticktick_preflight_generation", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        state = module.auth.State("synthetic-own-client", TOKEN, expires_at=NOW.timestamp() + 3600, generation=1)
+        for expected in ("2", "bad", "-1", "１", "9" * 11):
+            env = {"TICKTICK_MCP_INBOX_PROBE_ID": "synthetic-probe", "TICKTICK_MCP_AUTH_JSON": state.to_json(),
+                   "TICKTICK_MCP_EXPECTED_GENERATION": expected}
+            with self.subTest(expected=expected), patch.dict(module.os.environ, env, clear=True), \
+                    patch.object(tt, "read_tasks") as fetch, patch("sys.stderr", new_callable=io.StringIO) as error:
+                self.assertEqual(module.main(), 1)
+            fetch.assert_not_called()
+            self.assertNotIn(TOKEN, error.getvalue())
 
     def test_markdown_and_html_in_task_text_are_safe(self):
         t = tt.normalize_task(task(title="[Fake](https://evil.invalid) <script>alert(1)</script>", content="Zeile\n## Deliveries"), "Privat")
@@ -453,7 +476,7 @@ class TickTickBriefingTest(unittest.TestCase):
     def test_main_reads_ticktick_after_mail_and_never_reads_or_refreshes_apple(self):
         config = daily_cody.Config("from@example.org", "to@example.org", "Europe/Berlin", [], "", "", "", "", "", "",
             None, "", 1, 1, False, 6, 9, True, False, True, False, False, False, 1, "", False, "", 1, "",
-            ticktick_access_token=TOKEN)
+            ticktick_mcp_auth_json="synthetic-state")
         events = []
         def fetched(*args, **kwargs):
             events.append("ticktick")

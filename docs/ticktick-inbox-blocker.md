@@ -1,5 +1,11 @@
 # TickTick-Inbox: konkreter OpenAPI-Blocker
 
+**Historischer Befund.** Der aktuelle Draft verwendet den offiziellen
+Remote-MCP; siehe [MCP-Handoff](ticktick-mcp-handoff.md). Die nachfolgenden
+OpenAPI-Befunde erklären die eingestellte Route, nicht den jetzigen
+MCP-Vertrag. Alte Setup-Anweisungen gelten nicht mehr; kein weiterer Login
+oder Supportversand nach dieser Untersuchung.
+
 Stand 06.10.2026. PR #5 bleibt Draft; keine Aktivierung, kein Merge und keine
 weitere Nutzer-Anmeldung als Versuch. Scope bleibt ausschließlich `tasks:read`.
 Die Secret-Ablage wurde bei beiden lokalen Proben nicht erreicht.
