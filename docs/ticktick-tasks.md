@@ -57,6 +57,11 @@ Versuchen bei HTTP 429/5xx oder Transportfehlern. Kein persistenter Cache.
 
 ## Authentifizierung: erforderliche Freigabe
 
+Am 06.10.2026 wurde die separate Read-only-Einrichtung, sichere Secret-Ablage,
+Mail-freie Live-Prüfung und der Merge **nach erfolgreicher Prüfung** ausdrücklich
+freigegeben. Die geheime Eingabe/Autorisierung ist ein notwendiger Nutzer-Handoff.
+Konkrete Schritte: [sichere OAuth-Nutzerübergabe](ticktick-oauth-handoff.md).
+
 Die ChatGPT-/dot-TickTick-Verbindung authentifiziert den GitHub-Runner nicht.
 Es wurden keine MCP-Zugangsdaten gelesen, kopiert oder gespeichert.
 Der Workflow erwartet einen **separaten** Actions-Secret `TICKTICK_ACCESS_TOKEN`.
@@ -115,7 +120,7 @@ Die Abnahme muss alle aktiven Listen, auch leere Inbox, gegen den lesenden
 TickTick-Connector vergleichen und Termine/Ganztagsdaten bestätigen.
 Der separate Connector-Gegencheck in dieser Arbeit ist keine erfolgreiche
 Authentifizierung der Open API im Actions-Runner.
-Erst danach sind Merge und produktive Umschaltung separat freizugeben.
+Erst danach gilt die erteilte bedingte Freigabe für Merge und produktive Umschaltung.
 Keine zusätzliche Briefing-Mail als Test versenden.
 
 ## Tatsächliche Runner und Zeitpläne: Audit 06.10.2026
