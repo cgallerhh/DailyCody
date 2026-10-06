@@ -1,5 +1,10 @@
 # TickTick-Aufgaben in Daily Cody
 
+**Review-Stand 06.10.2026: Aktivierung blockiert.** Der vollständige lesende
+OpenAPI-Inbox-Zugang ist nicht belegt. Die OAuth-Einrichtung ist vor jeder
+Geheimniseingabe/Anmeldung pausiert. Keine weitere Anmeldung als Versuch.
+[Befund, Grenzen und sichere Alternativen](ticktick-inbox-blocker.md).
+
 ## Abruf und Ausgabe
 
 Der GitHub-Runner liest bei jedem tatsächlich gebauten Briefing TickTick direkt
@@ -17,19 +22,15 @@ Die alten Apple-Reader bleiben nur als historische, getestete Hilfsfunktionen;
   Zusätzlich wird **immer** `GET /open/v1/project/inbox/data` gelesen, auch wenn
   die paginierte Listenübersicht die virtuelle Inbox auslässt. Keine feste
   Listen-ID-Konfiguration, keine Titel-Deduplizierung, keine 8-/12-Aufgaben-Grenze.
-- Die virtuelle Inbox darf ein fehlendes oder `null`-Projektobjekt liefern.
-  Der lesende Connector lieferte am 06.10.2026 genau `project: null`, `tasks: []`,
-  `columns: []`; die bisherige zwingende Objektprüfung war dafür zu streng.
-  In diesem Sonderfall bestätigt ein zusätzlicher frischer, unpaginierter
-  `GET /open/v1/project` mit **demselben OAuth-Token** die virtuelle ID `inbox`.
-  Fehlt diese Bestätigung, bleibt der Abruf ein Fehler und gilt nicht als leere
-  aktuelle Inbox. Aufgaben müssen eine einheitliche gültige Listen-ID besitzen,
-  die keine andere enumerierte Liste bezeichnet. Eine vom Server gelieferte
-  Konto-Inbox-ID bleibt in den Aufgabenlinks erhalten. Normale Listen brauchen
-  weiterhin ein passendes Projektobjekt. Fehlende Aufgabenarrays, fremde IDs,
-  Fortsetzungsmarker und Zeitlimitfehler werden weiterhin abgelehnt.
-  Der Connector-Befund prüft das Format; die separate OAuth-/Actions-Live-Abnahme
-  bleibt erforderlich.
+- Die virtuelle Inbox des MCP-Connectors belegt keine OpenAPI-Inbox-Identität.
+  Der zusätzliche unpaginierte GET aus dem ersten Formatfix hat die zweite
+  Live-Probe nicht bestanden und ist entfernt. Ein fehlendes/null-Projektobjekt
+  mit Aufgabenarray bleibt unbekannte Abdeckung, auch bei leerem Array oder
+  vorhandener virtueller MCP-Listenmetadaten. Es wird keine Inbox-ID aus
+  Aufgabe, Benutzer-ID oder Token abgeleitet. Die Fehlermeldung enthält nur
+  erlaubte Strukturmerkmale (Datentypen, Feldvorhandensein und Anzahl), keine
+  IDs, Namen, unbekannten Schlüssel oder Antwortinhalte. Normale Listen
+  behalten ihre Identitäts-, Status-, Pagination- und Terminprüfungen.
 - Der alternative Filter-Endpunkt hat laut Dokumentation eine Grenze von 200
   Aufgaben und wird deshalb nicht verwendet. Der Listeninhalt-Endpunkt hat
   keine dokumentierte Pagination. Unerwartete Fortsetzungsmarker werden als
@@ -122,12 +123,12 @@ Er benötigt keine Google-Abfragen und baut oder sendet keine Mail.
 Logs zeigen nur Anzahl relevanter offener Aufgaben, Listenabdeckung inklusive
 Inbox und Abrufzeit; keine Titel oder Tokens. Bei Fehler endet er mit Exit 1.
 
-**Inbox mit dem eigenen `tasks:read`-OAuth-Token ist noch nicht live verifiziert.**
-Die Dokumentation nennt `inbox` als Projekt-ID für offene Aufgaben und erlaubt
-den projektweisen GET-Abruf mit Bearer-Token; sie zeigt kein gesondertes
-Inbox-/Scope-Beispiel für diesen GET-Endpunkt. Das ist eine verbleibende
-Abnahmebedingung, kein durch den MCP-Test bewiesener API-Zugriff. Der Adapter
-verwirft alle Aufgaben, wenn der direkte Inbox-Abruf 403/404 liefert.
+**Inbox mit dem eigenen `tasks:read`-OAuth-Token ist nicht live verifiziert.**
+Der ausdrücklich dokumentierte `inbox`-Alias gehört zu `POST /task/undone`,
+das Datumsgrenzen verlangt und höchstens 14 Tage abdeckt. Daraus folgt keine
+Alias-Zusage für `GET /project/inbox/data` und keine vollständige Abdeckung
+undatierter Aufgaben. Keine weitere OAuth-Wiederholung bis zu einem belegten
+vollständigen Lesevertrag. Einzelheiten: [Inbox-Blocker](ticktick-inbox-blocker.md).
 
 Die Abnahme muss alle aktiven Listen, auch leere Inbox, gegen den lesenden
 TickTick-Connector vergleichen und Termine/Ganztagsdaten bestätigen.
@@ -140,7 +141,7 @@ Keine zusätzliche Briefing-Mail als Test versenden.
 
 | Zweck | Tatsächlicher Runner / Zeitplan | Behandlung |
 | --- | --- | --- |
-| Morgenbriefing | GitHub Actions, ubuntu-latest, Python 3.12; externer `workflow_dispatch` um 06:00 Berlin, Backup `*/5 4-7 * * *` UTC; Versandfenster 06:00–08:59 Berlin mit Duplikatschutz | Zeitpunkt und Versandregeln bleiben erhalten; Aufgaben jetzt live aus TickTick |
+| Morgenbriefing | GitHub Actions, ubuntu-latest, Python 3.12; externer `workflow_dispatch` um 06:00 Berlin, Backup `*/5 4-7 * * *` UTC; Versandfenster 06:00–08:59 Berlin mit Duplikatschutz | Zeitpunkt und Versandregeln bleiben erhalten; TickTick-Umstellung ist noch Draft und blockiert |
 | Apple-/Wiki-Export | geladener Mac-LaunchAgent `com.dailycody.reminders-export`; alle 1800 s, RunAtLoad; Arbeitsordner `~/Library/Application Support/DailyCody/repo`; Runner `export_apple_reminders_if_window.sh` | Noch unverändert, keine produktive Umschaltung während Review |
 | Lokale Codex-Automationen | Keine passende DailyCody-/Apple-Export-Automation in `~/.codex/automations` gefunden | Keine pauschale Änderung |
 | Benutzer-Crontab | Keine passende DailyCody-/Apple-Export-Zeile gefunden | Keine Änderung |
@@ -156,9 +157,9 @@ alten Daten/ausstehenden Pushes. Sein Exportskript veröffentlicht zusätzlich
 `application_wiki_snapshot.json`. Deshalb ist ein pauschales Stoppen unzulässig:
 Nach erfolgreicher Abnahme und Produktivfreigabe prüfen, ob andere Verbraucher
 den Wiki-Export brauchen; gegebenenfalls separat erhalten. Cody liest diesen
-Snapshot nach der Umstellung nicht mehr. Anschließend ausschließlich den
-genannten Apple-LaunchAgent gezielt entladen/archivieren, mit gesicherter
-Plist für eine reversible Wiederherstellung. Keine Änderungen an Aufgaben.
+Snapshot nach der Umstellung nicht mehr. Der Apple-/Wiki-LaunchAgent bleibt
+gemäß ausdrücklicher Nutzeranweisung aktiv; er wird nicht entladen.
+Keine Änderungen an Aufgaben.
 Der Workflow erwartet keinen Apple-Refresh und keinen frischen Apple-Export mehr.
 
 ## Verifikation

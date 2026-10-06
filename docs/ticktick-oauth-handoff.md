@@ -1,11 +1,21 @@
 # Sichere Nutzerübergabe für TickTick
 
+**Pausiert – bitte nicht erneut anmelden.** Zwei lokale Leseproben haben den
+vollständigen OpenAPI-Inbox-Zugang nicht bestätigt. Der Helfer beendet sich
+jetzt vor GitHub-Abfragen, Geheimniseingabe und Browser-Autorisierung.
+Keine neue App registrieren und keine Zugangsdaten erneut eingeben.
+[Konkreter Befund und sichere nächste Schritte](ticktick-inbox-blocker.md).
+
 Christian hat die separate Einrichtung mit ausschließlich `tasks:read`, die
 verschlüsselte Actions-Secret-Ablage und den anschließenden Mail-freien Live-Test
 freigegeben. PR #5 darf erst nach erfolgreichem Actions-Test inklusive Inbox
 gemergt werden. Keine ChatGPT-MCP-Zugangsdaten verwenden.
 
-## Jetzt selbst am Mac durchführen
+## OAuth-Ablauf erst nach belegter vollständiger Inbox-Abdeckung
+
+Diese Schritte dokumentieren den geprüften Ablauf; sie sind derzeit gesperrt.
+Die bereits registrierte App bleibt bestehen. Die Sperre wird erst nach einer
+belegten API-/Runner-Lösung und erfolgreicher Codeprüfung aufgehoben.
 
 1. Öffne [TickTick Developer: Manage Apps](https://developer.ticktick.com/manage).
    Melde dich selbst mit deinem TickTick-Konto an. Registriere eine eigene App,
@@ -55,12 +65,11 @@ gemergt werden. Keine ChatGPT-MCP-Zugangsdaten verwenden.
    Der geheime Token muss weder kopiert noch genannt werden. Bei Fehler nur
    den redigierten Fehlertext mitteilen. Noch keine Briefing-Mail auslösen.
 
-Bei dem bereits beobachteten Fehler **Listenidentität fehlt** nach erfolgreichem
-Callback wurde kein Secret gespeichert. Der beendete Helfer hat den Token nicht
-aufbewahrt. Nach dem Formatfix deshalb denselben Terminal-Befehl mit der bereits
-registrierten App erneut selbst ausführen und erneut nur `tasks:read` bestätigen.
-Keine neue App erforderlich; keine Zugangsdaten aus Terminal oder Prozessen
-nachträglich auslesen. Der Callback allein bestätigt keinen Aufgabenabruf.
+Bei beiden bereits beobachteten Inbox-Fehlern nach erfolgreichem Callback wurde
+kein Secret gespeichert. Die beendeten Helfer haben den Token nicht aufbewahrt.
+Der Callback allein bestätigt keinen vollständigen Aufgabenabruf. Keine
+Zugangsdaten aus Terminal oder Prozessen nachträglich auslesen und keinen
+erneuten OAuth-Durchlauf als spekulativen API-Test durchführen.
 
 ## Was danach geprüft wird
 

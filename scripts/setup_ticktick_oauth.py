@@ -35,6 +35,7 @@ CALLBACK_HOST = "127.0.0.1:8765"
 REDIRECT_URI = "http://" + CALLBACK_HOST + "/callback"
 TOKEN_URL = "https://ticktick.com/oauth/token"
 RESULT_PATH = Path(__file__).resolve().parents[2] / "ticktick-oauth-result.json"
+SETUP_PAUSED_FOR_INBOX = True  # No verified full read-only Open API Inbox route.
 
 
 class SetupError(RuntimeError):
@@ -232,6 +233,10 @@ def save_receipt(result: ticktick_tasks.TaskRead, expires_at: str | None) -> Non
 def main() -> int:
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         raise SetupError("Bitte ausschließlich im eigenen Terminal starten; keine Chat-PTY oder umgeleitete Eingabe.")
+    if SETUP_PAUSED_FOR_INBOX:
+        raise SetupError("Einrichtung pausiert: vollständiger OpenAPI-Lesezugriff auf die Inbox ist nicht bestätigt. "
+                         "Keine erneute Anmeldung oder Geheimniseingabe. Kein Secret gespeichert. "
+                         "Befund: docs/ticktick-inbox-blocker.md")
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     warnings.simplefilter("error", getpass.GetPassWarning)
     check_github_destination()
@@ -269,5 +274,5 @@ if __name__ == "__main__":
         raise SystemExit(1)
     except (Exception, KeyboardInterrupt):
         # Never render unexpected exception objects, response JSON or a traceback.
-        print("Einrichtung nicht vollständig abgeschlossen. Bitte lokal erneut starten oder ohne geheime Angaben melden.", file=sys.stderr)
+        print("Einrichtung nicht vollständig abgeschlossen. Bitte ohne geheime Angaben melden; nicht erneut anmelden.", file=sys.stderr)
         raise SystemExit(1)

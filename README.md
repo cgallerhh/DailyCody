@@ -2,6 +2,11 @@
 
 Daily Cody is a GitHub-hosted morning briefing. It sends an email from `Cody Chief of Staff <christian.galler+cody@gmail.com>` to `xx@gmail.com` around 06:00 `Europe/Berlin`.
 
+**TickTick draft rollout is blocked:** full read-only Open API Inbox coverage has
+not been established. The OAuth setup helper is paused before secret input or
+authorization. Do not repeat sign-in, merge, or activate this branch. See the
+[Inbox investigation and safe alternatives](docs/ticktick-inbox-blocker.md).
+
 Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 
 - neutral DWD Open Data MOSMIX weather measurements for `21077 Hamburg-Harburg`, split into morning, midday, and afternoon with temperature, rain probability, and wind in layman terms

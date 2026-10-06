@@ -139,6 +139,7 @@ class OAuthHandoffTest(unittest.TestCase):
 
     def run_main(self, token_response, probe, receipt_error=None):
         with patch.object(sys.stdin, "isatty", return_value=True), patch.object(sys.stdout, "isatty", return_value=True), \
+             patch.object(oauth, "SETUP_PAUSED_FOR_INBOX", False), \
              patch.object(oauth.resource, "setrlimit"), patch.object(oauth, "check_github_destination"), \
              patch.object(oauth.getpass, "getpass", side_effect=["synthetic-id", CLIENT_SECRET]), \
              patch.object(oauth, "receive_code", return_value=CODE), patch.object(oauth, "exchange_code", return_value=token_response), \
@@ -151,6 +152,17 @@ class OAuthHandoffTest(unittest.TestCase):
                 stdout.write(str(exc))
                 rc = 1
         return rc, publish, save, stdout.getvalue()
+
+    def test_inbox_blocker_stops_setup_before_secret_input_auth_or_any_github_call(self):
+        with patch.object(sys.stdin, "isatty", return_value=True), patch.object(sys.stdout, "isatty", return_value=True), \
+             patch.object(oauth, "check_github_destination") as github, patch.object(oauth.getpass, "getpass") as password, \
+             patch.object(oauth, "receive_code") as browser, patch.object(oauth, "exchange_code") as exchange, \
+             patch.object(oauth, "publish_secret") as publish, patch.object(oauth, "save_receipt") as save, \
+             self.assertRaises(oauth.SetupError) as error:
+            oauth.main()
+        self.assertIn("Einrichtung pausiert", str(error.exception))
+        for operation in (github, password, browser, exchange, publish, save):
+            operation.assert_not_called()
 
     def test_failed_inbox_or_changed_scope_cannot_install_secret(self):
         for response, probe in [({"access_token": TOKEN, "scope": "tasks:read tasks:write"}, ticktick_tasks.TaskRead()),

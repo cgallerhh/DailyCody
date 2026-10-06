@@ -3,6 +3,7 @@
 Contract: https://developer.ticktick.com/docs/openapi.md (checked 2026-10-06).
 Project pagination is documented; project data returns the full undone task list.
 The date-filter endpoint has a 200-task cap and is deliberately not used.
+Full Inbox discovery/read coverage is NOT verified; see docs/ticktick-inbox-blocker.md.
 """
 from __future__ import annotations
 
@@ -103,40 +104,11 @@ class TickTickClient:
             time.sleep(delay)
         raise AssertionError("unreachable")
 
-    def _virtual_inbox_id(self, data: dict[str, Any], projects: dict[str, Any]) -> str:
-        # The virtual Inbox legitimately returns project:null (or omits it).
-        # Confirm the alias in a fresh unpaginated listing under the SAME token;
-        # a fabricated fallback project must never turn an unknown list into empty.
-        records = self._get("/project")
-        if not isinstance(records, list):
-            raise TickTickError("TickTick-Inbox: frische Listenidentität ist nicht verlässlich.")
-        matches = []
-        for record in records:
-            if not isinstance(record, dict):
-                raise TickTickError("TickTick-Inbox: frische Listenidentität ist nicht verlässlich.")
-            if identifier(record.get("id")) == "inbox":
-                matches.append(record)
-        if (len(matches) != 1 or (matches[0].get("closed") is not None and
-                               matches[0].get("closed") is not False) or
-                matches[0].get("kind") not in (None, "TASK")):
-            raise TickTickError("TickTick-Inbox: project fehlt/null und virtuelle Identität ist nicht frisch bestätigt.")
-        task_projects = set()
-        for raw in data["tasks"]:
-            if not isinstance(raw, dict):
-                raise TickTickError("TickTick-Inbox hat eine ungültige Aufgabe geliefert.")
-            task_projects.add(identifier(raw.get("projectId")))
-        if len(task_projects) > 1:
-            raise TickTickError("TickTick-Inbox enthält widersprüchliche Listenidentitäten.")
-        actual_id = next(iter(task_projects), "inbox")
-        if actual_id != "inbox" and actual_id in projects:
-            raise TickTickError("TickTick-Inbox-Aufgabe gehört zu einer anderen bekannten Liste.")
-        # Preserve a server-provided account-specific Inbox ID in task links.
-        return actual_id
-
     def read(self, now: dt.datetime) -> TaskRead:
         self.deadline = time.monotonic() + self.total_timeout
         projects: dict[str, dict[str, Any]] = {}
-        # Paginated enumeration can omit the virtual inbox. Always read it explicitly.
+        # The Open API enumeration does not establish the MCP's virtual Inbox.
+        # Keep a separate Inbox probe and fail if its coverage cannot be verified.
         for page in range(self.max_pages):
             query = urllib.parse.urlencode({"offset": page * self.page_size, "limit": self.page_size})
             records = self._get("/project?" + query)
@@ -177,15 +149,15 @@ class TickTickClient:
                 raise TickTickError("TickTick-Aufgabenabdeckung ist unvollständig.")
             returned = data.get("project")
             if returned is None and project_id == "inbox":
-                actual_id = self._virtual_inbox_id(data, projects)
-                returned = {}
-            else:
-                if not isinstance(returned, dict):
-                    # Static diagnostics identify the stage without IDs, names or bodies.
-                    area = "Inbox" if project_id == "inbox" else "Liste"
-                    shape = "fehlt/null" if returned is None else "hat einen ungültigen Typ"
-                    raise TickTickError(f"TickTick-{area}: project {shape}; Aufgabenarray vorhanden.")
-                actual_id = identifier(returned.get("id"))
+                # A null project and an empty array also fit an unsupported ID.
+                # MCP virtual metadata or another unpaginated GET cannot prove access.
+                raise TickTickError("TickTick-Inbox-Abdeckung über Open API ist nicht bestätigt; "
+                                    "Antwortstruktur: " + json.dumps(project_data_shape(data), sort_keys=True) + ".")
+            if not isinstance(returned, dict):
+                area = "Inbox" if project_id == "inbox" else "Liste"
+                shape = "fehlt/null" if returned is None else "hat einen ungültigen Typ"
+                raise TickTickError(f"TickTick-{area}: project {shape}; Aufgabenarray vorhanden.")
+            actual_id = identifier(returned.get("id"))
             if project_id != "inbox" and actual_id != project_id:
                 raise TickTickError("TickTick-Listenidentität stimmt nicht überein.")
             if project_id == "inbox" and actual_id != "inbox" and actual_id in projects:
@@ -216,6 +188,30 @@ class TickTickClient:
         return TaskRead(tasks=sorted(tasks.values(), key=lambda t: (
             t["due_date"] or t["start_date"] or "9999-12-31", t["due_at"] or t["start_at"], t["id"])),
             fetched_at=dt.datetime.now(BERLIN).isoformat(), project_count=count, open_task_count=open_count)
+
+
+def project_data_shape(data: Any) -> dict[str, Any]:
+    """Allowlisted types/counts only; never keys, IDs, names or response values."""
+    def kind(value: Any) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, dict):
+            return "object"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, (int, float)):
+            return "number"
+        return "string" if isinstance(value, str) else "other"
+
+    result: dict[str, Any] = {"body_type": kind(data)}
+    if isinstance(data, dict):
+        for field_name in ("project", "tasks", "columns"):
+            result[field_name + "_type"] = kind(data[field_name]) if field_name in data else "missing"
+        result["project_id_present"] = isinstance(data.get("project"), dict) and isinstance(data["project"].get("id"), str)
+        result["task_count"] = len(data["tasks"]) if isinstance(data.get("tasks"), list) else None
+    return result
 
 
 def identifier(value: Any) -> str:
