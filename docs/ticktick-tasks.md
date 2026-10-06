@@ -17,6 +17,19 @@ Die alten Apple-Reader bleiben nur als historische, getestete Hilfsfunktionen;
   Zusätzlich wird **immer** `GET /open/v1/project/inbox/data` gelesen, auch wenn
   die paginierte Listenübersicht die virtuelle Inbox auslässt. Keine feste
   Listen-ID-Konfiguration, keine Titel-Deduplizierung, keine 8-/12-Aufgaben-Grenze.
+- Die virtuelle Inbox darf ein fehlendes oder `null`-Projektobjekt liefern.
+  Der lesende Connector lieferte am 06.10.2026 genau `project: null`, `tasks: []`,
+  `columns: []`; die bisherige zwingende Objektprüfung war dafür zu streng.
+  In diesem Sonderfall bestätigt ein zusätzlicher frischer, unpaginierter
+  `GET /open/v1/project` mit **demselben OAuth-Token** die virtuelle ID `inbox`.
+  Fehlt diese Bestätigung, bleibt der Abruf ein Fehler und gilt nicht als leere
+  aktuelle Inbox. Aufgaben müssen eine einheitliche gültige Listen-ID besitzen,
+  die keine andere enumerierte Liste bezeichnet. Eine vom Server gelieferte
+  Konto-Inbox-ID bleibt in den Aufgabenlinks erhalten. Normale Listen brauchen
+  weiterhin ein passendes Projektobjekt. Fehlende Aufgabenarrays, fremde IDs,
+  Fortsetzungsmarker und Zeitlimitfehler werden weiterhin abgelehnt.
+  Der Connector-Befund prüft das Format; die separate OAuth-/Actions-Live-Abnahme
+  bleibt erforderlich.
 - Der alternative Filter-Endpunkt hat laut Dokumentation eine Grenze von 200
   Aufgaben und wird deshalb nicht verwendet. Der Listeninhalt-Endpunkt hat
   keine dokumentierte Pagination. Unerwartete Fortsetzungsmarker werden als

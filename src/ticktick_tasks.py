@@ -103,6 +103,36 @@ class TickTickClient:
             time.sleep(delay)
         raise AssertionError("unreachable")
 
+    def _virtual_inbox_id(self, data: dict[str, Any], projects: dict[str, Any]) -> str:
+        # The virtual Inbox legitimately returns project:null (or omits it).
+        # Confirm the alias in a fresh unpaginated listing under the SAME token;
+        # a fabricated fallback project must never turn an unknown list into empty.
+        records = self._get("/project")
+        if not isinstance(records, list):
+            raise TickTickError("TickTick-Inbox: frische Listenidentität ist nicht verlässlich.")
+        matches = []
+        for record in records:
+            if not isinstance(record, dict):
+                raise TickTickError("TickTick-Inbox: frische Listenidentität ist nicht verlässlich.")
+            if identifier(record.get("id")) == "inbox":
+                matches.append(record)
+        if (len(matches) != 1 or (matches[0].get("closed") is not None and
+                               matches[0].get("closed") is not False) or
+                matches[0].get("kind") not in (None, "TASK")):
+            raise TickTickError("TickTick-Inbox: project fehlt/null und virtuelle Identität ist nicht frisch bestätigt.")
+        task_projects = set()
+        for raw in data["tasks"]:
+            if not isinstance(raw, dict):
+                raise TickTickError("TickTick-Inbox hat eine ungültige Aufgabe geliefert.")
+            task_projects.add(identifier(raw.get("projectId")))
+        if len(task_projects) > 1:
+            raise TickTickError("TickTick-Inbox enthält widersprüchliche Listenidentitäten.")
+        actual_id = next(iter(task_projects), "inbox")
+        if actual_id != "inbox" and actual_id in projects:
+            raise TickTickError("TickTick-Inbox-Aufgabe gehört zu einer anderen bekannten Liste.")
+        # Preserve a server-provided account-specific Inbox ID in task links.
+        return actual_id
+
     def read(self, now: dt.datetime) -> TaskRead:
         self.deadline = time.monotonic() + self.total_timeout
         projects: dict[str, dict[str, Any]] = {}
@@ -146,11 +176,20 @@ class TickTickClient:
             if any(data.get(k) for k in ("hasMore", "nextPageToken", "nextCursor")):
                 raise TickTickError("TickTick-Aufgabenabdeckung ist unvollständig.")
             returned = data.get("project")
-            if not isinstance(returned, dict):
-                raise TickTickError("TickTick-Listenidentität fehlt.")
-            actual_id = identifier(returned.get("id"))
+            if returned is None and project_id == "inbox":
+                actual_id = self._virtual_inbox_id(data, projects)
+                returned = {}
+            else:
+                if not isinstance(returned, dict):
+                    # Static diagnostics identify the stage without IDs, names or bodies.
+                    area = "Inbox" if project_id == "inbox" else "Liste"
+                    shape = "fehlt/null" if returned is None else "hat einen ungültigen Typ"
+                    raise TickTickError(f"TickTick-{area}: project {shape}; Aufgabenarray vorhanden.")
+                actual_id = identifier(returned.get("id"))
             if project_id != "inbox" and actual_id != project_id:
                 raise TickTickError("TickTick-Listenidentität stimmt nicht überein.")
+            if project_id == "inbox" and actual_id != "inbox" and actual_id in projects:
+                raise TickTickError("TickTick-Inbox-Identität verweist auf eine andere bekannte Liste.")
             list_name = project.get("name") or returned.get("name") or (
                 "Inbox" if project_id == "inbox" else "Unbenannte Liste")
             if not isinstance(list_name, str):

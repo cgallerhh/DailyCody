@@ -11,7 +11,7 @@ gemergt werden. Keine ChatGPT-MCP-Zugangsdaten verwenden.
    Melde dich selbst mit deinem TickTick-Konto an. Registriere eine eigene App,
    zum Beispiel **Daily Cody (read-only)**. Bei einer Beschreibung genügt:
    `Read-only task source for my morning briefing; no task changes.`
-   Als Redirect-URI exakt eintragen:
+   Im Feld **OAuth redirect URL** exakt eintragen:
 
    ```text
    http://127.0.0.1:8765/callback
@@ -54,6 +54,13 @@ gemergt werden. Keine ChatGPT-MCP-Zugangsdaten verwenden.
 5. Wenn das Terminal **Erfolgreich** meldet, im Chat nur **fertig** schreiben.
    Der geheime Token muss weder kopiert noch genannt werden. Bei Fehler nur
    den redigierten Fehlertext mitteilen. Noch keine Briefing-Mail auslösen.
+
+Bei dem bereits beobachteten Fehler **Listenidentität fehlt** nach erfolgreichem
+Callback wurde kein Secret gespeichert. Der beendete Helfer hat den Token nicht
+aufbewahrt. Nach dem Formatfix deshalb denselben Terminal-Befehl mit der bereits
+registrierten App erneut selbst ausführen und erneut nur `tasks:read` bestätigen.
+Keine neue App erforderlich; keine Zugangsdaten aus Terminal oder Prozessen
+nachträglich auslesen. Der Callback allein bestätigt keinen Aufgabenabruf.
 
 ## Was danach geprüft wird
 

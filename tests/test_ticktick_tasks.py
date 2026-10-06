@@ -55,6 +55,82 @@ class TickTickCoverageTest(unittest.TestCase):
         self.assertTrue(result.fetched_at)
         self.assertEqual(result.project_count, 1)
 
+    def test_empty_virtual_inbox_allows_null_or_omitted_project_after_fresh_identity_check(self):
+        for data in [{"project": None, "tasks": [], "columns": []}, {"tasks": []}]:
+            with self.subTest(data=data):
+                client = client_responses([[], data, [{"id": "inbox", "name": "Inbox", "kind": "TASK"}]])
+                result = client.read(NOW)
+                self.assertEqual(result.tasks, [])
+                self.assertEqual(result.project_count, 1)
+                self.assertTrue(result.status()["available"])
+                self.assertEqual([c.args[0] for c in client._get.call_args_list],
+                                 ["/project?offset=0&limit=100", "/project/inbox/data", "/project"])
+
+    def test_virtual_inbox_without_project_preserves_all_tasks_ids_dates_and_status(self):
+        records = [task(str(i), "inbox-account-id", isAllDay=True, dueDate="2026-10-06") for i in range(230)]
+        records += [copy.deepcopy(records[0]), task("done", "inbox-account-id", status=2),
+                    task("abandoned", "inbox-account-id", status=-1), task("undated", "inbox-account-id")]
+        client = client_responses([[], {"project": None, "tasks": records}, [{"id": "inbox"}]])
+        result = client.read(NOW)
+        self.assertEqual(len(result.tasks), 231)
+        self.assertEqual(result.open_task_count, 231)
+        self.assertTrue(all(t["list"] == "Inbox" for t in result.tasks))
+        self.assertTrue(all(t["project_id"] == "inbox-account-id" for t in result.tasks))
+        self.assertIn("#p/inbox-account-id/tasks/0", next(t for t in result.tasks if t["id"] == "0")["source_url"])
+        self.assertEqual(next(t for t in result.tasks if t["id"] == "0")["due_date"], "2026-10-06")
+        self.assertEqual(next(t for t in result.tasks if t["id"] == "undated")["due_date"], "")
+
+    def test_virtual_inbox_identity_missing_or_malformed_never_counts_as_empty(self):
+        for listing in [[], {}, [None], [{"id": "inbox"}, {"id": "inbox"}],
+                        [{"id": "inbox", "closed": True}], [{"id": "inbox", "closed": "false"}],
+                        [{"id": "inbox", "closed": 0}],
+                        [{"id": "inbox", "kind": "NOTE"}], [{"id": "../unsafe"}]]:
+            with self.subTest(listing=listing):
+                client = client_responses([[], {"project": None, "tasks": []}, listing])
+                with patch.object(tt, "TickTickClient", return_value=client):
+                    result = tt.read_tasks(TOKEN, NOW)
+                self.assertEqual(result.tasks, [])
+                self.assertFalse(result.status()["available"])
+                self.assertIn("Aufgabenstand unbekannt", result.warning)
+
+    def test_unknown_inbox_discards_previously_read_tasks(self):
+        client = client_responses([[{"id": "p"}], project_data("p", [task()]),
+                                   {"project": None, "tasks": []}, [{"id": "p"}]])
+        with patch.object(tt, "TickTickClient", return_value=client):
+            result = tt.read_tasks(TOKEN, NOW)
+        self.assertEqual(result.tasks, [])
+        self.assertIn("TickTick-Inbox", result.warning)
+        self.assertEqual(result.project_count, 0)
+
+    def test_normal_list_null_project_still_fails_with_safe_stage_diagnostic(self):
+        client = client_responses([[{"id": "p", "name": TOKEN}], {"project": None, "tasks": []}])
+        with self.assertRaises(tt.TickTickError) as error:
+            client.read(NOW)
+        self.assertIn("TickTick-Liste: project fehlt/null", str(error.exception))
+        self.assertNotIn(TOKEN, str(error.exception))
+        self.assertEqual(client._get.call_count, 2)
+
+    def test_inbox_rejects_mixed_known_or_invalid_task_project_ids(self):
+        for records in [[task("a", "inbox"), task("b", "other-inbox")], [task("a", "p")],
+                        [task("a", "../invalid")], [None], [task("a", None)]]:
+            with self.subTest(records=records), self.assertRaises(tt.TickTickError):
+                client_responses([[{"id": "p"}], project_data("p"),
+                                  {"project": None, "tasks": records}, [{"id": "inbox"}, {"id": "p"}]]).read(NOW)
+
+    def test_inbox_missing_tasks_invalid_project_or_continuation_still_fails(self):
+        for data in [{"project": None}, {"project": None, "tasks": None},
+                     {"project": "invalid", "tasks": []}, {"project": {}, "tasks": []},
+                     {"project": None, "tasks": [], "nextCursor": "private-cursor"}]:
+            with self.subTest(data=data), self.assertRaises(tt.TickTickError):
+                client = client_responses([[], data])
+                client.read(NOW)
+            self.assertEqual(client._get.call_count, 2)
+
+    def test_virtual_inbox_identity_check_uses_shared_timeout_and_discards_late_result(self):
+        client = client_responses([[], {"project": None, "tasks": []}, [{"id": "inbox"}]])
+        with patch.object(tt.time, "monotonic", side_effect=[0, 91]), self.assertRaises(tt.TickTickError):
+            client.read(NOW)
+
     def test_virtual_inbox_is_not_read_twice(self):
         client = client_responses([[{"id": "inbox", "name": "Inbox"}], project_data("inbox", [task("i", "inbox")])])
         self.assertEqual(len(client.read(NOW).tasks), 1)
