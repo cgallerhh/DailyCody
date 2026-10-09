@@ -25,8 +25,12 @@ Eine Absage oder als beendet markierter Vorgang verschwindet aus allen
 Aktions- und Nachfassabschnitten. Explizite Nutzerentscheidungen liegen in
 `data/resolved_topics.json` und haben Vorrang vor alten Mailformulierungen.
 
-Alle faelligen und ueberfaelligen Apple-Erinnerungen werden angezeigt,
-nicht nur die ersten acht. Fehlende oder veraltete Quelldaten bleiben sichtbar.
+Alle faelligen und ueberfaelligen TickTick-Aufgaben werden angezeigt, ohne
+stille Mengenbegrenzung. Alle aktiven Aufgabenlisten inklusive Inbox werden
+frisch gelesen. Undatierte und Warten-auf-Aufgaben bleiben ohne erfundene
+Fristen erhalten. Aufgabenstand unbekannt ist von einer erfolgreich gelesenen
+leeren Liste zu unterscheiden. Kein Apple- oder Bewerbungs-Wiki-Fallback.
+Siehe [TickTick-Quellenvertrag und Freigabeplan](ticktick-tasks.md).
 
 ## Lieferungen
 
