@@ -160,7 +160,7 @@ class WeatherSummaryTest(unittest.TestCase):
         self.assertEqual(plain.strip(), markdown)
         self.assertIn("Wetter · Hamburg-Harburg", html_body)
         self.assertIn("16–21 °C", html_body)
-        self.assertIn("Regen 33 %", html_body)
+        self.assertIn("Niederschlag 33 %", html_body)
         self.assertIn("Wind 23 km/h", html_body)
         self.assertNotIn(weather["summary"], html_body)
         self.assertIn("https://example.com/track", html_body)
@@ -179,3 +179,4 @@ class WeatherSummaryTest(unittest.TestCase):
         self.assertNotIn("<script>", html_body)
         self.assertIn("DWD &amp; Partner", html_body)
         self.assertIn("k. A.", html_body)
+

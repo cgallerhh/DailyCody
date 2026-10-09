@@ -92,32 +92,39 @@ def build_overview(
         else:
             sentences.append(f"{sky_prefix} gibt es voraussichtlich Sonne und Wolken.")
 
+    period_descriptions = []
     for label, start, end in DAYPARTS:
         selected = [i for i in daytime if start <= timestamps[i].hour <= end]
         period_codes = values_at(hourly, "weather_code", selected)
         events = list(dict.fromkeys(PRECIPITATION[int(code)] for code in period_codes
                                     if code.is_integer() and int(code) in PRECIPITATION))
         if events:
+            # Sort only for equality; preserve source order in the displayed event list.
             verb = "sind" if len(events) > 1 or events[0].endswith("schauer") else "ist"
-            sentences.append(f"{label} {verb} {joined(events)} vorhergesagt.")
+            period_descriptions.append((label, tuple(sorted(events)), f"{verb} {joined(events)} vorhergesagt."))
         elif any(code in {45, 49} for code in period_codes):
-            sentences.append(f"{label} ist Nebel vorhergesagt.")
+            period_descriptions.append((label, ("Nebel",), "ist Nebel vorhergesagt."))
         else:
             probabilities = [value for value in values_at(hourly, "precipitation_probability", selected)
                              if 0 <= value <= 100]
-            if probabilities and max(probabilities) >= 30:
-                sentences.append(f"{label} liegt die stündliche Niederschlagswahrscheinlichkeit bei bis zu {round(max(probabilities))} Prozent.")
+            description = (f"liegt die stündliche Niederschlagswahrscheinlichkeit bei bis zu {round(max(probabilities))} Prozent."
+                           if probabilities and max(probabilities) >= 30 else "")
+            # Probability-only periods and missing data are never merged across a gap.
+            period_descriptions.append((label, None, description))
 
-    # Report values, not ungrounded 'gusty' or 'freshening' interpretations.
-    wind = [value for value in values_at(hourly, "wind_speed_10m", daytime) if value >= 0]
-    gusts = [value for value in values_at(hourly, "wind_gusts_10m", daytime) if value >= 0]
-    if wind:
-        sentence = f"Der Wind erreicht bis zu {round(max(wind))} km/h"
-        if gusts:
-            sentence += f", in Böen bis zu {round(max(gusts))} km/h"
-        sentences.append(sentence + ".")
-    elif gusts:
-        sentences.append(f"Windböen bis {round(max(gusts))} km/h sind vorhergesagt.")
+    period_names = {"Vormittags": "den Vormittag", "Mittags": "den Mittag", "Nachmittags": "den Nachmittag"}
+    position = 0
+    while position < len(period_descriptions):
+        label, events, description = period_descriptions[position]
+        labels = [label]
+        end = position + 1
+        while events is not None and end < len(period_descriptions) and period_descriptions[end][1] == events:
+            labels.append(period_descriptions[end][0])
+            end += 1
+        if description:
+            timing = label if len(labels) == 1 else "Für " + joined([period_names[label] for label in labels])
+            sentences.append(f"{timing} {description}")
+        position = end
 
     # A nearby model slot is explicitly labelled as a prediction at its valid
     # time, never as a measured current temperature or as the first KMZ value.
@@ -142,7 +149,19 @@ def build_overview(
         sentences.append(f"Tagsüber werden bis zu {round(high)} Grad erwartet.")
     elif temperatures:
         sentences.append(f"Im Vorhersagezeitraum für {'heute' if forecast_date == now.date() else 'morgen' if forecast_date == now.date() + dt.timedelta(days=1) else forecast_date.strftime('%d.%m.%Y')} werden bis zu {round(max(temperatures))} Grad erwartet.")
-    if not sentences:
+    wind_sentences = []
+    # Report values, not ungrounded 'gusty' or 'freshening' interpretations.
+    wind = [value for value in values_at(hourly, "wind_speed_10m", daytime) if value >= 0]
+    gusts = [value for value in values_at(hourly, "wind_gusts_10m", daytime) if value >= 0]
+    if wind:
+        sentence = f"Der Wind erreicht bis zu {round(max(wind))} km/h"
+        if gusts:
+            sentence += f", in Böen bis zu {round(max(gusts))} km/h"
+        wind_sentences.append(sentence + ".")
+    elif gusts:
+        wind_sentences.append(f"Windböen bis {round(max(gusts))} km/h sind vorhergesagt.")
+
+    if not sentences and not wind_sentences:
         sentences.append(f"Für den {forecast_date:%d.%m.%Y} liegen keine ausreichenden Wetterdaten vor.")
     if stale:
         sentences.insert(0, "Hinweis: Diese Vorhersage ist älter als 24 Stunden.")
@@ -155,10 +174,12 @@ def build_overview(
     else:
         source_note += " · Stand unbekannt"
     source_note += f" · Ortszeit {timezone}"
+    paragraphs = [" ".join(part) for part in (sentences, wind_sentences) if part]
     return {
-        "narrative": " ".join(sentences), "narrative_source": source_note,
+        "narrative": " ".join(paragraphs), "narrative_paragraphs": paragraphs, "narrative_source": source_note,
         "current_temp_c": current[0] if current else None,
         "current_forecast_at": current_at.isoformat() if current_at else None,
         "forecast_stale": stale, "high_c": high,
         "high_source": "DWD TX 18 UTC" if maxima else "hourly forecast maximum",
     }
+

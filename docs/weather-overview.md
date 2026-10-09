@@ -1,13 +1,18 @@
 # Weather paragraph above the existing card
 
 The HTML email adds a responsive, rounded teal-blue text panel above the
-unchanged three-column DWD weather card. Its selectable white paragraph is
+three-column DWD weather card. Its selectable dark-text forecast is
 generated deterministically from the same MOSMIX KMZ. No extra service, AI call,
 credential, scheduling change, or email dispatch is needed.
 
 The plain-text weather bullet includes the identical narrative, the original
 daypart measurements and the forecast issue time in the configured timezone.
-The existing numeric card and weather warnings remain in HTML.
+The existing numeric values and weather warnings remain in HTML. Adjacent dayparts
+with the same precipitation/fog forecast share one sentence; unknown periods or
+different conditions break the group. This does not assert continuous rain.
+Temperatures precede a separate wind paragraph, and both email formats retain
+the same facts. The detail card labels R101 as maximum hourly precipitation
+probability within each period, not a rain-only or whole-day probability.
 
 ## Source semantics
 
@@ -67,11 +72,13 @@ and this limitation is visibly labelled in the preview. Production warnings
 are unchanged.
 
 The HTML uses an email presentation table, inline color/padding/font styles and
-a `bgcolor` fallback. The paragraph uses the same compact 14px type and 1.4 line
-height as ordinary briefing text, with 14px/16px padding at every screen width.
-It does not rely on media-query support to avoid oversized mobile text. Scoped
-link styling keeps automatically detected times visually consistent within
-the weather box without changing links elsewhere. Mail clients that do
+a `bgcolor` fallback. The paragraphs use compact 14px normal-weight type and 1.55 line
+height, with 10px paragraph spacing and 14px/16px padding at every screen width.
+Source text is 12px and detail values are 13px (temperatures remain 15px).
+It does not rely on media-query support to avoid oversized mobile text. The light turquoise background and dark text preserve readability even when
+a client inserts its own blue time links. Explicit scoped link colors, including
+Apple data-detector links, avoid inheritance ambiguity without changing links
+elsewhere. No timestamps or source facts are hidden or rewritten. Mail clients that do
 not support border-radius may show square corners. Browser/static render checks
 do not replace a real Apple Mail/Gmail/Outlook inbox test.
 
@@ -87,3 +94,4 @@ Regressions cover source conversion, precipitation timing, conservative missing
 data, nonfinite numbers, unknown codes, fog, nighttime/next-day selection,
 staleness, TX vs hourly maxima, nearest temperature slot, DST, HTML escaping,
 and matching HTML/plain-text weather paragraphs.
+

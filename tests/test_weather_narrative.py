@@ -4,6 +4,7 @@ import email
 from email import policy
 import html
 import io
+import re
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -82,7 +83,8 @@ class WeatherNarrativeTest(unittest.TestCase):
 
     def test_rain_is_singular_and_unknown_codes_do_not_become_showers(self):
         text = overview(forecast(weather_code=[61] * 15))["narrative"]
-        self.assertIn("Vormittags ist Regen vorhergesagt", text)
+        self.assertIn("Für den Vormittag, den Mittag und den Nachmittag ist Regen vorhergesagt", text)
+        self.assertEqual(text.count("ist Regen vorhergesagt"), 1)
         text = overview(forecast(weather_code=[999] * 15))["narrative"]
         self.assertNotIn("Regenschauer", text)
 
@@ -168,7 +170,7 @@ class WeatherNarrativeTest(unittest.TestCase):
         body = "# Daily Cody\n## Today\n- " + weather["summary"] + "\n- Termin"
         output = daily_cody.markdown_to_basic_html(body, weather)
         self.assertIn('role="presentation"', output)
-        self.assertIn('bgcolor="#206887"', output)
+        self.assertIn('bgcolor="#e5f3f3"', output)
         self.assertIn('border-radius:16px', output)
         self.assertIn(html.escape(weather["narrative"]), output)
         self.assertNotIn("<script>", output)
@@ -192,16 +194,17 @@ class WeatherNarrativeTest(unittest.TestCase):
         message = email.message_from_bytes(base64.urlsafe_b64decode(send.call_args.kwargs["body"]["raw"]), policy=policy.default)
         for kind in ("plain", "html"):
             part = message.get_body(preferencelist=(kind,)).get_content()
-            self.assertIn(weather["narrative"], part)
+            visible = html.unescape(re.sub(r"<[^>]+>", " ", part)) if kind == "html" else part
+            self.assertIn(weather["narrative"], " ".join(visible.split()))
             self.assertIn(weather["narrative_source"], part)
         self.assertIn(weather["measurement_summary"], message.get_body(preferencelist=("plain",)).get_content())
 
     def test_weather_overview_matches_compact_briefing_type_without_media_query(self):
         weather = {"narrative": "Für 06:00 Uhr sind 9 Grad vorhergesagt.", "narrative_source": "DWD · 05.10.2026"}
         panel = daily_cody.render_weather_overview(weather)
-        self.assertIn("font-size:14px;line-height:1.4", panel)
+        self.assertIn("font-size:14px;font-weight:400;line-height:1.55", panel)
         self.assertIn("padding:14px 16px", panel)
-        self.assertIn("margin:8px 0 0;font-size:11px", panel)
+        self.assertIn("margin:10px 0 0;font-size:12px", panel)
         self.assertIn("-webkit-text-size-adjust:100%", panel)
         self.assertNotIn("font-size:23px", panel)
         self.assertNotIn("font-size:20px", panel)
@@ -213,10 +216,60 @@ class WeatherNarrativeTest(unittest.TestCase):
         output = daily_cody.markdown_to_basic_html(
             "# Daily Cody\n## Today\n- Weather\n- [Termin](https://example.com/appointment)", weather
         )
-        self.assertIn(".weather-overview a { color:inherit !important; text-decoration:none !important;", output)
+        self.assertIn(".weather-overview a, .weather-overview a[x-apple-data-detectors] { color:#173b42 !important; text-decoration:none !important;", output)
         self.assertNotIn("@media", output)
         self.assertNotIn("font-size:20px !important", output)
         self.assertIn('<a href="https://example.com/appointment" style="color:#1a73e8;text-decoration:none">Termin</a>', output)
+
+    def test_grouping_does_not_cross_unknown_or_different_weather(self):
+        for middle in ([None] * 3, [71] * 3):
+            with self.subTest(middle=middle):
+                data = forecast(weather_code=[61] * 6 + middle + [61] * 4 + [3, 3],
+                                precipitation_probability=[0] * 15)
+                text = overview(data)["narrative"]
+                self.assertIn("Vormittags ist Regen vorhergesagt.", text)
+                self.assertIn("Nachmittags ist Regen vorhergesagt.", text)
+                self.assertNotIn("Für den Vormittag, den Mittag und den Nachmittag", text)
+        text = overview(forecast(weather_code=[61] * 9 + [71] * 4 + [3, 3]))["narrative"]
+        self.assertIn("Für den Vormittag und den Mittag ist Regen vorhergesagt.", text)
+        self.assertIn("Nachmittags ist Schnee vorhergesagt.", text)
+
+    def test_probability_only_periods_keep_hourly_maxima_and_uncertainty(self):
+        text = overview(forecast(weather_code=[None] * 15,
+                                precipitation_probability=[30] * 6 + [52] * 3 + [75] * 6))["narrative"]
+        for label, value in (("Vormittags", 30), ("Mittags", 52), ("Nachmittags", 75)):
+            self.assertIn(f"{label} liegt die stündliche Niederschlagswahrscheinlichkeit bei bis zu {value} Prozent.", text)
+        self.assertNotIn("Regen vorhergesagt", text)
+        self.assertNotIn("trocken", text)
+
+    def test_paragraphs_match_plain_text_and_temperature_precedes_wind(self):
+        result = overview()
+        self.assertEqual(" ".join(result["narrative_paragraphs"]), result["narrative"])
+        self.assertEqual(len(result["narrative_paragraphs"]), 2)
+        self.assertIn("21 Grad", result["narrative_paragraphs"][0])
+        self.assertIn("38 km/h", result["narrative_paragraphs"][1])
+        panel = daily_cody.render_weather_overview(result)
+        self.assertEqual(panel.count('font-size:14px;font-weight:400;line-height:1.55'), 2)
+        for paragraph in result["narrative_paragraphs"]:
+            self.assertIn(html.escape(paragraph), panel)
+
+    def test_inconsistent_or_unsafe_paragraph_metadata_cannot_override_text(self):
+        for paragraphs in (["invented"], "not a list", [None], ["", "real"]):
+            panel = daily_cody.render_weather_overview({"narrative": "real <safe>", "narrative_paragraphs": paragraphs})
+            self.assertIn("real &lt;safe&gt;", panel)
+            self.assertNotIn("invented", panel)
+        panel = daily_cody.render_weather_overview({"narrative": "<script> & value", "narrative_paragraphs": ["<script>", "& value"]})
+        self.assertNotIn("<script>", panel)
+        self.assertIn("&lt;script&gt;", panel)
+
+    def test_quote_stays_above_weather_and_detail_probability_is_labelled(self):
+        weather = {**overview(), "summary": "Weather", "periods": daily_cody.build_weather_periods(forecast(), NOW.date())}
+        output = daily_cody.markdown_to_basic_html('# Daily Cody\n\n„Zitat“\n\n## Today\n- Weather\n- Termin', weather)
+        self.assertLess(output.index("„Zitat“"), output.index('class="weather-overview"'))
+        self.assertIn("höchste stündliche Wahrscheinlichkeit im jeweiligen Zeitraum", output)
+        self.assertIn("Niederschlag 70 %", output)
+        self.assertNotIn("font-size:10px", output)
+        self.assertNotIn("font-size:11px", output)
 
     def test_kmz_optional_fields_and_utc_are_preserved(self):
         xml = '''<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:dwd="https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd"><Document><ExtendedData><dwd:IssueTime>2026-10-02T03:00Z</dwd:IssueTime><dwd:TimeStep>2026-10-02T18:00Z</dwd:TimeStep></ExtendedData><Placemark><name>C720</name><ExtendedData>'''
@@ -233,3 +286,4 @@ class WeatherNarrativeTest(unittest.TestCase):
         self.assertEqual(hourly["cloud_cover"], [80])
         self.assertEqual(hourly["temperature_max_12h"], [21])
         self.assertEqual(hourly["wind_gusts_10m"], [14.4])
+
