@@ -76,7 +76,7 @@ class BriefingPolicyTest(unittest.TestCase):
         with patch.object(daily_cody.follow_up_snapshot, "read_snapshot", return_value=(None, "fehlt")):
             result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Messwerte"}, [], [], [], [], None, {}, [incoming], [], [], [])
         self.assertIn("Gmail live", result)
-        self.assertIn("Der Vertragsentwurf folgt diese Woche", result)
+        self.assertIn("Vertragsentwurf angekündigt; noch keine Zusage", result)
         self.assertIn("Antwort bereits gesendet", result)
 
     def test_private_chat_subscription_and_car_sales_are_not_packages(self):

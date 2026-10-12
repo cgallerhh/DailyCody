@@ -76,3 +76,28 @@ Newsletter unter CATEGORY_UPDATES, Eveline, abgeschlossene Autoanfragen,
 zitierte Fragen, beantwortete Threads, fehlende Monitor-Snapshots und
 ungeklaerte alte Lieferstatus abdecken. Ein gruener Unit-Test ersetzt keine
 Pruefung mit echten Quelldaten. Private Replay-Daten niemals committen.
+
+## Kurze Maildarstellung und erledigte Bestellungen
+
+Mailpunkte enthalten Thema, Absender beziehungsweise Empfaenger, eine kurze
+regelbasierte Zusammenfassung, Handlung, belegte Frist und Mail-Link.
+Keine Rohtextbloecke, Signaturen, zitierten Mailketten oder abgeschnittenen
+420-Zeichen-Auszüge. Die Analyse verwendet den vollstaendigen aktuellen Text;
+eine spaete Verneinung darf nicht durch Kuerzung verloren gehen. Nicht sicher
+auswertbare Fristen werden als in der Mail zu pruefen markiert. Es gibt dafuer
+keinen zusaetzlichen KI-Aufruf und keine neue externe Datenuebertragung.
+
+Zustellung, Bezahlung und Erstattung sind getrennte Ereignisse. Ein kuenftiger
+Versand, eine geplante Abbuchung, Rechnungskorrektur oder veranlasste Erstattung
+beweist keinen Abschluss. Finanzielle Abschluesse werden konservativ nur bei
+eindeutiger Bestellidentitaet und positiver Bestaetigung abgeglichen; eine
+Teil-Erstattung schliesst keine allgemeine Erstattungsaufgabe fuer die Bestellung.
+Die Suche umfasst weiterhin Papierkorb, alle Ergebnisseiten und getrennte Threads.
+
+Explizite Nutzerbestaetigungen liegen in der bestehenden delivery_status.json
+als konkrete Hash-Identitaeten und begrenzter Vergleichszeitraum. Keine pauschale
+Haendler-Sperre und kein globales "alles erledigt" fuer zukuenftige Bestellungen.
+Lieferabschluesse anhand einzelner Mails gelten nur bis zu deren Quellzeitpunkt;
+neue Ersatzsendungen bleiben sichtbar. Tesla, Leasing, Experteer und Reisekosten
+werden von Routinebestell-Abschluessen nicht geschlossen. Fehlende Referenzen
+duerfen nicht durch aehnliche Betreffzeilen oder gleiche Betraege ersetzt werden.

@@ -28,6 +28,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import delivery_detection
+import commerce_reconciliation
+import mail_summary
 import weather_narrative
 import follow_up_snapshot
 import mail_policy
@@ -1832,7 +1834,8 @@ def conversation_state(token: str, thread_id: str, own: set[str], incoming_at: i
 
 
 def list_delivery_mail(
-    token: str, sender_email: str, recipient_email: str, now: dt.datetime
+    token: str, sender_email: str, recipient_email: str, now: dt.datetime,
+    commerce_messages: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     messages = search_delivery_message_refs(token)
     delivery_messages = []
@@ -1861,6 +1864,8 @@ def list_delivery_mail(
                 "labels": message.get("labelIds", []),
             }
         )
+    if commerce_messages is not None:
+        commerce_messages.extend(delivery_messages)
     return delivery_detection.detect_open_deliveries(
         delivery_messages,
         now,
@@ -1939,6 +1944,8 @@ def list_yesterday_open_mail(token: str, now: dt.datetime, recent_mail: list[dic
                 "date": headers.get("date", ""),
                 "snippet": snippet,
                 "suggested_reply": build_simple_reply(headers.get("from", ""), subject),
+                "body": normalized["body"],
+                "source_url": normalized["source_url"],
             }
         )
         if len(output) >= 8:
@@ -1972,8 +1979,6 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
             continue
         if not looks_waiting_for_reply(subject, snippet):
             continue
-        if looks_like_commerce_status(subject, snippet):
-            continue
         sent_at_ms = message["sort_key"]
         own = delivery_detection.delivery_completion_addresses(sender_email, recipient_email)
         state = conversation_state(token, thread_id, own, sent_at_ms)
@@ -1989,6 +1994,9 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
                 "sent_local": sent_at.strftime("%d.%m. %H:%M"),
                 "message_id": item["id"],
                 "snippet": mail_policy.excerpt(snippet, 220),
+                "body": snippet,
+                "thread_id": thread_id,
+                "sort_key": sent_at_ms,
                 "source_url": message["source_url"],
             }
         )
@@ -2297,7 +2305,13 @@ def build_briefing(
     delivery_mail: list[dict[str, Any]],
     open_mail: list[dict[str, str]],
     waiting_for_mail: list[dict[str, str]],
+    commerce_events: list[dict[str, Any]] | None = None,
 ) -> str:
+    commerce_events = commerce_reconciliation.load_confirmations(DELIVERY_STATUS_PATH) + (commerce_events or [])
+    recent_mail = commerce_reconciliation.filter_open(recent_mail, commerce_events)
+    open_mail = commerce_reconciliation.filter_open(open_mail, commerce_events)
+    waiting_for_mail = commerce_reconciliation.filter_open(waiting_for_mail, commerce_events)
+    reminders = commerce_reconciliation.filter_open(reminders, commerce_events)
     recent_mail = [m for m in recent_mail if mail_policy.personal_message(m) and not m.get("closed")]
     open_mail = [m for m in open_mail if mail_policy.personal_message(m) and not m.get("answered")]
     waiting_for_mail = [m for m in waiting_for_mail if not mail_policy.excluded_person(m.get("to", "")) and not mail_policy.closed_reply(m.get("snippet", ""))]
@@ -2327,12 +2341,16 @@ def build_briefing(
     )
     follow_up_lines = follow_up_snapshot.format_items(follow_up, follow_up_warning, now)
     if follow_up:
+        follow_up["items"] = commerce_reconciliation.filter_open(follow_up["items"], commerce_events)
         follow_up["items"] = filter_items_by_action_overrides(follow_up["items"], action_overrides)
         follow_up_lines = follow_up_snapshot.format_items(follow_up, None, now)
     if follow_up is None:
         live_lines = format_live_follow_up(recent_mail, now)
         if live_lines:
-            follow_up_lines = ["- Quelle: Gmail live; die separate Monitor-Uebergabe ist noch nicht verfuegbar.", *live_lines]
+            follow_up_lines.extend([
+                "- Ergänzende Quelle: Gmail live; kein vollständiger Monitorcheck von Mail und Kalendern.",
+                *live_lines,
+            ])
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
@@ -2625,10 +2643,7 @@ def format_live_follow_up(items: list[dict[str, Any]], now: dt.datetime) -> list
         if key in seen:
             continue
         seen.add(key)
-        stamp = dt.datetime.fromtimestamp(item.get("sort_key", int(now.timestamp() * 1000)) / 1000, tz=now.tzinfo)
-        status = "Antwort bereits gesendet" if item.get("answered") else "Rueckmeldung pruefen"
-        source = f" [Mail]({item['source_url']})" if item.get("source_url") else ""
-        lines.append(f"- **{item['subject']}** ({stamp:%d.%m. %H:%M}; {status}): {mail_policy.excerpt(body)}{source}")
+        lines.append(mail_summary.format_item(item, answered=bool(item.get("answered"))))
         if len(lines) == 5:
             break
     return lines
@@ -2858,9 +2873,7 @@ def format_waiting_for_items(items: list[dict[str, str]]) -> list[str]:
                 snippet = f"{snippet} {next_action}".strip()
             lines.append(f"- {item['subject']} — {since}{snippet}".strip())
         else:
-            lines.append(
-                f"- {item['subject']} — an {item['to']}, gesendet {item.get('sent_local') or item.get('date', '')}; {item['snippet']}"
-            )
+            lines.append(mail_summary.format_item(item, waiting=True))
     return lines
 
 
@@ -2979,8 +2992,7 @@ def format_open_mail_items(items: list[dict[str, str]]) -> list[str]:
         return []
     lines = []
     for item in items:
-        link = f" [Mail]({item['source_url']})" if item.get("source_url") else ""
-        lines.append(f"- Antwort offen: {item['subject']} — {item['from']}.{link}")
+        lines.append(mail_summary.format_item(item, reply_open=True))
     return lines
 
 
@@ -3349,7 +3361,8 @@ def main() -> int:
     reminders, reminders_warning = read_exported_reminders(config, now)
     application_wiki = read_application_wiki_snapshot(config)
     recent_mail = list_recent_mail(token)
-    delivery_mail = list_delivery_mail(token, config.sender, config.recipient, now)
+    commerce_messages: list[dict[str, Any]] = []
+    delivery_mail = list_delivery_mail(token, config.sender, config.recipient, now, commerce_messages)
     open_mail = list_yesterday_open_mail(token, now, recent_mail)
     waiting_for_mail = list_waiting_for_mail(token, config.sender, config.recipient, config.timezone)
     briefing = build_briefing(
@@ -3366,6 +3379,7 @@ def main() -> int:
         delivery_mail,
         open_mail,
         waiting_for_mail,
+        commerce_reconciliation.completion_events(commerce_messages),
     )
 
     if config.dry_run:

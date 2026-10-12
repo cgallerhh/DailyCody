@@ -1,8 +1,11 @@
 # Follow-Up-Monitor und Cody
 
-Der bestehende Codex-Monitor laeuft montags bis freitags um 05:00 Uhr in
-Europe/Berlin. Er nutzt weiterhin Gmail, Google Calendar und Outlook im
-bestehenden Chat. Die Cody-Mail folgt gegen 06:00 Uhr.
+Der vorgesehene Codex-Monitor prueft montags bis freitags um 05:00 Uhr in
+Europe/Berlin Gmail, Google Calendar und Outlook. Die Cody-Mail folgt gegen
+06:00 Uhr. Dieser Code richtet weder den Monitor noch seine private Uebergabe
+ein: Ein laufender Produzent und eine ausdruecklich freigegebene Uebergabe sind
+separate Voraussetzungen. Ein erfolgreicher Cody-Versand beweist keinen
+erfolgreichen Monitorlauf.
 
 Ein Cron auf demselben Mac loest weder Schlafzustand noch fehlende
 Connector-Zugriffe. Ein unabhaengiger Serverlauf waere eine eigene Anwendung
@@ -19,14 +22,47 @@ Uebergabe nutzt Cody aktuelle persoenliche Gmail-Rueckmeldungen mit sichtbarem
 Quellenhinweis als Ersatz. Das ist kein erfolgreicher Monitorlauf und enthaelt
 keine Outlook- oder Kalender-Vergleichsergebnisse. Ohne relevante Gmail-Punkte
 bleibt der Datenhinweis sichtbar statt einer falschen Entwarnung.
+Auch mit Gmail-Ergaenzungen bleibt der konkrete Monitorfehler sichtbar
+(fehlend, ungueltig oder veraltet). Gmail-Ergaenzungen sind keine vollstaendige
+Pruefung aller Mail- und Kalenderquellen.
 
 Der Monitor schreibt einen Kandidaten in seinen eigenen Arbeitsordner und
 ruft `scripts/publish_follow_up_snapshot.py` auf. Das Skript prueft Format,
-Quellenabdeckung, Quellenlinks und Zeitstempel. Es aktualisiert das Secret
+Quellenabdeckung, Quellenlinks, Zeitstempel und Faelligkeit nach Europe/Berlin,
+auch wenn der lokale Prozess UTC verwendet. Veraltete Kandidaten werden vor
+jedem Schreibzugriff abgelehnt. Es aktualisiert das Secret
 ueber `gh secret set` mit dem Inhalt auf stdin. Erst nach erfolgreicher
 GitHub-Bestaetigung ersetzt es den lokalen Vergleichsstand atomar.
 Fehler lassen den bisherigen Vergleichsstand bestehen, damit der naechste
 Lauf den Zeitraum erneut prueft.
+Der lokale Kalendervergleichsstand `calendar_state` und zusaetzliche
+Metadaten werden nicht an GitHub uebertragen; lokal bleiben sie erhalten.
+
+## Pruefung und ausdrueckliche Aktivierung
+
+Zuerst einen neuen Kandidaten nach vollstaendiger Quellenpruefung erzeugen.
+Ein alter Snapshot darf weder neu datiert noch als aktuelle Leerpruefung
+ersetzt werden. Mit privaten absoluten Pfaden pruefen, ohne etwas zu speichern
+oder zu veroeffentlichen:
+
+```sh
+python3 scripts/publish_follow_up_snapshot.py --snapshot /private/monitor/state/candidate.json --baseline /private/monitor/state/baseline.json --check-only
+```
+
+Erst nach ausdruecklicher Freigabe der privaten GitHub-Speicherung und des
+Monitorbetriebs den werktaglichen Quellencheck vor der Cody-Mail einrichten
+und denselben Aufruf ohne `--check-only` als letzten erfolgreichen Schritt
+verwenden. Auch ein vollstaendig gepruefter Lauf mit `items: []` braucht eine
+aktuelle Uebergabe. Bei Fehlern den bisherigen Vergleichsstand nicht vorziehen.
+Das Skript verschickt keine E-Mail und startet keinen Actions-Lauf.
+
+Vor der Aktivierung den getesteten Code separat zur Uebernahme freigeben.
+Den ersten freigegebenen Lauf ohne Mailversand pruefen: Workflow-Eingang
+`dry_run=true`, `force_send=true`, `allow_duplicate=false` vor dem normalen
+Tagesversand. Nach bereits erfolgtem Tagesversand beendet der Duplikatschutz
+diesen Aufruf ohne Quellenpruefung; fuer einen solchen Kontrolllauf braucht
+es ausdruecklich `allow_duplicate=true` zusammen mit `dry_run=true`. Der normale
+Mailversand und eine Testmail sind eigene Aktionen, kein Teil dieser Pruefung.
 
 Der lokale Vergleichsstand liegt im Monitor-Arbeitsordner unter
 `state/baseline.json`; der Kandidat unter `state/candidate.json`.

@@ -179,6 +179,8 @@ def delivery_search_queries() -> list[str]:
     broad_safety_net = [
         "newer_than:14d -in:trash -in:spam -category:promotions -category:social subject:bestellbestätigung",
         "newer_than:14d -in:trash -in:spam -category:promotions -category:social subject:versandbestätigung",
+        f'{base} -category:promotions (subject:zugestellt OR subject:geliefert OR subject:"Zahlung eingegangen" OR subject:"Rückerstattung abgeschlossen") (Bestellnummer OR Sendungsnummer OR "order number")',
+        f'{base} -category:promotions (from:info.riverty.com OR from:paypal.com OR from:klarna.com) (Bestellnummer OR "order number")',
     ]
     # Broad body-word searches pulled private conversations and subscription
     # messages into the delivery pipeline. Keep exact senders and subject facts.
@@ -203,8 +205,9 @@ def is_transactional_delivery_source(sender: str, subject: str, snippet: str, te
         return False
     tracking = extract_delivery_tracking_number(subject, text)
     confirmed_order = any(marker in current for marker in ("bestellbestatigung", "order confirmation", "vielen dank fur ihre bestellung", "vielen dank fur deine bestellung"))
-    physical = any(marker in current for marker in ("versand", "paket", "lieferadresse", "lieferung", "sendungsnummer"))
-    return bool(tracking or (confirmed_order and physical))
+    physical = any(marker in current for marker in ("versand", "paket", "lieferadresse", "lieferung", "sendungsnummer", "zugestellt"))
+    completed_order = bool(extract_delivery_order_number(subject, text)) and confirmed_delivery(f"{subject} {text[:1200]}")
+    return bool(tracking or (confirmed_order and physical) or (completed_order and physical))
 
 
 def is_own_delivery_sender(sender: str, sender_email: str, recipient_email: str) -> bool:
@@ -452,28 +455,13 @@ def is_non_delivery_account_notification(haystack: str) -> bool:
 def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
     if confirmed_order_cancellation(subject, snippet, text):
         return "cancelled"
+    if re.search(r"\b(?:nicht|not)\s+(?:erhalten|angekommen|zugestellt|geliefert|delivered)\b", normalize_status_text(subject)):
+        return "unknown"
     subject_status = classify_delivery_status_from_subject(subject)
     if subject_status:
         return subject_status
-    haystack = normalize_status_text(f"{subject} {snippet} {text[:1200]}")
-    if any(
-        marker in haystack
-        for marker in (
-            "ist angekommen",
-            "sendung ist angekommen",
-            "geliefert",
-            "zugestellt",
-            "wurde zugestellt",
-            "ist zugestellt",
-            "zugestellt am",
-            "abgelegt",
-            "abgegeben",
-            "ablageort",
-            "liegt nebenan",
-            "delivered",
-            "has been delivered",
-        )
-    ):
+    haystack = normalize_status_text(f"{subject} {mail_policy.authored_text(snippet)} {mail_policy.authored_text(text)[:1200]}")
+    if confirmed_delivery(haystack):
         return "delivered"
     if any(
         marker in haystack
@@ -526,6 +514,16 @@ def classify_delivery_status(subject: str, snippet: str, text: str) -> str:
     if "tracking" in haystack or "sendung verfolgen" in haystack:
         return "shipped"
     return "unknown"
+
+
+def confirmed_delivery(value: str) -> bool:
+    text = normalize_status_text(value)
+    if re.search(r"\b(?:nicht|noch nicht|not|never)\s+(?:erfolgreich\s+)?(?:zugestellt|geliefert|delivered|angekommen)\b", text):
+        return False
+    return bool(re.search(
+        r"\b(?:wurde\s+(?:erfolgreich\s+)?(?:zugestellt|geliefert|abgelegt|abgegeben)|"
+        r"ist\s+(?:zugestellt|geliefert|angekommen)|zugestellt\s+am|liegt nebenan|liegt am gewünschten ablageort|"
+        r"has been delivered|was delivered)\b", text))
 
 
 def confirmed_order_cancellation(*values: str) -> bool:
@@ -591,7 +589,7 @@ def has_actual_shipment_signal(haystack: str) -> bool:
 
 def classify_delivery_status_from_subject(subject: str) -> str:
     normalized = normalize_status_text(subject)
-    if normalized.startswith(("geliefert", "zugestellt", "delivered")) or "liegt nebenan" in normalized:
+    if re.match(r"^(?:geliefert|zugestellt|delivered)(?:\s*:|\s*$)", subject.strip(), re.I) or confirmed_delivery(normalized):
         return "delivered"
     if normalized.startswith(("in zustellung", "out for delivery", "arriving today")) or (
         "sendung" in normalized and "kommt heute" in normalized

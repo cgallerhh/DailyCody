@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 import mail_policy
 
 
@@ -85,12 +86,23 @@ def validate_snapshot(payload: Any, now: dt.datetime) -> dict[str, Any]:
 
 
 def latest_scheduled_check(now: dt.datetime) -> dt.datetime:
+    now = now.astimezone(ZoneInfo("Europe/Berlin"))
     expected = now.replace(hour=5, minute=0, second=0, microsecond=0)
     if expected > now:
         expected -= dt.timedelta(days=1)
     while expected.weekday() >= 5:
         expected -= dt.timedelta(days=1)
     return expected
+
+
+def freshness_warning(payload: dict[str, Any], now: dt.datetime) -> str | None:
+    checked_until = parse_timestamp(payload["checked_until"]).astimezone(ZoneInfo("Europe/Berlin"))
+    if checked_until < latest_scheduled_check(now) - dt.timedelta(minutes=15):
+        return (
+            f"Follow-Up-Monitor: Stand {checked_until:%d.%m.%Y %H:%M} ist veraltet; "
+            "aktuelle Erkenntnisse fehlen."
+        )
+    return None
 
 
 def read_snapshot(
@@ -104,13 +116,9 @@ def read_snapshot(
         payload = validate_snapshot(json.loads(encoded), now)
     except (OSError, UnicodeDecodeError, ValueError, TypeError) as exc:
         return None, f"Follow-Up-Monitor: Ergebnisse sind nicht nutzbar ({exc})."
-    checked_until = parse_timestamp(payload["checked_until"]).astimezone(now.tzinfo)
-    expected = latest_scheduled_check(now)
-    if checked_until < expected - dt.timedelta(minutes=15):
-        return None, (
-            f"Follow-Up-Monitor: Stand {checked_until:%d.%m.%Y %H:%M} ist veraltet; "
-            "aktuelle Erkenntnisse fehlen."
-        )
+    warning = freshness_warning(payload, now)
+    if warning:
+        return None, warning
     payload["items"] = [
         item for item in payload["items"] if parse_timestamp(item["expires_at"]) > now
     ]
