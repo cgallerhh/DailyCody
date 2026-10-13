@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import daily_cody
 import follow_up_snapshot
 import publish_follow_up_snapshot
 
@@ -49,19 +48,6 @@ class FollowUpSnapshotTest(unittest.TestCase):
 
     def read(self):
         return follow_up_snapshot.read_snapshot(self.now, json.dumps(self.snapshot))
-
-    def test_fresh_complete_snapshot_is_source_backed_and_independent_of_ai_output(self):
-        snapshot, warning = self.read()
-        self.assertIsNone(warning)
-        with patch.object(follow_up_snapshot, "read_snapshot", return_value=(snapshot, warning)):
-            result = daily_cody.build_briefing(
-                SimpleNamespace(openai_api_key=None), self.now, {"summary": "DWD-Wetter"},
-                [], [], [], [], None, {}, [], [], [], [],
-            )
-        self.assertIn("## Follow-up", result)
-        self.assertIn("Eine Antwort ist eingegangen.", result)
-        self.assertIn("[Quelle](https://mail.google.com/", result)
-        self.assertLess(result.index("## Follow-up"), result.index("## Waiting for..."))
 
     def test_missed_weekday_check_is_rejected(self):
         self.snapshot["checked_until"] = "2026-09-28T05:01:00+02:00"
@@ -131,24 +117,6 @@ class FollowUpSnapshotTest(unittest.TestCase):
         ]:
             with self.subTest(now=now):
                 self.assertEqual(follow_up_snapshot.latest_scheduled_check(dt.datetime.fromisoformat(now)), dt.datetime.fromisoformat(expected))
-
-    def test_missing_monitor_with_no_live_points_retains_warning_in_briefing(self):
-        with patch.dict("os.environ", {"FOLLOW_UP_SNAPSHOT_JSON": "", "FOLLOW_UP_SNAPSHOT_PATH": "", "CODY_GENERATION_MODE": "source"}):
-            result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), self.now, {"summary": "Wetter"}, [], [], [], [], None, {}, [], [], [], [])
-        section = result.split("## Follow-up", 1)[1].split("## Waiting", 1)[0]
-        self.assertIn("aktuelle Ergebnisse sind nicht verfügbar", section)
-        self.assertNotIn("Keine aktuell relevanten", section)
-        self.assertNotIn("Geprüft", section)
-
-    def test_live_points_do_not_replace_the_actual_monitor_error(self):
-        incoming = {"from": "Person <person@example.org>", "subject": "Vertragsentwurf", "body": "Der Vertragsentwurf folgt diese Woche.", "answered": True, "sort_key": int(self.now.timestamp() * 1000)}
-        for warning in ("Snapshot fehlt", "Snapshot ist veraltet", "Quellenprüfung unvollständig"):
-            with self.subTest(warning=warning), patch.object(follow_up_snapshot, "read_snapshot", return_value=(None, warning)):
-                result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), self.now, {"summary": "Wetter"}, [], [], [], [], None, {}, [incoming], [], [], [])
-                self.assertIn(warning, result)
-                self.assertIn("Gmail live", result)
-                self.assertIn("kein vollständiger Monitorcheck", result)
-                self.assertIn("Vertragsentwurf angekündigt; noch keine Zusage", result)
 
     def test_rejected_candidate_never_publishes_or_advances_baseline(self):
         for problem in ("stale", "partial", "older"):

@@ -55,17 +55,13 @@ Alle Suchseiten werden gelesen und dedupliziert. Wiederholte Pagination-Token
 oder das Sicherheitslimit fuehren zu einem Fehler, nicht zu falschen Leerlisten.
 Der Suchhorizont betraegt 60 Tage; dauerhaft geloeschte Mails sind nicht lesbar.
 
-## Follow-up
+## Separater Follow-up-Monitor deaktiviert
 
-Ein gueltiger privater Monitor-Snapshot hat Vorrang. Er braucht Zeitstempel,
-vollstaendige Quellenpruefung, Quellenlinks und menschliche Mailabsender.
-Ohne Snapshot zeigt Cody relevante persoenliche Mail-Rueckmeldungen live,
-mit sichtbarer Kennzeichnung "Gmail live". Das ist kein behaupteter
-erfolgreicher Monitorlauf und deckt keine Outlook-Quelle ab.
-
-Quellen werden vor der Ausgabe dedupliziert. Bereits beantwortete Vorgange
-duerfen als Information erscheinen, nicht als erneute Antwortaufgabe.
-Die private GitHub-Uebergabe des separaten Monitors bleibt zustimmungspflichtig.
+Seit dem 13. Oktober 2026 enthaelt Cody keinen separaten Follow-up-Abschnitt,
+keinen Monitor-Fehlhinweis und keinen Snapshot-Abruf mehr. Das gilt auch fuer
+optionale KI-Ausgabe. Die bestehenden persoenlichen Mailpunkte, Waiting-for-
+Eintraege, kurzen Zusammenfassungen und Liefer-/Erstattungsabgleiche bleiben
+unveraendert. Keine neue Monitor- oder Versandautomation einrichten.
 
 ## Pruefung
 
@@ -73,7 +69,7 @@ Die private GitHub-Uebergabe des separaten Monitors bleibt zustimmungspflichtig.
 
 Regressionen muessen insbesondere Papierkorb-Bestellungen, HTML-only Details,
 Newsletter unter CATEGORY_UPDATES, Eveline, abgeschlossene Autoanfragen,
-zitierte Fragen, beantwortete Threads, fehlende Monitor-Snapshots und
+zitierte Fragen, beantwortete Threads, die Ausgabe ohne separaten Monitor-Abschnitt und
 ungeklaerte alte Lieferstatus abdecken. Ein gruener Unit-Test ersetzt keine
 Pruefung mit echten Quelldaten. Private Replay-Daten niemals committen.
 

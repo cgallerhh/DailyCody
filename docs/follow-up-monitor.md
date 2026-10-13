@@ -1,5 +1,10 @@
 # Follow-Up-Monitor und Cody
 
+> Historische Dokumentation: Seit 13. Oktober 2026 ist diese Integration aus
+> Daily Cody entfernt. Cody liest keinen Follow-up-Snapshot mehr und uebergibt
+> das Secret nicht an seinen Workflow-Schritt. Die Monitor-Automation ist pausiert.
+> Die folgenden Werkzeuge und Vertragsregeln sind kein aktiver Betriebsauftrag.
+
 Der vorgesehene Codex-Monitor prueft montags bis freitags um 05:00 Uhr in
 Europe/Berlin Gmail, Google Calendar und Outlook. Die Cody-Mail folgt gegen
 06:00 Uhr. Dieser Code richtet weder den Monitor noch seine private Uebergabe

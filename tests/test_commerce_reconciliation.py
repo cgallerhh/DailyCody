@@ -94,13 +94,10 @@ class CommerceTest(unittest.TestCase):
             event = {"identities": list(c.identities(item)), "states": ["delivered", "paid", "refunded"], "through_ms": T}
             self.assertFalse(c.is_completed(item, [event]))
 
-    def test_manual_confirmation_filters_mail_reminder_and_monitor_during_build(self):
+    def test_manual_confirmation_filters_mail_and_reminder_during_build(self):
         pending = mail("Bitte Rückerstattung prüfen.", **{"from": "Person <person@example.org>"})
         event = {"identities": list(c.identities(pending)), "states": ["refunded"], "through_ms": T}
-        point = {"topic": "Rückerstattung", "sources": [{"kind": "gmail", "id": "fixture-1", "url": "https://mail.google.com/mail/u/0/#all/fixture-1"}]}
-        snapshot = {"checked_until": NOW.isoformat(), "items": [point]}
-        with patch.object(c, "load_confirmations", return_value=[event]), patch.object(daily_cody.follow_up_snapshot, "read_snapshot", return_value=(snapshot, None)):
-            point.update(change="Eine Rückgabe", relevance="Erstattung offen", action="Prüfen")
+        with patch.object(c, "load_confirmations", return_value=[event]):
             reminder = {"title": "Rückerstattung nachfragen", "message_id": "fixture-1", "due": "2026-10-11"}
             result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Wetter"}, [], [], [], [reminder], None, {}, [pending], [], [pending], [])
         self.assertNotIn("Erstattung offen", result)
@@ -163,6 +160,7 @@ class DryRunTest(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             mocks = {name: stack.enter_context(patch.object(daily_cody, name, return_value=value))
                      for name, value in results.items()}
+            render = stack.enter_context(patch.object(daily_cody, "markdown_to_basic_html", wraps=daily_cody.markdown_to_basic_html))
             send = stack.enter_context(patch.object(daily_cody, "send_email"))
             stack.enter_context(patch.object(sys, "argv", ["daily_cody.py"]))
             output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
@@ -170,6 +168,8 @@ class DryRunTest(unittest.TestCase):
             mocks["list_delivery_mail"].assert_called_once()
             mocks["build_briefing"].assert_called_once()
             send.assert_not_called()
+            render.assert_called_once_with("Test briefing", {"summary": "Test"})
+            self.assertIn("Rendered output verified", output.getvalue())
             self.assertIn("Dry run successful", output.getvalue())
             self.assertIn("no email sent", output.getvalue())
 

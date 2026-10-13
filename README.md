@@ -12,23 +12,21 @@ Inspired by the Daily Dover pattern from Business Insider, Cody combines:
 - sent Gmail messages from the last 7 days that look like unanswered questions or requests
 - a short, factual German briefing without invented commentary
 - a morning quote from `data/morning_quotes.json`
-- source-backed findings from the separate 05:00 weekday follow-up monitor
 
 The email has both a plain-text and an HTML part. Its HTML weather card renders the three DWD dayparts from structured measurements, with temperature range, rain probability, wind, source, and any weather warning. An additional teal-blue panel above that existing card gives a short German forecast paragraph from the same DWD source, including supported sky conditions, precipitation timing, wind, a nearby forecast temperature and the daytime maximum. The plain-text part includes the identical paragraph, source timestamp/timezone and the original neutral measurements. See [weather overview semantics and preview instructions](docs/weather-overview.md). Deliveries and other sections remain selectable text with working links, not an image; no weather condition is inferred from unavailable data.
 
 Source mode is the default (`CODY_GENERATION_MODE=source`). Weather, deliveries,
-all due reminders, follow-up and waiting items are rendered deterministically
+all due reminders and waiting items are rendered deterministically
 from source data. Personal-mail sections exclude newsletters, advertising and
 messages from Eveline; completed MeinAuto topics are suppressed. Merchant
 confirmations remain eligible for deliveries, including confirmations in Trash.
 See [the tested briefing rules](docs/briefing-rules.md).
 
-After explicit consent, the follow-up monitor can hand off private results through
-the Actions secret `FOLLOW_UP_SNAPSHOT_JSON`. Cody validates coverage, timestamps
-and human mail sources. Until that bridge is configured, recent substantive Gmail
-replies populate `Follow-up`, explicitly labelled as live Gmail rather than a
-successful full monitor check. Personal findings are never committed to this
-public repository. See [the monitor contract](docs/follow-up-monitor.md).
+The separate follow-up monitor section was retired on 13 October 2026.
+Daily Cody no longer reads or requires a follow-up snapshot. Existing personal
+mail, waiting items, delivery reconciliation and other briefing sections remain
+unchanged. Important Gmail replies are handled by the existing independent
+Gmail check; open tasks remain in TickTick. No replacement monitor is scheduled.
 
 ## How It Runs
 

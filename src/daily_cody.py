@@ -31,7 +31,6 @@ import delivery_detection
 import commerce_reconciliation
 import mail_summary
 import weather_narrative
-import follow_up_snapshot
 import mail_policy
 import mail_text
 
@@ -2333,24 +2332,6 @@ def build_briefing(
     waiting_for_items = merge_waiting_for_items(
         waiting_for_mail + format_waiting_reminders(waiting_reminders) + application_waiting
     )
-    follow_up_path = os.getenv("FOLLOW_UP_SNAPSHOT_PATH")
-    follow_up, follow_up_warning = follow_up_snapshot.read_snapshot(
-        now,
-        encoded=os.getenv("FOLLOW_UP_SNAPSHOT_JSON"),
-        path=Path(follow_up_path) if follow_up_path else None,
-    )
-    follow_up_lines = follow_up_snapshot.format_items(follow_up, follow_up_warning, now)
-    if follow_up:
-        follow_up["items"] = commerce_reconciliation.filter_open(follow_up["items"], commerce_events)
-        follow_up["items"] = filter_items_by_action_overrides(follow_up["items"], action_overrides)
-        follow_up_lines = follow_up_snapshot.format_items(follow_up, None, now)
-    if follow_up is None:
-        live_lines = format_live_follow_up(recent_mail, now)
-        if live_lines:
-            follow_up_lines.extend([
-                "- Ergänzende Quelle: Gmail live; kein vollständiger Monitorcheck von Mail und Kalendern.",
-                *live_lines,
-            ])
     context = {
         "date": format_long_german_date(now),
         "morning_quote": daily_morning_quote(now),
@@ -2368,8 +2349,6 @@ def build_briefing(
         "deliveries": delivery_mail,
         "yesterday_open_mail": open_mail,
         "waiting_for": waiting_for_items,
-        "follow_up": follow_up or {"warning": follow_up_warning},
-        "follow_up_lines": follow_up_lines,
         "application_wiki": compact_application_wiki_context(application_wiki),
     }
     if config.openai_api_key and os.getenv("CODY_GENERATION_MODE", "source").lower() == "ai":
@@ -2439,7 +2418,7 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "Schreibe ein kompaktes deutsches Daily Briefing nach dem Daily-Dover-Muster, aber persönlicher und lesbarer. "
         "Nutze diese Markdown-Struktur: H1-Titel, ein einziges kursives Zitat mit Autor, dann H2-Abschnitte "
         "'Today', 'Today's to-dos', optional 'Reminders' nur wenn Daten vorhanden sind, "
-        "'Follow-up', 'Waiting for...', 'Deliveries' und 'Approaching'. "
+        "'Waiting for...', 'Deliveries' und 'Approaching'. "
         "Der kursive Satz direkt unter dem Titel muss exakt das im Kontext gelieferte morning_quote sein. "
         "Keine Aufgaben, Termine, Wetterdaten oder Erinnerungen in diese Zeile schreiben. "
         "Das Zitat ist keine Affirmation und kein Coaching-Spruch; ändere daran nichts und erfinde keinen Ersatz. "
@@ -2451,8 +2430,6 @@ def build_ai_briefing(config: Config, context: dict[str, Any]) -> str:
         "mit Anstoßzeit und Free-TV-Sender aus free_tv. "
         "Wenn free_tv 'nicht bei ARD/ZDF gefunden' ist, schreibe nicht, dass es im Free-TV läuft. "
         "Today's to-dos ist die Aktionsliste: alle today_todos aus Apple Reminders plus offene Mails vom Vortag. "
-        "Unter Follow-up die geprueften Punkte aus follow_up_lines verwenden, inklusive Pruefzeit und Datenhinweis. "
-        "Diese Punkte stammen aus dem separaten Follow-Up-Monitor; keine weiteren Erkenntnisse erfinden. "
         "Formuliere To-dos knapp, freundlich und konkret; lieber natürlich als pointiert. "
         "Unter Reminders: Apple Erinnerungen aus dem lokalen Export, knapp mit Fälligkeitsdatum; "
         "Reminders ist nur der Ausblick, today_todos dort nicht wiederholen. "
@@ -2553,8 +2530,6 @@ def build_template_briefing(context: dict[str, Any]) -> str:
     if context["reminders"]:
         lines.extend(["", "## Reminders"])
         lines.extend(format_reminder_items(context["reminders"]))
-    if context.get("follow_up_lines"):
-        lines.extend(["", "## Follow-up", *context["follow_up_lines"]])
     lines.extend(["", "## Waiting for..."])
     lines.extend(format_waiting_for_items(context["waiting_for"]))
     lines.extend(["", "## Deliveries"])
@@ -2595,10 +2570,11 @@ def finalize_briefing(
     briefing: str,
     context: dict[str, Any],
 ) -> str:
+    briefing = remove_follow_up_section(briefing)
     today_lines = [f"- {context['weather']['summary']}", *format_data_warning_items(context.get("data_warnings", []))]
     today_lines.extend(format_items(context.get("today_events", []), "Keine Termine fuer heute im Kalender."))
     today_lines.extend(format_world_cup_game_items(context["world_cup_games"]))
-    briefing = replace_list_section(briefing, "Today", {"today"}, today_lines, {"today s to dos", "follow up", "waiting for", "deliveries", "approaching"})
+    briefing = replace_list_section(briefing, "Today", {"today"}, today_lines, {"today s to dos", "waiting for", "deliveries", "approaching"})
     if "upcoming_events" in context:
         briefing = replace_list_section(briefing, "Approaching", {"approaching"}, format_items(context["upcoming_events"], "Keine nahen Termine gefunden."), set())
     briefing = replace_delivery_section(briefing, context["deliveries"])
@@ -2609,7 +2585,7 @@ def finalize_briefing(
         "Today's to-dos",
         {"today s to dos", "today to dos"},
         todo_lines or ["- Keine faelligen Aufgaben oder offenen Rueckfragen gefunden."],
-        {"follow up", "waiting for", "deliveries", "approaching"},
+        {"waiting for", "deliveries", "approaching"},
     )
     briefing = replace_list_section(
         briefing,
@@ -2618,35 +2594,19 @@ def finalize_briefing(
         format_waiting_for_items(context["waiting_for"]),
         {"deliveries", "approaching"},
     )
-    if context.get("follow_up_lines"):
-        briefing = replace_list_section(
-            briefing,
-            "Follow-up",
-            {"follow up", "follow ups"},
-            context["follow_up_lines"],
-            {"waiting for", "deliveries", "approaching"},
-        )
     return normalize_trackinglink_labels(briefing)
 
 
-def format_live_follow_up(items: list[dict[str, Any]], now: dt.datetime) -> list[str]:
+def remove_follow_up_section(briefing: str) -> str:
+    """Keep the retired monitor section out of optional AI output too."""
     lines = []
-    seen = set()
-    for item in items:
-        if item.get("closed") or not mail_policy.personal_message(item):
-            continue
-        body = item.get("body") or item.get("snippet", "")
-        if not mail_policy.meaningful_update(item.get("subject", ""), body):
-            continue
-        topic = re.sub(r"^(?:(?:re|aw|fwd|wg):\s*)+", "", item["subject"], flags=re.I)
-        key = (normalize_search_text(topic), tuple(sorted(mail_policy.addresses(item.get("from", "")))))
-        if key in seen:
-            continue
-        seen.add(key)
-        lines.append(mail_summary.format_item(item, answered=bool(item.get("answered"))))
-        if len(lines) == 5:
-            break
-    return lines
+    skipping = False
+    for line in briefing.splitlines():
+        if re.match(r"^\s*#{1,2}\s+\S", line):
+            skipping = normalize_search_text(line) in {"follow up", "follow ups"}
+        if not skipping:
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def replace_list_section(
@@ -3383,6 +3343,10 @@ def main() -> int:
     )
 
     if config.dry_run:
+        rendered = markdown_to_basic_html(briefing, weather)
+        if re.search(r"(?im)^##[ \t]+follow[- ]ups?[ \t]*$", briefing) or "follow-up-monitor:" in rendered.lower():
+            raise RuntimeError("Retired follow-up section or monitor warning remains in rendered output")
+        print("Rendered output verified: no separate Follow-up section or monitor warning.")
         print(f"Dry run successful: {subject} generated; no email sent.")
         return 0
 

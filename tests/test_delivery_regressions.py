@@ -204,7 +204,7 @@ class BriefingOutputRegressionTest(unittest.TestCase):
             **{"from": "Shop <versandbestaetigung@amazon.de>", "labels": ["CATEGORY_UPDATES"]},
         )
         current = deliveries.detect_open_deliveries([old, cancel, notice], NOW)
-        with patch.object(daily_cody.follow_up_snapshot, "read_snapshot", return_value=(None, "fehlt")), patch.object(
+        with patch.object(
             daily_cody, "load_resolved_topic_overrides", return_value=[],
         ), patch.object(daily_cody, "daily_morning_quote", return_value="Testzitat"), patch.dict(
             "os.environ", {"CODY_GENERATION_MODE": "source"},

@@ -71,13 +71,12 @@ class BriefingPolicyTest(unittest.TestCase):
         result = daily_cody.finalize_briefing("# Daily Cody\n## Today\n- Wetter\n- Offene F\u00e4den bestellen eigene M\u00f6bel.\n## Deliveries\n- Quatsch", context)
         self.assertNotIn("M\u00f6bel", result)
 
-    def test_missing_monitor_snapshot_uses_explicit_live_source(self):
+    def test_answered_update_does_not_recreate_retired_follow_up(self):
         incoming = {"from": "Person <person@example.org>", "subject": "Vertragsentwurf", "body": "Der Vertragsentwurf folgt diese Woche.", "answered": True, "source_url": "https://mail.google.com/mail/u/0/#all/example", "sort_key": int(NOW.timestamp() * 1000)}
-        with patch.object(daily_cody.follow_up_snapshot, "read_snapshot", return_value=(None, "fehlt")):
-            result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Messwerte"}, [], [], [], [], None, {}, [incoming], [], [], [])
-        self.assertIn("Gmail live", result)
-        self.assertIn("Vertragsentwurf angekündigt; noch keine Zusage", result)
-        self.assertIn("Antwort bereits gesendet", result)
+        result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Messwerte"}, [], [], [], [], None, {}, [incoming], [], [], [])
+        self.assertNotIn("Gmail live", result)
+        self.assertNotIn("Vertragsentwurf", result)
+        self.assertNotIn("Follow-up", result)
 
     def test_private_chat_subscription_and_car_sales_are_not_packages(self):
         for sender, subject, body in [
@@ -143,10 +142,9 @@ class BriefingPolicyTest(unittest.TestCase):
         self.assertIn("Antwort offen", lines[0])
         self.assertIn("[Mail]", lines[0])
 
-    def test_resolved_meinauto_does_not_enter_live_follow_up(self):
+    def test_resolved_meinauto_does_not_enter_briefing(self):
         incoming = {"from": "Sales <sales@meinauto.de>", "subject": "MeinAuto Angebot", "body": "Ist das Angebot noch interessant?", "sort_key": int(NOW.timestamp() * 1000)}
-        with patch.object(daily_cody.follow_up_snapshot, "read_snapshot", return_value=(None, "fehlt")):
-            result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Messwerte"}, [], [], [], [], None, {}, [incoming], [], [incoming], [incoming])
+        result = daily_cody.build_briefing(SimpleNamespace(openai_api_key=None), NOW, {"summary": "Messwerte"}, [], [], [], [], None, {}, [incoming], [], [incoming], [incoming])
         self.assertNotIn("MeinAuto", result)
 
     def test_order_confirmation_does_not_survive_its_exact_tracking_delivery(self):
