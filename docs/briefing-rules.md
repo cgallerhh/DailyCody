@@ -55,6 +55,20 @@ Alle Suchseiten werden gelesen und dedupliziert. Wiederholte Pagination-Token
 oder das Sicherheitslimit fuehren zu einem Fehler, nicht zu falschen Leerlisten.
 Der Suchhorizont betraegt 60 Tage; dauerhaft geloeschte Mails sind nicht lesbar.
 
+## Waiting for
+
+Waiting-for-Antworten werden auch ausserhalb des Gmail-Ausgangsthreads anhand
+exakter Message-ID-/In-Reply-To-/References-Beziehungen erkannt. Ohne diese
+Beziehung sind nur belegte konkrete Nachrichtenpaare zulaessig; deren
+Hash-Identitaeten liegen unter `verified_reply_links` in delivery_status.json.
+Gleicher Anbieter oder aehnlicher Betreff genuegt nicht. Die Eingangssuche
+deckt den gesamten Zeitraum der noch betrachteten eigenen Anfragen ab.
+Automatische Eingangsantworten zaehlen auch im selben Thread nicht als
+sachliche Antwort. Eine Antwort bestaetigt keine Zahlung oder Erstattung.
+Explizite Nutzerbestaetigungen fuer geschuetzte Vertragsfaelle gelten nur
+fuer die konkrete Nachrichtenidentitaet und den bestaetigten Zustand mit
+`scope: exact_message`; neue Nachrichten und andere Zustandsfragen bleiben offen.
+
 ## Separater Follow-up-Monitor deaktiviert
 
 Seit dem 13. Oktober 2026 enthaelt Cody keinen separaten Follow-up-Abschnitt,

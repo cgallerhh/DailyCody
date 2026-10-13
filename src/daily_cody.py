@@ -30,6 +30,7 @@ from zoneinfo import ZoneInfo
 import delivery_detection
 import commerce_reconciliation
 import mail_summary
+import waiting_reply
 import weather_narrative
 import mail_policy
 import mail_text
@@ -1821,7 +1822,7 @@ def conversation_state(token: str, thread_id: str, own: set[str], incoming_at: i
         when = int(message.get("internalDate", "0"))
         if mail_policy.addresses(headers.get("from", "")) & own:
             own_messages.append((when, mail_policy.authored_text(extract_message_text(message.get("payload", {})))))
-        elif mail_policy.personal_message({"from": headers.get("from", ""), "headers": headers, "labelIds": message.get("labelIds", [])}):
+        elif waiting_reply.substantive({"from": headers.get("from", ""), "subject": headers.get("subject", ""), "headers": headers, "labelIds": message.get("labelIds", []), "body": extract_message_text(message.get("payload", {}))}):
             external_times.append(when)
     latest_own_at, latest_own_text = max(own_messages, default=(0, ""), key=lambda x: x[0])
     return {
@@ -1987,6 +1988,7 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
         output.append(
             {
                 "source": "gmail_sent",
+                "headers": headers,
                 "to": to_header,
                 "subject": subject,
                 "date": headers.get("date", ""),
@@ -1999,9 +2001,14 @@ def list_waiting_for_mail(token: str, sender_email: str, recipient_email: str, t
                 "source_url": message["source_url"],
             }
         )
-        if len(output) >= 8:
-            break
-    return output
+    if output:
+        # Cover the whole request interval, independently of the two-day inbox view.
+        earliest = min(item["sort_key"] for item in output) // 1000 - 1
+        refs = search_gmail_refs(token, f'after:{earliest} -in:sent -in:drafts -in:spam -in:trash -category:promotions -category:social')
+        replies = [normalized_gmail_message(token, ref["id"]) for ref in refs]
+        links = waiting_reply.load_links(DELIVERY_STATUS_PATH)
+        output = [item for item in output if not waiting_reply.has_reply(item, replies, own, links)]
+    return [{key: value for key, value in item.items() if key != "headers"} for item in output[:8]]
 
 
 def thread_has_later_external_reply(token: str, thread_id: str, sent_at_ms: int, sender_email: str) -> bool:
@@ -3346,7 +3353,16 @@ def main() -> int:
         rendered = markdown_to_basic_html(briefing, weather)
         if re.search(r"(?im)^##[ \t]+follow[- ]ups?[ \t]*$", briefing) or "follow-up-monitor:" in rendered.lower():
             raise RuntimeError("Retired follow-up section or monitor warning remains in rendered output")
-        print("Rendered output verified: no separate Follow-up section or monitor warning.")
+        request_keys = {link["request"] for link in waiting_reply.load_links(DELIVERY_STATUS_PATH)}
+        settled_refund_keys = {
+            identity for event in commerce_reconciliation.load_confirmations(DELIVERY_STATUS_PATH)
+            if event.get("source") == "user_confirmation" and event.get("scope") == "exact_message"
+            and "refunded" in event.get("states", []) for identity in event.get("identities", [])
+        }
+        rendered_ids = re.findall(r"#all/([a-zA-Z0-9]+)", rendered)
+        if any(commerce_reconciliation.fingerprint("message", value) in request_keys | settled_refund_keys for value in rendered_ids):
+            raise RuntimeError("A verified answered request or settled refund remains in rendered output")
+        print("Rendered output verified: no verified answered requests or settled refunds; no separate Follow-up section or monitor warning.")
         print(f"Dry run successful: {subject} generated; no email sent.")
         return 0
 

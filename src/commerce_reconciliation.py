@@ -90,14 +90,20 @@ def is_completed(item: dict[str, Any], events: list[dict[str, Any]]) -> bool:
     if not ids:
         return False
     text = mail_policy.normalized(item_text(item))
-    if re.search(r"\b(tesla|leasing|experteer|reisekosten|arbeitsagentur|bundesagentur)\b", text):
-        return False
+    protected = bool(re.search(r"\b(tesla|leasing|experteer|reisekosten|arbeitsagentur|bundesagentur)\b", text))
     required = "refunded" if re.search(r"erstatt|ruckzahl|retour|rucksend|ruckgabe|refund", text) else (
         "paid" if re.search(r"zahl|bezahlt|rechnung|payment", text) else "delivered")
     when = delivery.message_sort_key(item)
     if not when and item.get("observed_at"):
         when = delivery.message_sort_key({"timestamp": item["observed_at"]})
     for event in events:
+        # Protected cases only accept a deliberate user confirmation for this exact
+        # message, never a merchant/order/thread-wide settlement or a mail promise.
+        if protected and not (
+            event.get("source") == "user_confirmation" and event.get("scope") == "exact_message"
+            and {value for value in ids if value.startswith("commerce-sha256:message:")}.intersection(event.get("identities", []))
+        ):
+            continue
         if required not in event.get("states", []) or not ids.intersection(event.get("identities", [])):
             continue
         # Subsequent disputes/reopened cases must survive old confirmations.

@@ -216,6 +216,28 @@
         "commerce-sha256:tracking:c8bc12a02efc77a027b0de45a47bb055bf6a7b1e70ab09695f0caf154c85c1af",
         "commerce-sha256:tracking:caa060d45e6a65ce7ef5cb26651dfca96955c61e8ff3472f0d00b2ae8267eb14"
       ]
+    },
+    {
+      "source": "user_confirmation",
+      "scope": "exact_message",
+      "confirmed_on": "2026-10-13",
+      "through_ms": 1791869879000,
+      "states": [
+        "refunded"
+      ],
+      "identities": [
+        "commerce-sha256:message:41be016368aca2514e863e61d42a77b2887f1b5aef8c8b3cb68c82b7d51c81bb"
+      ]
+    }
+  ],
+  "verified_reply_links": [
+    {
+      "request": "commerce-sha256:message:46de13f9f4f82ba180bcfe54052519d84b31ea8bb5eb099db1e5fcff150f41e4",
+      "reply": "commerce-sha256:message:6fe868426f88b2c3f8f5afcfa82dd041dd95fef84a9ecfad03475a7137d11733"
+    },
+    {
+      "request": "commerce-sha256:message:bbf5d3cd4e7022e3f521075d6a23c13b58b68cfeaa38810d683d6be8ff0cff88",
+      "reply": "commerce-sha256:message:41be016368aca2514e863e61d42a77b2887f1b5aef8c8b3cb68c82b7d51c81bb"
     }
   ]
 }
