@@ -1,1 +1,21 @@
-[]
+[
+    {
+        "id": "5E6265DC-8F06-4609-ABFD-FA0244D5269C",
+        "name": "Tesla \u00dcberweisung t\u00e4tigen",
+        "list_name": "TickTick",
+        "due_date": "2026-11-17T19:45:00",
+        "remind_me_date": "2026-11-17T19:45:00",
+        "creation_date": "2026-11-17T15:34:07",
+        "modification_date": "2026-11-17T15:34:07",
+        "priority": 0,
+        "priority_label": "none",
+        "flagged": false,
+        "completed": false,
+        "alarms": [
+            {
+                "absolute_date": "2026-11-17T19:45:00",
+                "description": "Tue Nov 17, 2026 at 7:45 PM"
+            }
+        ]
+    }
+]
